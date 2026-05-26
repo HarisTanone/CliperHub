@@ -1,0 +1,90 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+venv311/
+env/
+ENV/
+*.egg-info/
+dist/
+build/
+
+# Environment
+.env
+.env.local
+
+# YouTube Cookies (SENSITIVE - DO NOT COMMIT)
+cookies.txt
+*.cookies
+*.cookie
+
+# Database
+*.sql.backup
+*.db
+
+# Temporary & Output Files
+tmp/
+*.mp4
+*.mp3
+*.wav
+*.srt
+
+# JSON output files (but not source/config JSON)
+tmp/**/*.json
+
+# Models
+models/*.bin
+models/*.pt
+*.pt
+*.caffemodel
+*.prototxt
+src/infrastructure/models/
+
+# Whisper.cpp
+whisper.cpp/
+
+# Fonts (auto-downloaded)
+assets/fonts/
+fonts/
+*.ttf
+*.otf
+
+# IDE
+.vscode/
+.idea/
+.amazonq/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+server.log
+autocliper.log
+nohup.out
+
+# Temp/draft files
+new_api_features.md
+migrate_users.sql
+
+# Deprecated markdown files
+alurbaru.md
+ANALISA_*.md
+DEPLOYMENT_*.md
+FACE_*.md
+FASE_*.md
+IMPLEMENTATION_*.md
+MOUTH_*.md
+PARAMETER_*.md
+QUICK_*.md
+START_*.md
+SYSTEM_*.md
+VISUAL_*.md

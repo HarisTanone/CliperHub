@@ -1,0 +1,134 @@
+# ===========================
+# OS Generated Files
+# ===========================
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# ===========================
+# IDE / Editor
+# ===========================
+.vscode/
+.idea/
+.amazonq/
+.kiro/
+*.swp
+*.swo
+*~
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+
+# ===========================
+# Python (autocliper-v2)
+# ===========================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+venv311/
+env/
+ENV/
+.env
+.env.local
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+
+# ===========================
+# Node.js (autocliper-v2-FE)
+# ===========================
+node_modules/
+dist/
+dist-ssr/
+*.local
+.npm
+.eslintcache
+
+# ===========================
+# Logs
+# ===========================
+*.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+server.log
+autocliper.log
+nohup.out
+
+# ===========================
+# Sensitive / Credentials
+# ===========================
+cookies.txt
+*.cookies
+*.cookie
+.env
+.env.*
+
+# ===========================
+# ML Models & Large Binary Files
+# ===========================
+*.bin
+*.pt
+*.onnx
+*.caffemodel
+*.prototxt
+autocliper-v2/models/
+autocliper-v2/src/infrastructure/models/
+
+# ===========================
+# Media / Output Files
+# ===========================
+*.mp4
+*.mp3
+*.wav
+*.srt
+*.avi
+*.mov
+*.mkv
+tmp/
+
+# ===========================
+# Fonts (auto-downloaded)
+# ===========================
+autocliper-v2/assets/fonts/
+*.ttf
+*.otf
+
+# ===========================
+# Whisper.cpp
+# ===========================
+whisper.cpp/
+
+# ===========================
+# Database backups
+# ===========================
+*.sql.backup
+*.db
+
+# ===========================
+# Misc / Draft files
+# ===========================
+new_api_features.md
+migrate_users.sql
+alurbaru.md
+ANALISA_*.md
+DEPLOYMENT_*.md
+FACE_*.md
+FASE_*.md
+IMPLEMENTATION_*.md
+MOUTH_*.md
+PARAMETER_*.md
+QUICK_*.md
+START_*.md
+SYSTEM_*.md
+VISUAL_*.md
+SUMMARY.txt

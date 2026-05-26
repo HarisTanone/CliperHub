@@ -1,0 +1,10 @@
+# Custom ByteTrack config for stable podcast tracking
+# Optimized for 2-person videos with minimal ID switching
+
+tracker_type: bytetrack
+track_high_thresh: 0.3      # slightly higher → cleaner tracks
+track_low_thresh: 0.05      # lower → recover lost tracks better
+new_track_thresh: 0.6       # much higher → don't create new IDs easily
+track_buffer: 90            # 3 seconds at 30fps → keep lost tracks alive longer
+match_thresh: 0.7           # slightly lower → more lenient matching
+fuse_score: True
