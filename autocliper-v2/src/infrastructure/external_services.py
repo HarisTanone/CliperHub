@@ -533,7 +533,12 @@ class YouTubeDownloader:
         info = None
         
         # Try cookies.txt file first (works on servers without browser)
-        cookies_file = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), 'cookies.txt')
+        # __file__ is src/infrastructure/external_services.py, go up 3 levels to project root
+        _project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        cookies_file = os.path.join(_project_root, 'cookies.txt')
+        # Fallback: also check current working directory
+        if not os.path.exists(cookies_file):
+            cookies_file = os.path.join(os.getcwd(), 'cookies.txt')
         if os.path.exists(cookies_file):
             try:
                 opts = {**test_opts, 'cookiefile': cookies_file}
