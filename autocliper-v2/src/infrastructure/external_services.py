@@ -532,23 +532,38 @@ class YouTubeDownloader:
         cookies_opt = {}
         info = None
         
-        # Try browser cookies
-        for browser in ['chrome', 'safari', 'firefox']:
+        # Try cookies.txt file first (works on servers without browser)
+        cookies_file = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), 'cookies.txt')
+        if os.path.exists(cookies_file):
             try:
-                opts = {**test_opts, 'cookiesfrombrowser': (browser,)}
+                opts = {**test_opts, 'cookiefile': cookies_file}
                 with yt_dlp.YoutubeDL(opts) as ydl:
                     info = ydl.extract_info(url, download=False)
-                    print(f"[Download] ✅ Using {browser} cookies")
-                    cookies_opt = {'cookiesfrombrowser': (browser,)}
-                    break
+                    print(f"[Download] ✅ Using cookies.txt file")
+                    cookies_opt = {'cookiefile': cookies_file}
             except Exception as e:
                 error_msg = str(e)
                 if 'bot' in error_msg.lower() or 'sign in' in error_msg.lower():
-                    print(f"[Cookies] ⚠️ {browser}: Bot detection")
-                continue
+                    print(f"[Cookies] ⚠️ cookies.txt: Bot detection")
+        
+        # Fallback: try browser cookies
+        if info is None:
+            for browser in ['chrome', 'safari', 'firefox']:
+                try:
+                    opts = {**test_opts, 'cookiesfrombrowser': (browser,)}
+                    with yt_dlp.YoutubeDL(opts) as ydl:
+                        info = ydl.extract_info(url, download=False)
+                        print(f"[Download] ✅ Using {browser} cookies")
+                        cookies_opt = {'cookiesfrombrowser': (browser,)}
+                        break
+                except Exception as e:
+                    error_msg = str(e)
+                    if 'bot' in error_msg.lower() or 'sign in' in error_msg.lower():
+                        print(f"[Cookies] ⚠️ {browser}: Bot detection")
+                    continue
         
         if info is None:
-            raise Exception("YouTube bot detection. Login ke YouTube di Chrome dan tonton video ini.")
+            raise Exception("YouTube bot detection. Upload cookies.txt atau login ke YouTube di Chrome.")
         
         title = info.get('title', 'Unknown')
         sanitized_title = self._sanitize_title(title)
