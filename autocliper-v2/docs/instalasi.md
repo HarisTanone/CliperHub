@@ -320,4 +320,247 @@ python3 main.py
 
 ---
 
+## Deployment ke Server (Production)
+
+Panduan deploy CliperHub ke server Ubuntu/Debian.
+
+### Prasyarat Server
+
+| Software | Versi | Cara Install |
+|----------|-------|--------------|
+| Python | 3.9+ | `sudo apt install python3 python3-venv python3-pip` |
+| MySQL | 8.0+ | `sudo apt install mysql-server` |
+| FFmpeg | 4.0+ | `sudo apt install ffmpeg` |
+| Node.js | 18+ | `sudo apt install nodejs npm` |
+| Deno | 2.0+ | `curl -fsSL https://deno.land/install.sh \| sh` |
+| CMake | 3.10+ | `sudo apt install cmake` |
+| Git | 2.0+ | `sudo apt install git` |
+
+### 1. Clone Repository
+
+```bash
+cd ~/project
+git clone https://github.com/HarisTanone/CliperHub.git
+cd CliperHub
+```
+
+### 2. Setup Backend
+
+```bash
+cd autocliper-v2
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+pip install bcrypt python-jose[cryptography]
+```
+
+### 3. Setup Whisper.cpp
+
+```bash
+git clone https://github.com/ggerganov/whisper.cpp.git
+cd whisper.cpp
+cmake -B build
+cmake --build build --config Release -j$(nproc)
+./models/download-ggml-model.sh medium
+cd ..
+mkdir -p models
+ln -s ../whisper.cpp/models/ggml-medium.bin models/ggml-medium.bin
+```
+
+### 4. Install Deno (untuk yt-dlp EJS solver)
+
+```bash
+curl -fsSL https://deno.land/install.sh | sh
+export PATH="$HOME/.deno/bin:$PATH"
+# Tambahkan ke ~/.bashrc agar permanen
+echo 'export PATH="$HOME/.deno/bin:$PATH"' >> ~/.bashrc
+```
+
+### 5. Setup Database
+
+```bash
+mysql -u root -p -e "CREATE DATABASE autocliper CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+mysql -u root -p autocliper < database/init.sql
+```
+
+### 6. Konfigurasi Environment
+
+```bash
+cp .env.example .env
+nano .env
+```
+
+Isi konfigurasi:
+```env
+DATABASE_URL=mysql+aiomysql://user:password@localhost:3306/autocliper
+JWT_SECRET_KEY=<generate dengan: python -c "import secrets; print(secrets.token_urlsafe(64))">
+JWT_REFRESH_SECRET_KEY=<generate lagi>
+GEMINI_API_KEY=your_gemini_api_key
+YOUTUBE_API_KEY=your_youtube_api_key
+WHISPER_MODEL_PATH=./models/ggml-medium.bin
+OUTPUT_DIR=./tmp/output
+```
+
+### 7. Upload Cookies YouTube
+
+Export cookies dari Chrome dengan extension "Get cookies.txt LOCALLY", lalu upload:
+
+```bash
+scp ~/Downloads/cookies.txt user@server:~/project/CliperHub/autocliper-v2/cookies.txt
+```
+
+### 8. Setup Frontend
+
+```bash
+cd ~/project/CliperHub/autocliper-v2-FE
+
+# Update API URL ke IP server
+sed -i "s|http://localhost:8000|http://YOUR_SERVER_IP:8000|g" src/utils/api.js
+
+npm install
+npm run build
+```
+
+### 9. Setup Systemd Services (Auto-start)
+
+**Backend Service:**
+
+```bash
+sudo tee /etc/systemd/system/cliperhub-backend.service << 'EOF'
+[Unit]
+Description=CliperHub Backend API
+After=network.target mysql.service
+
+[Service]
+Type=simple
+User=backend
+WorkingDirectory=/home/backend/project/CliperHub/autocliper-v2
+Environment=PATH=/home/backend/.deno/bin:/home/backend/project/CliperHub/autocliper-v2/venv/bin:/usr/bin
+ExecStart=/home/backend/project/CliperHub/autocliper-v2/venv/bin/python main.py
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+EOF
+```
+
+**Frontend Service:**
+
+```bash
+sudo tee /etc/systemd/system/cliperhub-frontend.service << 'EOF'
+[Unit]
+Description=CliperHub Frontend
+After=network.target
+
+[Service]
+Type=simple
+User=backend
+WorkingDirectory=/home/backend/project/CliperHub/autocliper-v2-FE
+ExecStart=/usr/bin/python3 -m http.server 5173 --directory dist --bind 0.0.0.0
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+EOF
+```
+
+**Enable dan Start:**
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable cliperhub-backend cliperhub-frontend
+sudo systemctl start cliperhub-backend cliperhub-frontend
+```
+
+### 10. Verifikasi
+
+```bash
+sudo systemctl status cliperhub-backend
+sudo systemctl status cliperhub-frontend
+curl http://localhost:8000/health
+```
+
+### Command Berguna
+
+| Aksi | Command |
+|------|---------|
+| Lihat log backend | `journalctl -u cliperhub-backend -f` |
+| Lihat log frontend | `journalctl -u cliperhub-frontend -f` |
+| Restart backend | `sudo systemctl restart cliperhub-backend` |
+| Restart frontend | `sudo systemctl restart cliperhub-frontend` |
+| Stop semua | `sudo systemctl stop cliperhub-backend cliperhub-frontend` |
+| Cek status | `sudo systemctl status cliperhub-backend cliperhub-frontend` |
+
+### Akses Aplikasi
+
+- **Frontend:** `http://YOUR_SERVER_IP:5173`
+- **Backend API:** `http://YOUR_SERVER_IP:8000`
+- **Swagger docs:** `http://YOUR_SERVER_IP:8000/docs`
+
+### Setup Nginx (Opsional - untuk domain/HTTPS)
+
+```bash
+sudo apt install nginx
+
+sudo tee /etc/nginx/sites-available/cliperhub << 'EOF'
+server {
+    listen 80;
+    server_name your-domain.com;
+
+    # Frontend
+    location / {
+        proxy_pass http://127.0.0.1:5173;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+
+    # Backend API
+    location /api/ {
+        proxy_pass http://127.0.0.1:8000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_read_timeout 300s;
+    }
+
+    # WebSocket
+    location /ws/ {
+        proxy_pass http://127.0.0.1:8000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+    }
+
+    # Swagger docs
+    location /docs {
+        proxy_pass http://127.0.0.1:8000;
+    }
+
+    location /openapi.json {
+        proxy_pass http://127.0.0.1:8000;
+    }
+}
+EOF
+
+sudo ln -sf /etc/nginx/sites-available/cliperhub /etc/nginx/sites-enabled/
+sudo nginx -t
+sudo systemctl restart nginx
+```
+
+### Install Redis (Opsional - untuk persistent queue)
+
+```bash
+sudo apt install redis-server
+sudo systemctl enable redis-server
+sudo systemctl start redis-server
+```
+
+Tambahkan ke `.env`:
+```env
+REDIS_URL=redis://localhost:6379/0
+```
+
+---
+
 ↩️ [Kembali ke README](../README.md)

@@ -582,9 +582,18 @@ class YouTubeDownloader:
         output_template = os.path.join(video_output_dir, 'original.%(ext)s')
         
         # Format fallback chain: try progressively simpler formats
+        # IMPORTANT: Explicitly request H.264 (avc1) codec, NOT AV1
+        # AV1 causes issues with OpenCV/MoviePy which can't decode it properly
         format_attempts = [
+            # Priority 1: H.264 codec explicitly (avc1), max 1080p
+            'bestvideo[vcodec^=avc1][height<=1080]+bestaudio[ext=m4a]/bestvideo[vcodec^=avc1]+bestaudio[ext=m4a]',
+            # Priority 2: Any MP4 with H.264 codec
+            'bestvideo[ext=mp4][vcodec^=avc1][height<=1080]+bestaudio[ext=m4a]',
+            # Priority 3: VP9 codec (also widely supported)
+            'bestvideo[vcodec^=vp9][height<=1080]+bestaudio[ext=webm]/bestvideo[vcodec^=vp9]+bestaudio',
+            # Priority 4: Any MP4 format (may include AV1, but will be re-encoded by postprocessor)
             'bestvideo[ext=mp4][height<=1080]+bestaudio[ext=m4a]/bestvideo[ext=mp4]+bestaudio[ext=m4a]',
-            'bestvideo[height<=1080]+bestaudio/bestvideo+bestaudio',
+            # Fallback: best available
             'best[ext=mp4]/best',
         ]
 
@@ -642,6 +651,10 @@ class YouTubeDownloader:
                     final_path = os.path.join(video_output_dir, f)
                     break
         
+        # Check if video codec is AV1 and re-encode to H.264 if needed
+        # AV1 is not well supported by OpenCV/MoviePy
+        final_path = self._ensure_h264_codec(final_path, video_output_dir)
+        
         return VideoInfo(
             title=title,
             duration=info.get('duration', 0),
@@ -649,6 +662,83 @@ class YouTubeDownloader:
             video_id=video_id,
             sanitized_title=sanitized_title
         )
+    
+    def _ensure_h264_codec(self, video_path: str, output_dir: str) -> str:
+        """Check if video is AV1 codec and re-encode to H.264 if needed.
+        
+        AV1 codec is not well supported by OpenCV/MoviePy, causing decode errors.
+        This method detects AV1 and re-encodes to H.264 for compatibility.
+        
+        Args:
+            video_path: Path to the video file
+            output_dir: Directory to save the re-encoded video
+            
+        Returns:
+            Path to the video file (original if H.264, or re-encoded if was AV1)
+        """
+        import subprocess
+        
+        if not os.path.exists(video_path):
+            return video_path
+        
+        # Check video codec using ffprobe
+        try:
+            result = subprocess.run(
+                ['ffprobe', '-v', 'error', '-select_streams', 'v:0', 
+                 '-show_entries', 'stream=codec_name', '-of', 'csv=p=0', video_path],
+                capture_output=True, text=True, timeout=30
+            )
+            codec = result.stdout.strip().lower()
+            print(f"[Download] Video codec detected: {codec}")
+            
+            # If codec is H.264 (avc1/h264) or VP9, no need to re-encode
+            if codec in ['h264', 'avc1', 'vp9', 'vp8']:
+                print(f"[Download] ✅ Codec {codec} is compatible, no re-encoding needed")
+                return video_path
+            
+            # If codec is AV1, re-encode to H.264
+            if 'av1' in codec or 'av01' in codec:
+                print(f"[Download] ⚠️ AV1 codec detected, re-encoding to H.264 for compatibility...")
+                
+                h264_path = os.path.join(output_dir, 'original_h264.mp4')
+                
+                # Re-encode with FFmpeg to H.264
+                # Use -c:v libx264 with good quality preset
+                cmd = [
+                    'ffmpeg', '-y', '-i', video_path,
+                    '-c:v', 'libx264', '-preset', 'fast', '-crf', '18',
+                    '-c:a', 'aac', '-b:a', '192k',
+                    '-movflags', '+faststart',
+                    h264_path
+                ]
+                
+                print(f"[Download] Running: {' '.join(cmd)}")
+                result = subprocess.run(cmd, capture_output=True, text=True, timeout=1800)  # 30 min timeout
+                
+                if result.returncode == 0 and os.path.exists(h264_path) and os.path.getsize(h264_path) > 0:
+                    # Remove original AV1 file and rename H.264 to original
+                    os.remove(video_path)
+                    final_path = os.path.join(output_dir, 'original.mp4')
+                    os.rename(h264_path, final_path)
+                    print(f"[Download] ✅ Re-encoded to H.264 successfully: {final_path}")
+                    return final_path
+                else:
+                    print(f"[Download] ❌ Re-encoding failed: {result.stderr}")
+                    # Keep original file if re-encoding fails
+                    if os.path.exists(h264_path):
+                        os.remove(h264_path)
+                    return video_path
+            
+            # Unknown codec, try to use as-is
+            print(f"[Download] Unknown codec {codec}, using as-is")
+            return video_path
+            
+        except subprocess.TimeoutExpired:
+            print(f"[Download] ⚠️ Codec detection timeout, using video as-is")
+            return video_path
+        except Exception as e:
+            print(f"[Download] ⚠️ Error checking codec: {e}, using video as-is")
+            return video_path
     
     def get_video_metadata(self, url: str) -> Dict[str, Any]:
         """Get video metadata without downloading"""
