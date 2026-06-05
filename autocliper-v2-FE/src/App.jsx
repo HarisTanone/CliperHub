@@ -12,6 +12,8 @@ import SettingsPage from './pages/SettingsPage'
 import QueuePage from './pages/QueuePage'
 import AnalyticsPage from './pages/AnalyticsPage'
 import StyleApplyPage from './pages/StyleApplyPage'
+import TikTokPage from './pages/TikTokPage'
+import AccountsPage from './pages/AccountsPage'
 import HealthBadge from './components/HealthBadge'
 import ThemeToggle from './components/ThemeToggle'
 import { PageTransition } from './components/PageTransition'
@@ -29,6 +31,7 @@ const navItems = [
     { key: 'create', icon: 'add_circle', label: 'Create' },
     { key: 'queue', icon: 'queue', label: 'Queue' },
     { key: 'library', icon: 'video_library', label: 'Library' },
+    { key: 'accounts', icon: 'group', label: 'Account List' },
     { key: 'analytics', icon: 'analytics', label: 'Analytics' },
     { key: 'styles', icon: 'palette', label: 'Styles' },
     { key: 'users', icon: 'group', label: 'Users', adminOnly: true },
@@ -40,6 +43,7 @@ const pageTitles = {
     create: 'Create Clip',
     queue: 'Queue & Progress',
     library: 'Library',
+    accounts: 'Account List',
     analytics: 'Analytics',
     styles: 'Styles',
     users: 'Users',
@@ -51,25 +55,32 @@ const pageTitles = {
 function SearchBar({ onNavigate }) {
     const [open, setOpen] = useState(false)
     const [query, setQuery] = useState('')
+    const [selectedIndex, setSelectedIndex] = useState(0)
     const inputRef = useRef(null)
 
     const searchItems = [
-        { key: 'dashboard', icon: 'space_dashboard', label: 'Dashboard', keywords: 'home overview stats' },
-        { key: 'create', icon: 'add_circle', label: 'Create New Clip', keywords: 'new video youtube url process' },
-        { key: 'queue', icon: 'queue', label: 'Queue & Progress', keywords: 'processing pending jobs active' },
-        { key: 'library', icon: 'video_library', label: 'Library / History', keywords: 'history output download clips completed' },
-        { key: 'analytics', icon: 'analytics', label: 'Analytics', keywords: 'stats performance score engagement' },
-        { key: 'styles', icon: 'palette', label: 'Styles & Fonts', keywords: 'caption hook font color theme design' },
-        { key: 'users', icon: 'group', label: 'User Management', keywords: 'admin users accounts roles' },
-        { key: 'settings', icon: 'settings', label: 'Settings', keywords: 'config profile password pipeline storage' },
+        { key: 'dashboard', icon: 'space_dashboard', label: 'Dashboard', desc: 'Overview & statistics', gradient: 'from-blue-500 to-cyan-500' },
+        { key: 'create', icon: 'add_circle', label: 'Create New Clip', desc: 'Process YouTube video', gradient: 'from-green-500 to-emerald-500', keywords: 'new video youtube url process' },
+        { key: 'queue', icon: 'queue', label: 'Queue & Progress', desc: 'View active jobs', gradient: 'from-amber-500 to-orange-500', keywords: 'processing pending jobs active' },
+        { key: 'library', icon: 'video_library', label: 'Library / History', desc: 'Browse completed clips', gradient: 'from-violet-500 to-purple-500', keywords: 'history output download clips completed' },
+        { key: 'accounts', icon: 'group', label: 'Account List', desc: 'Manage social accounts', gradient: 'from-pink-500 to-rose-500', keywords: 'tiktok youtube facebook instagram x upload post schedule accounts social' },
+        { key: 'analytics', icon: 'analytics', label: 'Analytics', desc: 'Performance insights', gradient: 'from-indigo-500 to-blue-500', keywords: 'stats performance score engagement' },
+        { key: 'styles', icon: 'palette', label: 'Styles & Fonts', desc: 'Customize captions', gradient: 'from-fuchsia-500 to-pink-500', keywords: 'caption hook font color theme design' },
+        { key: 'users', icon: 'manage_accounts', label: 'User Management', desc: 'Admin controls', gradient: 'from-slate-500 to-gray-600', keywords: 'admin users accounts roles' },
+        { key: 'settings', icon: 'settings', label: 'Settings', desc: 'App configuration', gradient: 'from-gray-500 to-slate-600', keywords: 'config profile password pipeline storage' },
     ]
 
     const filtered = query.trim()
         ? searchItems.filter(item =>
             item.label.toLowerCase().includes(query.toLowerCase()) ||
-            item.keywords.includes(query.toLowerCase())
+            item.desc.toLowerCase().includes(query.toLowerCase()) ||
+            (item.keywords && item.keywords.includes(query.toLowerCase()))
         )
         : searchItems
+
+    useEffect(() => {
+        setSelectedIndex(0)
+    }, [query])
 
     useEffect(() => {
         const handler = (e) => {
@@ -87,6 +98,21 @@ function SearchBar({ onNavigate }) {
         if (open && inputRef.current) inputRef.current.focus()
     }, [open])
 
+    const handleKeyDown = (e) => {
+        if (e.key === 'ArrowDown') {
+            e.preventDefault()
+            setSelectedIndex(i => (i + 1) % filtered.length)
+        } else if (e.key === 'ArrowUp') {
+            e.preventDefault()
+            setSelectedIndex(i => (i - 1 + filtered.length) % filtered.length)
+        } else if (e.key === 'Enter' && filtered.length > 0) {
+            e.preventDefault()
+            onNavigate(filtered[selectedIndex].key)
+            setOpen(false)
+            setQuery('')
+        }
+    }
+
     return (
         <>
             <button onClick={() => setOpen(true)}
@@ -102,31 +128,87 @@ function SearchBar({ onNavigate }) {
             <AnimatePresence>
                 {open && (
                     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                        className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-start justify-center pt-[15vh]"
+                        className="fixed inset-0 bg-black/50 backdrop-blur-md z-50 flex items-start justify-center pt-[12vh]"
                         onClick={() => setOpen(false)}>
-                        <motion.div initial={{ opacity: 0, scale: 0.95, y: -10 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: -10 }}
-                            transition={{ duration: 0.15 }}
-                            className="w-full max-w-md bg-white dark:bg-[#152230] border border-slate-200 dark:border-[#233648] rounded-2xl shadow-2xl overflow-hidden"
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.95, y: -20 }}
+                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.95, y: -20 }}
+                            transition={{ type: 'spring', damping: 25, stiffness: 350 }}
+                            className="w-full max-w-lg bg-white dark:bg-[#0f1a24] border border-slate-200/80 dark:border-[#1e3a50] rounded-2xl shadow-2xl overflow-hidden"
                             onClick={e => e.stopPropagation()}>
-                            <div className="flex items-center gap-3 px-4 py-3 border-b border-slate-100 dark:border-[#233648]">
-                                <span className="material-symbols-outlined text-[20px] text-slate-400">search</span>
-                                <input ref={inputRef} value={query} onChange={e => setQuery(e.target.value)}
-                                    placeholder="Search pages, actions..."
-                                    className="flex-1 bg-transparent text-sm text-slate-900 dark:text-white placeholder-slate-400 outline-none" />
-                                <kbd className="text-[10px] font-mono bg-slate-100 dark:bg-[#1e2e40] px-1.5 py-0.5 rounded text-slate-400">ESC</kbd>
+
+                            {/* Search Input */}
+                            <div className="p-4 border-b border-slate-100 dark:border-[#1e3a50]">
+                                <div className="flex items-center gap-3 px-4 py-3 bg-slate-50 dark:bg-[#152230] rounded-xl border border-slate-200 dark:border-[#233648] focus-within:border-primary/50 focus-within:ring-2 focus-within:ring-primary/20 transition-all">
+                                    <span className="material-symbols-outlined text-[20px] text-primary">search</span>
+                                    <input
+                                        ref={inputRef}
+                                        value={query}
+                                        onChange={e => setQuery(e.target.value)}
+                                        onKeyDown={handleKeyDown}
+                                        placeholder="Search pages, actions..."
+                                        className="flex-1 bg-transparent text-sm text-slate-900 dark:text-white placeholder-slate-400 outline-none"
+                                    />
+                                    <kbd className="text-[10px] font-mono bg-white dark:bg-[#1e2e40] px-2 py-1 rounded-md text-slate-400 border border-slate-200 dark:border-[#324d67] shadow-sm">ESC</kbd>
+                                </div>
                             </div>
-                            <div className="max-h-64 overflow-y-auto p-2">
-                                {filtered.map(item => (
-                                    <button key={item.key}
-                                        onClick={() => { onNavigate(item.key); setOpen(false); setQuery('') }}
-                                        className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left hover:bg-slate-100 dark:hover:bg-[#1e2e40] transition-colors">
-                                        <span className="material-symbols-outlined text-[18px] text-slate-400">{item.icon}</span>
-                                        <span className="text-sm font-medium text-slate-700 dark:text-slate-200">{item.label}</span>
-                                    </button>
-                                ))}
+
+                            {/* Results */}
+                            <div className="max-h-[360px] overflow-y-auto p-3">
+                                <div className="space-y-1">
+                                    {filtered.map((item, index) => (
+                                        <motion.button
+                                            key={item.key}
+                                            initial={{ opacity: 0, x: -10 }}
+                                            animate={{ opacity: 1, x: 0 }}
+                                            transition={{ delay: index * 0.03 }}
+                                            onClick={() => { onNavigate(item.key); setOpen(false); setQuery('') }}
+                                            onMouseEnter={() => setSelectedIndex(index)}
+                                            className={`w-full flex items-center gap-4 px-4 py-3 rounded-xl text-left transition-all group ${selectedIndex === index
+                                                    ? 'bg-gradient-to-r from-primary/10 to-accent/10 border border-primary/20'
+                                                    : 'hover:bg-slate-50 dark:hover:bg-[#152230] border border-transparent'
+                                                }`}>
+                                            <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${item.gradient} flex items-center justify-center shadow-lg group-hover:shadow-xl group-hover:scale-105 transition-all`}>
+                                                <span className="material-symbols-outlined text-[20px] text-white">{item.icon}</span>
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <p className={`text-sm font-semibold ${selectedIndex === index ? 'text-primary' : 'text-slate-800 dark:text-slate-100'}`}>
+                                                    {item.label}
+                                                </p>
+                                                <p className="text-xs text-slate-500 dark:text-slate-400 truncate">{item.desc}</p>
+                                            </div>
+                                            <span className={`material-symbols-outlined text-[18px] transition-all ${selectedIndex === index
+                                                    ? 'text-primary opacity-100 translate-x-0'
+                                                    : 'text-slate-300 dark:text-slate-600 opacity-0 -translate-x-2 group-hover:opacity-100 group-hover:translate-x-0'
+                                                }`}>
+                                                arrow_forward
+                                            </span>
+                                        </motion.button>
+                                    ))}
+                                </div>
                                 {filtered.length === 0 && (
-                                    <p className="text-center text-xs text-slate-400 py-6">No results for "{query}"</p>
+                                    <div className="text-center py-10">
+                                        <span className="material-symbols-outlined text-4xl text-slate-300 dark:text-slate-600 mb-2">search_off</span>
+                                        <p className="text-sm text-slate-400">No results for "{query}"</p>
+                                    </div>
                                 )}
+                            </div>
+
+                            {/* Footer hints */}
+                            <div className="px-4 py-3 border-t border-slate-100 dark:border-[#1e3a50] bg-slate-50/50 dark:bg-[#0a1218] flex items-center justify-between">
+                                <div className="flex items-center gap-4 text-[10px] text-slate-400">
+                                    <span className="flex items-center gap-1">
+                                        <kbd className="px-1.5 py-0.5 bg-white dark:bg-[#1e2e40] rounded border border-slate-200 dark:border-[#324d67] font-mono">↑</kbd>
+                                        <kbd className="px-1.5 py-0.5 bg-white dark:bg-[#1e2e40] rounded border border-slate-200 dark:border-[#324d67] font-mono">↓</kbd>
+                                        <span className="ml-1">Navigate</span>
+                                    </span>
+                                    <span className="flex items-center gap-1">
+                                        <kbd className="px-1.5 py-0.5 bg-white dark:bg-[#1e2e40] rounded border border-slate-200 dark:border-[#324d67] font-mono">↵</kbd>
+                                        <span className="ml-1">Select</span>
+                                    </span>
+                                </div>
+                                <span className="text-[10px] text-slate-400">{filtered.length} result{filtered.length !== 1 ? 's' : ''}</span>
                             </div>
                         </motion.div>
                     </motion.div>
@@ -316,7 +398,7 @@ function App() {
         localStorage.removeItem('role')
         localStorage.removeItem('last_page')
         setIsAuthenticated(false)
-        toast('Logged out', { icon: '\u{1F44B}' })
+        toast('Logged out', { icon: <span className="material-symbols-rounded text-lg">waving_hand</span> })
     }
 
     const navigateTo = (p) => { setPage(p); localStorage.setItem('last_page', p) }
@@ -363,6 +445,7 @@ function App() {
                 {page === 'create' && <CreatePage onJobStarted={handleJobStarted} />}
                 {page === 'queue' && <QueuePage />}
                 {page === 'library' && <LibraryPage onViewProgress={handleViewProgress} onApplyStyle={handleApplyStyle} />}
+                {page === 'accounts' && <AccountsPage />}
                 {page === 'analytics' && <AnalyticsPage />}
                 {page === 'styles' && <StylesPage />}
                 {page === 'users' && <UsersPage />}

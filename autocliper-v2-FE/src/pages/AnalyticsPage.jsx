@@ -87,7 +87,7 @@ function UsageChart({ data }) {
                     />
                     {/* Tooltip */}
                     <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-slate-900 text-white text-[9px] px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-10">
-                        {day.date.slice(5)}: {day.jobs} jobs, {day.clips} clips
+                        {day.date.slice(5)}: {day.jobs} jobs ({day.completed} done, {day.failed} failed)
                     </div>
                 </div>
             ))}
@@ -98,17 +98,21 @@ function UsageChart({ data }) {
 function AnalyticsPage() {
     const [overview, setOverview] = useState(null)
     const [usage, setUsage] = useState(null)
+    const [clips, setClips] = useState([])
     const [period, setPeriod] = useState('7d')
     const [loading, setLoading] = useState(true)
 
     useEffect(() => {
         setLoading(true)
+        const days = parseInt(period) || 7
         Promise.all([
             api.getAnalyticsOverview(),
             api.getUsageStats(period),
-        ]).then(([ov, us]) => {
+            api.getClipsAnalytics(days),
+        ]).then(([ov, us, cl]) => {
             if (!ov.detail) setOverview(ov)
             if (!us.detail) setUsage(us)
+            if (!cl.detail && cl.clips) setClips(cl.clips)
         }).catch(() => { }).finally(() => setLoading(false))
     }, [period])
 
@@ -120,8 +124,31 @@ function AnalyticsPage() {
         )
     }
 
-    const summary = overview?.summary || {}
-    const trends = overview?.trends || {}
+    // Build summary from overview response
+    const summary = {
+        total_jobs: overview?.total_videos_processed || 0,
+        total_clips: overview?.total_clips_generated || 0,
+        avg_score: clips.length > 0
+            ? clips.reduce((sum, c) => sum + (c.score || 0), 0) / clips.length
+            : 0,
+        success_rate: overview?.total_videos_processed > 0 ? 100 : 0,
+        total_failed: 0,
+    }
+
+    // Build score distribution from clips data
+    const scoreDistribution = clips.reduce((acc, c) => {
+        const pct = Math.round((c.score || 0) * 100)
+        if (pct >= 90) acc.excellent++
+        else if (pct >= 75) acc.good++
+        else if (pct >= 60) acc.average++
+        else acc.low++
+        return acc
+    }, { excellent: 0, good: 0, average: 0, low: 0 })
+
+    // Get top clips sorted by score
+    const topClips = [...clips]
+        .sort((a, b) => (b.score || 0) - (a.score || 0))
+        .slice(0, 10)
 
     return (
         <div className="flex-1 overflow-y-auto p-6 md:p-8 bg-slate-50/50 dark:bg-transparent">
@@ -154,10 +181,10 @@ function AnalyticsPage() {
                                     ))}
                                 </div>
                             </div>
-                            <UsageChart data={usage?.data} />
+                            <UsageChart data={usage?.daily_stats} />
                             <div className="flex items-center justify-between mt-3 text-[10px] text-slate-400">
-                                <span>{usage?.data?.[0]?.date}</span>
-                                <span>{usage?.data?.[usage?.data?.length - 1]?.date}</span>
+                                <span>{usage?.daily_stats?.[0]?.date}</span>
+                                <span>{usage?.daily_stats?.[usage?.daily_stats?.length - 1]?.date}</span>
                             </div>
                         </div>
                     </FadeInUp>
@@ -166,20 +193,7 @@ function AnalyticsPage() {
                     <FadeInUp delay={0.15}>
                         <div className="bg-white dark:bg-[#152230] rounded-2xl border border-slate-200 dark:border-[#233648] p-5 shadow-sm">
                             <h3 className="text-sm font-semibold text-slate-900 dark:text-white mb-4">Score Distribution</h3>
-                            <ScoreDistribution data={overview?.score_distribution} />
-                            {trends.week_over_week_change !== undefined && (
-                                <div className="mt-4 pt-3 border-t border-slate-100 dark:border-[#233648]">
-                                    <div className="flex items-center gap-2">
-                                        <span className={`material-symbols-outlined text-[16px] ${trends.week_over_week_change >= 0 ? 'text-emerald-500' : 'text-red-500'
-                                            }`}>
-                                            {trends.week_over_week_change >= 0 ? 'trending_up' : 'trending_down'}
-                                        </span>
-                                        <span className="text-xs text-slate-600 dark:text-slate-300">
-                                            {trends.week_over_week_change >= 0 ? '+' : ''}{trends.week_over_week_change}% vs last week
-                                        </span>
-                                    </div>
-                                </div>
-                            )}
+                            <ScoreDistribution data={scoreDistribution} />
                         </div>
                     </FadeInUp>
                 </div>
@@ -194,11 +208,11 @@ function AnalyticsPage() {
                             </h3>
                         </div>
                         <div className="p-2">
-                            {(overview?.top_clips || []).length === 0 ? (
+                            {topClips.length === 0 ? (
                                 <p className="text-center text-xs text-slate-400 py-8">No clips data yet</p>
                             ) : (
-                                overview.top_clips.map((clip, i) => (
-                                    <TopClipRow key={`${clip.job_id}-${clip.hook}`} clip={clip} rank={i + 1} />
+                                topClips.map((clip, i) => (
+                                    <TopClipRow key={`${clip.job_id}-${clip.clip_index}`} clip={clip} rank={i + 1} />
                                 ))
                             )}
                         </div>

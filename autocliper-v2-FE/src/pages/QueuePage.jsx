@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
+import toast from 'react-hot-toast'
 import { api } from '../utils/api'
 import { FadeInUp, StaggerContainer, StaggerItem } from '../components/PageTransition'
 import ProgressRing from '../components/ProgressRing'
@@ -88,12 +89,12 @@ function ActiveJobCard({ logs }) {
                     {stages.map((stage, i) => (
                         <div key={stage.key} className="flex-1 flex flex-col items-center gap-1">
                             <div className={`h-1.5 w-full rounded-full transition-all ${stage.status === 'done' ? 'bg-primary' :
-                                    stage.status === 'active' ? 'bg-primary/50 animate-pulse' :
-                                        'bg-slate-200 dark:bg-[#1e2e40]'
+                                stage.status === 'active' ? 'bg-primary/50 animate-pulse' :
+                                    'bg-slate-200 dark:bg-[#1e2e40]'
                                 }`} />
                             <span className={`text-[9px] font-medium ${stage.status === 'active' ? 'text-primary' :
-                                    stage.status === 'done' ? 'text-slate-600 dark:text-slate-300' :
-                                        'text-slate-400'
+                                stage.status === 'done' ? 'text-slate-600 dark:text-slate-300' :
+                                    'text-slate-400'
                                 }`}>{stage.label}</span>
                         </div>
                     ))}
@@ -195,6 +196,19 @@ function QueuePage() {
         finally { setLoading(false) }
     }, [])
 
+    const handleClearStuck = async () => {
+        try {
+            const result = await api.clearStuckQueue()
+            toast.success(result.message || 'Stuck state cleared')
+            // Immediately clear local state, then reload data
+            setQueue(prev => ({ ...prev, processing_url: null }))
+            // Wait a bit for backend to fully clear, then reload
+            setTimeout(loadData, 500)
+        } catch (e) {
+            toast.error(e.message || 'Failed to clear stuck state')
+        }
+    }
+
     // WebSocket connection for real-time updates
     useEffect(() => {
         let active = true
@@ -286,6 +300,21 @@ function QueuePage() {
                                 </div>
                                 <p className="text-sm font-medium text-slate-600 dark:text-slate-300">Queue is empty</p>
                                 <p className="text-xs text-slate-400 mt-1">All jobs have been processed</p>
+                                {queue.processing_url && (
+                                    <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-700">
+                                        <p className="text-xs text-amber-600 dark:text-amber-400 mb-2">
+                                            <span className="material-symbols-outlined text-sm align-middle mr-1">warning</span>
+                                            Stuck processing detected: {queue.processing_url.substring(0, 50)}...
+                                        </p>
+                                        <button
+                                            onClick={handleClearStuck}
+                                            className="px-3 py-1.5 text-xs font-medium text-red-600 hover:text-white border border-red-200 dark:border-red-800 hover:bg-red-500 rounded-lg transition-colors"
+                                        >
+                                            <span className="material-symbols-outlined text-sm align-middle mr-1">refresh</span>
+                                            Clear Stuck State
+                                        </button>
+                                    </div>
+                                )}
                             </div>
                         ) : (
                             <div className="p-3">

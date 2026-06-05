@@ -413,7 +413,7 @@ function CreatePage({ onJobStarted }) {
                 if (data.total_urls === 1 && !url.includes('\n')) {
                     if (onJobStarted) onJobStarted({ jobId: data.job_id, videoInfo, url })
                 }
-            } else { toast(data.message, { icon: 'ℹ️' }) }
+            } else { toast(data.message, { icon: <span className="material-symbols-rounded text-lg text-blue-500">info</span> }) }
             setUrl(''); setVideoInfo(null)
         } catch { toast.error('Failed to submit') }
         finally { setSubmitting(false) }
@@ -454,7 +454,7 @@ function CreatePage({ onJobStarted }) {
                 toast.success('Base processing started — style later!')
                 if (onJobStarted) onJobStarted({ jobId: null, videoInfo, url })
             } else {
-                toast(data.message, { icon: 'ℹ️' })
+                toast(data.message, { icon: <span className="material-symbols-rounded text-lg text-blue-500">info</span> })
             }
             setUrl(''); setVideoInfo(null)
         } catch { toast.error('Failed to start base processing') }

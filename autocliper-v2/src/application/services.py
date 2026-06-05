@@ -568,7 +568,7 @@ class VideoProcessingPipeline:
             
             if _HAS_YOLO:
                 # YOLOv8 + DeepSORT: track only, get data for single-pass
-                logger.info(f"  [4-5/6] Tracking persons (YOLOv8+DeepSORT) — data only")
+                logger.info(f"  [4-5/7] Tracking persons (YOLOv8+DeepSORT) — data only")
                 try:
                     tracking_data = self.video_cropper.track_only(
                         video_path=clipped_video_path,
@@ -578,9 +578,22 @@ class VideoProcessingPipeline:
                     logger.info(f"  ✅ Tracking completed: {len(tracking_data['positions'])} frames")
                     job_logger.log(f"  [Clip {clip_index}] ✅ Tracking: {len(tracking_data['positions'])} frames")
                     
-                    # Step 6: Single-pass crop + overlay (1x encode only!)
-                    logger.info(f"  [6/6] Single-pass rendering (crop + overlay → 1x encode)")
-                    job_logger.log(f"  [Clip {clip_index}] Rendering overlays (hook + captions)")
+                    # Step 6: Render BASE clip (cropped 9:16, NO overlays) for re-styling
+                    logger.info(f"  [6/7] Rendering base clip (crop only, no overlays)")
+                    job_logger.log(f"  [Clip {clip_index}] Rendering base clip for re-styling")
+                    base_path = os.path.join(output_dir, f"clip_{clip_index}_base.mp4")
+                    self._render_base_crop(clipped_video_path, tracking_data, base_path)
+                    logger.info(f"  ✅ Base clip saved: {os.path.getsize(base_path) / 1024 / 1024:.1f}MB")
+                    job_logger.log(f"  [Clip {clip_index}] ✅ Base clip: {os.path.getsize(base_path) / 1024 / 1024:.1f}MB")
+                    
+                    # Save raw clipped video for full re-render (copy from temp to output)
+                    raw_output_path = os.path.join(output_dir, f"clip_{clip_index}_raw.mp4")
+                    shutil.copy2(clipped_video_path, raw_output_path)
+                    logger.info(f"  ✅ Raw clip saved: {raw_output_path}")
+                    
+                    # Step 7: Single-pass crop + overlay for FINAL clip
+                    logger.info(f"  [7/7] Single-pass rendering (crop + overlay → final)")
+                    job_logger.log(f"  [Clip {clip_index}] Rendering final clip (hook + captions)")
                     final_path = os.path.join(output_dir, f"clip_{clip_index}_final.mp4")
                     
                     self.overlay_renderer.render_full_overlay_on_source(
@@ -594,8 +607,27 @@ class VideoProcessingPipeline:
                         request_log_data={'caption_response': [c.__dict__ for c in all_clips]},
                         hook_style=hook_style
                     )
-                    logger.info(f"  ✅ Single-pass render completed: {os.path.getsize(final_path) / 1024 / 1024:.1f}MB")
-                    job_logger.log(f"  [Clip {clip_index}] ✅ Render complete: {os.path.getsize(final_path) / 1024 / 1024:.1f}MB")
+                    logger.info(f"  ✅ Final clip rendered: {os.path.getsize(final_path) / 1024 / 1024:.1f}MB")
+                    job_logger.log(f"  [Clip {clip_index}] ✅ Final render complete: {os.path.getsize(final_path) / 1024 / 1024:.1f}MB")
+                    
+                    # Save metadata for re-styling
+                    import json as _json
+                    metadata = {
+                        "clip_index": clip_index,
+                        "start_time": clip.start_time,
+                        "end_time": clip.end_time,
+                        "duration": duration,
+                        "hook": clip.hook,
+                        "score": clip.score,
+                        "keywords": clip.keywords if hasattr(clip, 'keywords') else [],
+                        "subtitles": subtitles,  # Original subtitles (not adjusted)
+                        "base_video": f"clip_{clip_index}_base.mp4",
+                        "raw_video": f"clip_{clip_index}_raw.mp4",
+                    }
+                    metadata_path = os.path.join(output_dir, f"clip_{clip_index}_metadata.json")
+                    with open(metadata_path, 'w', encoding='utf-8') as mf:
+                        _json.dump(metadata, mf, ensure_ascii=False, indent=2)
+                    logger.info(f"  ✅ Metadata saved: {metadata_path}")
                     
                 except Exception as e:
                     logger.error(f"  ❌ Single-pass failed: {e}, falling back to legacy 2-pass")
@@ -633,6 +665,16 @@ class VideoProcessingPipeline:
                             end_time=duration
                         )
                     
+                    # Save base clip for re-styling (copy cropped to base path)
+                    base_path = os.path.join(output_dir, f"clip_{clip_index}_base.mp4")
+                    shutil.copy2(cropped_path, base_path)
+                    logger.info(f"  ✅ Base clip saved (fallback): {base_path}")
+                    
+                    # Save raw clip for full re-render
+                    raw_output_path = os.path.join(output_dir, f"clip_{clip_index}_raw.mp4")
+                    shutil.copy2(clipped_video_path, raw_output_path)
+                    logger.info(f"  ✅ Raw clip saved (fallback): {raw_output_path}")
+                    
                     # Legacy overlay (2nd encode)
                     final_path = os.path.join(output_dir, f"clip_{clip_index}_final.mp4")
                     self.overlay_renderer.render_full_overlay(
@@ -645,9 +687,28 @@ class VideoProcessingPipeline:
                         request_log_data={'caption_response': [c.__dict__ for c in all_clips]},
                         hook_style=hook_style
                     )
+                    
+                    # Save metadata for re-styling (fallback path)
+                    import json as _json
+                    metadata = {
+                        "clip_index": clip_index,
+                        "start_time": clip.start_time,
+                        "end_time": clip.end_time,
+                        "duration": duration,
+                        "hook": clip.hook,
+                        "score": clip.score,
+                        "keywords": clip.keywords if hasattr(clip, 'keywords') else [],
+                        "subtitles": subtitles,
+                        "base_video": f"clip_{clip_index}_base.mp4",
+                        "raw_video": f"clip_{clip_index}_raw.mp4",
+                    }
+                    metadata_path = os.path.join(output_dir, f"clip_{clip_index}_metadata.json")
+                    with open(metadata_path, 'w', encoding='utf-8') as mf:
+                        _json.dump(metadata, mf, ensure_ascii=False, indent=2)
+                    logger.info(f"  ✅ Metadata saved (fallback): {metadata_path}")
             else:
                 # Legacy: separate tracking + cropping + overlay (2-pass)
-                logger.info(f"  [4/6] Tracking faces with MediaPipe")
+                logger.info(f"  [4/7] Tracking faces with MediaPipe")
                 cropped_path = os.path.join(temp_dir, f"cropped_{clip_index}.mp4")
                 try:
                     face_positions = self.face_tracker.track_speaking_face(
@@ -658,7 +719,7 @@ class VideoProcessingPipeline:
                     logger.warning(f"  ⚠️ Face tracking failed: {e}, using center crop")
                     face_positions = []
                 
-                logger.info(f"  [5/6] Cropping to 9:16 aspect ratio")
+                logger.info(f"  [5/7] Cropping to 9:16 aspect ratio")
                 try:
                     self.video_cropper.crop_to_aspect_ratio(
                         video_path=clipped_video_path,
@@ -672,8 +733,19 @@ class VideoProcessingPipeline:
                     logger.error(f"  ❌ Cropping failed: {e}")
                     raise
                 
-                # Step 6: Overlay hook + subtitle (legacy 2nd encode)
-                logger.info(f"  [6/6] Rendering overlays (hook + subtitles)")
+                # Step 6: Save base clip for re-styling (MediaPipe path)
+                logger.info(f"  [6/7] Saving base clip for re-styling")
+                base_path = os.path.join(output_dir, f"clip_{clip_index}_base.mp4")
+                shutil.copy2(cropped_path, base_path)
+                logger.info(f"  ✅ Base clip saved (MediaPipe): {base_path}")
+                
+                # Save raw clip for full re-render
+                raw_output_path = os.path.join(output_dir, f"clip_{clip_index}_raw.mp4")
+                shutil.copy2(clipped_video_path, raw_output_path)
+                logger.info(f"  ✅ Raw clip saved (MediaPipe): {raw_output_path}")
+                
+                # Step 7: Overlay hook + subtitle (legacy 2nd encode)
+                logger.info(f"  [7/7] Rendering overlays (hook + subtitles)")
                 final_path = os.path.join(output_dir, f"clip_{clip_index}_final.mp4")
                 
                 self.overlay_renderer.render_full_overlay(
@@ -687,6 +759,25 @@ class VideoProcessingPipeline:
                     hook_style=hook_style
                 )
                 logger.info(f"  ✅ Overlays rendered: {os.path.getsize(final_path) / 1024 / 1024:.1f}MB")
+                
+                # Save metadata for re-styling (MediaPipe path)
+                import json as _json
+                metadata = {
+                    "clip_index": clip_index,
+                    "start_time": clip.start_time,
+                    "end_time": clip.end_time,
+                    "duration": duration,
+                    "hook": clip.hook,
+                    "score": clip.score,
+                    "keywords": clip.keywords if hasattr(clip, 'keywords') else [],
+                    "subtitles": subtitles,
+                    "base_video": f"clip_{clip_index}_base.mp4",
+                    "raw_video": f"clip_{clip_index}_raw.mp4",
+                }
+                metadata_path = os.path.join(output_dir, f"clip_{clip_index}_metadata.json")
+                with open(metadata_path, 'w', encoding='utf-8') as mf:
+                    _json.dump(metadata, mf, ensure_ascii=False, indent=2)
+                logger.info(f"  ✅ Metadata saved (MediaPipe): {metadata_path}")
             
             logger.info(f"  ✅✅✅ Clip {clip_index} FULLY completed: {final_path}")
             job_logger.log(f"  [Clip {clip_index}] ✅✅✅ Fully completed: {final_path}")
@@ -741,21 +832,42 @@ class VideoProcessingPipeline:
     def _cleanup_temp_files(self, video_dir: str, original_path: str, 
                            processed_clips: List[Dict]):
         """
-        Clean up temporary files, keeping only original and final videos
+        Clean up temporary files, keeping important files for re-styling.
+        
+        Preserves:
+        - original.mp4 (source video)
+        - clip_X_final.mp4 (styled clips)
+        - clip_X_base.mp4 (cropped 9:16, no overlays - for re-styling)
+        - clip_X_raw.mp4 (raw cut from source - for full re-render)
+        - clip_X_metadata.json (subtitles + clip info - for re-styling)
+        - clip_X_thumb.jpg (thumbnails)
         
         Args:
             video_dir: Video output directory
             original_path: Path to original video
             processed_clips: List of processed clip info
         """
-        final_files = {os.path.basename(original_path)}
+        # Files to always keep
+        keep_patterns = [
+            os.path.basename(original_path),
+        ]
+        
+        # Add processed clip outputs
         for clip in processed_clips:
-            final_files.add(os.path.basename(clip["output_path"]))
+            keep_patterns.append(os.path.basename(clip["output_path"]))
         
         for item in os.listdir(video_dir):
             item_path = os.path.join(video_dir, item)
             
-            if item in final_files:
+            # Keep files matching patterns
+            if item in keep_patterns:
+                continue
+            
+            # Keep clip-related files for re-styling
+            if (item.endswith("_base.mp4") or 
+                item.endswith("_raw.mp4") or 
+                item.endswith("_metadata.json") or 
+                item.endswith("_thumb.jpg")):
                 continue
             
             try:
@@ -764,8 +876,8 @@ class VideoProcessingPipeline:
                     if item.startswith("temp_"):
                         shutil.rmtree(item_path)
                 elif os.path.isfile(item_path):
-                    # Remove temp files
-                    if not item.endswith("_final.mp4") and item != os.path.basename(original_path):
+                    # Remove other temp files
+                    if not item.endswith("_final.mp4"):
                         os.remove(item_path)
             except Exception as e:
                 logger.warning(f"Could not remove {item_path}: {e}")
@@ -1024,6 +1136,83 @@ class VideoProcessingPipeline:
             raise
         finally:
             session.close()
+    
+    def _generate_metadata_from_caption_response(self, video_dir: str, caption_response) -> List[str]:
+        """
+        Generate metadata files from caption_response for jobs that were processed
+        without base-only pipeline (legacy jobs).
+        
+        Returns list of generated metadata filenames.
+        """
+        import json
+        
+        if not caption_response:
+            return []
+        
+        # Parse caption_response if it's a string
+        caption_data = caption_response
+        if isinstance(caption_data, str):
+            try:
+                caption_data = json.loads(caption_data)
+            except:
+                return []
+        
+        if not caption_data:
+            return []
+        
+        generated_files = []
+        
+        for i, clip_data in enumerate(caption_data):
+            clip_index = i + 1
+            
+            # Check if clip video exists
+            final_path = os.path.join(video_dir, f"clip_{clip_index}_final.mp4")
+            base_path = os.path.join(video_dir, f"clip_{clip_index}_base.mp4")
+            
+            if not os.path.exists(final_path) and not os.path.exists(base_path):
+                continue
+            
+            # Extract data from clip_data
+            if hasattr(clip_data, 'start_time'):
+                start_time = clip_data.start_time
+                end_time = clip_data.end_time
+                hook = clip_data.hook
+                score = clip_data.score
+                keywords = getattr(clip_data, 'keywords', [])
+            else:
+                start_time = clip_data.get('start_time', 0)
+                end_time = clip_data.get('end_time', 0)
+                hook = clip_data.get('hook', '')
+                score = clip_data.get('score', 0)
+                keywords = clip_data.get('keywords', [])
+            
+            # Determine which video file to use as base
+            video_file = f"clip_{clip_index}_base.mp4" if os.path.exists(base_path) else f"clip_{clip_index}_final.mp4"
+            
+            # Create metadata
+            metadata = {
+                "clip_index": clip_index,
+                "start_time": start_time,
+                "end_time": end_time,
+                "duration": end_time - start_time,
+                "hook": hook,
+                "score": score,
+                "keywords": keywords,
+                "subtitles": [],  # No subtitles for legacy jobs - will render without captions
+                "base_video": video_file,
+            }
+            
+            # Save metadata file
+            metadata_filename = f"clip_{clip_index}_metadata.json"
+            metadata_path = os.path.join(video_dir, metadata_filename)
+            
+            with open(metadata_path, 'w', encoding='utf-8') as f:
+                json.dump(metadata, f, ensure_ascii=False, indent=2)
+            
+            generated_files.append(metadata_filename)
+            logger.info(f"Generated metadata for clip {clip_index}: {metadata_path}")
+        
+        return generated_files
     
     def _process_single_clip_base(self, video_path: str, clip: ClipData,
                                    output_dir: str, clip_index: int) -> str:
@@ -1413,8 +1602,30 @@ class VideoProcessingPipeline:
                 if f.endswith('_metadata.json')
             ])
             
+            # If no metadata files, generate from caption_response and existing clips
             if not metadata_files:
-                raise ValueError(f"No clip metadata found in {video_dir}")
+                logger.info(f"No metadata files found, generating from caption_response...")
+                metadata_files = self._generate_metadata_from_caption_response(
+                    video_dir, request_log.caption_response
+                )
+                
+            if not metadata_files:
+                raise ValueError(f"No clip metadata found and could not generate from caption_response in {video_dir}")
+            
+            # Check if this is a legacy job (no raw/base files, only final files)
+            # In this case, warn that re-styling will overlay on top of existing overlays
+            has_raw_files = any(
+                os.path.exists(os.path.join(video_dir, f"clip_{i+1}_raw.mp4"))
+                for i in range(len(metadata_files))
+            )
+            has_base_files = any(
+                os.path.exists(os.path.join(video_dir, f"clip_{i+1}_base.mp4"))
+                for i in range(len(metadata_files))
+            )
+            
+            if not has_raw_files and not has_base_files:
+                logger.warning(f"⚠️ Legacy job detected - no raw/base clips found. Re-styling will overlay on top of existing styled clips.")
+                job_logger.log(f"⚠️ Legacy job: re-styling will overlay on existing clips (not ideal)")
             
             logger.info(f"Style render: {len(metadata_files)} clips, style={caption_style_id}, hook={hook_style_id}")
             job_logger.reset(request_log.youtube_url, user_id=request_log.user_id)
@@ -1437,7 +1648,6 @@ class VideoProcessingPipeline:
                 metadata_path = os.path.join(video_dir, mf)
                 with open(metadata_path, 'r') as f:
                     meta = json.load(f)
-                
                 clip_index = meta['clip_index']
                 hook_text = meta['hook']
                 subtitles = meta['subtitles']

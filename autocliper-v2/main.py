@@ -1,14 +1,21 @@
 import os
-# Suppress MediaPipe and TensorFlow logs BEFORE importing anything
+# Suppress MediaPipe, protobuf, and TensorFlow logs BEFORE importing anything
 os.environ['GLOG_minloglevel'] = '3'
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 os.environ['MEDIAPIPE_DISABLE_GPU'] = '1'
 os.environ['GLOG_logtostderr'] = '0'
 os.environ['GLOG_stderrthreshold'] = '3'
+# Suppress protobuf text_format errors
+os.environ['PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION'] = 'python'
 
 import sys
 import warnings
 warnings.filterwarnings('ignore')
+
+# Suppress absl logging before any imports
+import absl.logging
+absl.logging.set_verbosity(absl.logging.ERROR)
+absl.logging.set_stderrthreshold(absl.logging.ERROR)
 
 from dotenv import load_dotenv
 load_dotenv()

@@ -271,7 +271,8 @@ class RequestLogRepository:
                 continue
             try:
                 files = os.listdir(m.output_path)
-                has_video = any(f.endswith('_final.mp4') for f in files)
+                # Check for either _final.mp4 (styled) or _base.mp4 (base processed)
+                has_video = any(f.endswith('_final.mp4') or f.endswith('_base.mp4') for f in files)
                 if has_video:
                     clips = self._json_to_clips(m.caption_response)
                     result.append(self._to_entity(m, clips))

@@ -584,61 +584,84 @@ class YouTubeDownloader:
         # Format fallback chain: try progressively simpler formats
         # IMPORTANT: Explicitly request H.264 (avc1) codec, NOT AV1
         # AV1 causes issues with OpenCV/MoviePy which can't decode it properly
+        # NOTE: YouTube now forces SABR streaming for many videos, so m3u8/HLS formats added
         format_attempts = [
             # Priority 1: H.264 codec explicitly (avc1), max 1080p
             'bestvideo[vcodec^=avc1][height<=1080]+bestaudio[ext=m4a]/bestvideo[vcodec^=avc1]+bestaudio[ext=m4a]',
             # Priority 2: Any MP4 with H.264 codec
             'bestvideo[ext=mp4][vcodec^=avc1][height<=1080]+bestaudio[ext=m4a]',
-            # Priority 3: VP9 codec (also widely supported)
+            # Priority 3: HLS/m3u8 format (YouTube SABR streaming) - 1080p max
+            '96/95/94/93/92/91',  # m3u8 format IDs from best to worst
+            # Priority 4: VP9 codec (also widely supported)
             'bestvideo[vcodec^=vp9][height<=1080]+bestaudio[ext=webm]/bestvideo[vcodec^=vp9]+bestaudio',
-            # Priority 4: Any MP4 format (may include AV1, but will be re-encoded by postprocessor)
+            # Priority 5: Any MP4 format (may include AV1, but will be re-encoded by postprocessor)
             'bestvideo[ext=mp4][height<=1080]+bestaudio[ext=m4a]/bestvideo[ext=mp4]+bestaudio[ext=m4a]',
+            # Priority 6: Single file format 18 (360p, widely available)
+            '18',
             # Fallback: best available
             'best[ext=mp4]/best',
         ]
 
         info_dl = None
         last_error = None
-        for fmt in format_attempts:
-            ydl_opts = {
-                'format': fmt,
-                'quiet': True,
-                'no_warnings': True,
-                'extractor_args': {'youtube': {
-                    'player_client': ['tv', 'web', 'web_safari'],
-                }},
-                'remote_components': ['ejs:github'],
-                **cookies_opt,
-                'outtmpl': output_template,
-                'merge_output_format': 'mp4',
-                'postprocessors': [{'key': 'FFmpegVideoConvertor', 'preferedformat': 'mp4'}],
-            }
-            try:
-                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                    info_dl = ydl.extract_info(url, download=True)
+        
+        # Try without cookies using mobile clients FIRST (more reliable now)
+        # Then fallback to cookies if needed
+        cookie_strategies = [
+            ({}, ['ios', 'android']),  # Without cookies, mobile clients (often works better)
+            (cookies_opt, ['tv', 'web']),  # With cookies as fallback
+        ]
+        
+        for cookie_opt, player_clients in cookie_strategies:
+            if info_dl is not None:
+                break
+                
+            strategy_name = "mobile clients (no cookies)" if not cookie_opt else "with cookies"
+            print(f"[Download] Trying {strategy_name}...")
+            
+            for fmt in format_attempts:
+                ydl_opts = {
+                    'format': fmt,
+                    'quiet': True,
+                    'no_warnings': True,
+                    'extractor_args': {'youtube': {
+                        'player_client': player_clients,
+                    }},
+                    **cookie_opt,
+                    'outtmpl': output_template,
+                    'merge_output_format': 'mp4',
+                    'postprocessors': [{'key': 'FFmpegVideoConvertor', 'preferedformat': 'mp4'}],
+                }
+                try:
+                    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                        info_dl = ydl.extract_info(url, download=True)
 
-                # Verify file is not empty
-                candidate = os.path.join(video_output_dir, 'original.mp4')
-                if not os.path.exists(candidate):
-                    for f in os.listdir(video_output_dir):
-                        if f.startswith('original.'):
-                            candidate = os.path.join(video_output_dir, f)
-                            break
-                if os.path.exists(candidate) and os.path.getsize(candidate) > 0:
-                    dl_height = info_dl.get('height', 0)
-                    dl_width = info_dl.get('width', 0)
-                    print(f"[Download] ✅ Downloaded ({fmt}): {dl_width}x{dl_height}")
-                    break
-                else:
-                    print(f"[Download] ⚠️ Empty file with format '{fmt}', trying next...")
-                    # Remove empty file before next attempt
-                    if os.path.exists(candidate):
-                        os.remove(candidate)
-                    info_dl = None
-            except Exception as e:
-                last_error = e
-                print(f"[Download] ⚠️ Format '{fmt}' failed: {e}, trying next...")
-                continue
+                    # Verify file is not empty
+                    candidate = os.path.join(video_output_dir, 'original.mp4')
+                    if not os.path.exists(candidate):
+                        for f in os.listdir(video_output_dir):
+                            if f.startswith('original.'):
+                                candidate = os.path.join(video_output_dir, f)
+                                break
+                    if os.path.exists(candidate) and os.path.getsize(candidate) > 0:
+                        dl_height = info_dl.get('height', 0)
+                        dl_width = info_dl.get('width', 0)
+                        print(f"[Download] ✅ Downloaded ({fmt}, {strategy_name}): {dl_width}x{dl_height}")
+                        break
+                    else:
+                        print(f"[Download] ⚠️ Empty file with format '{fmt}', trying next...")
+                        # Remove empty file before next attempt
+                        if os.path.exists(candidate):
+                            os.remove(candidate)
+                        info_dl = None
+                except Exception as e:
+                    last_error = e
+                    err_str = str(e).lower()
+                    if '403' in err_str or 'forbidden' in err_str:
+                        print(f"[Download] ⚠️ Format '{fmt}' got 403, switching strategy...")
+                        break  # Try next cookie strategy
+                    print(f"[Download] ⚠️ Format '{fmt}' failed: {e}, trying next...")
+                    continue
 
         if info_dl is None:
             raise Exception(f"All download formats failed. Last error: {last_error}")

@@ -2,9 +2,12 @@
 # OS Generated Files
 # ===========================
 .DS_Store
+.DS_Store?
+._*
 Thumbs.db
 ehthumbs.db
 Desktop.ini
+$RECYCLE.BIN/
 
 # ===========================
 # IDE / Editor
@@ -15,11 +18,14 @@ Desktop.ini
 .kiro/
 *.swp
 *.swo
+*.sw?
 *~
 *.suo
 *.ntvs*
 *.njsproj
 *.sln
+*.sublime-workspace
+*.sublime-project
 
 # ===========================
 # Python (autocliper-v2)
@@ -30,15 +36,25 @@ __pycache__/
 *.so
 .Python
 venv/
-venv311/
+venv*/
 env/
 ENV/
-.env
-.env.local
+.venv/
+*.egg
 *.egg-info/
 dist/
 build/
+.eggs/
+*.manifest
+*.spec
+pip-log.txt
+pip-delete-this-directory.txt
 .pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.mypy_cache/
+.ruff_cache/
 
 # ===========================
 # Node.js (autocliper-v2-FE)
@@ -49,6 +65,9 @@ dist-ssr/
 *.local
 .npm
 .eslintcache
+.cache/
+.parcel-cache/
+.turbo/
 
 # ===========================
 # Logs
@@ -65,22 +84,31 @@ autocliper.log
 nohup.out
 
 # ===========================
-# Sensitive / Credentials
+# Environment & Credentials
 # ===========================
+.env
+.env.*
+!.env.example
 cookies.txt
 *.cookies
 *.cookie
-.env
-.env.*
+*.pem
+*.key
+secrets/
 
 # ===========================
 # ML Models & Large Binary Files
 # ===========================
 *.bin
 *.pt
+*.pth
 *.onnx
 *.caffemodel
 *.prototxt
+*.h5
+*.hdf5
+*.pkl
+*.pickle
 autocliper-v2/models/
 autocliper-v2/src/infrastructure/models/
 
@@ -94,7 +122,15 @@ autocliper-v2/src/infrastructure/models/
 *.avi
 *.mov
 *.mkv
+*.webm
+*.flv
+*.wmv
+*.m4a
+*.aac
+*.ogg
 tmp/
+outputs/
+downloads/
 
 # ===========================
 # Fonts (auto-downloaded)
@@ -102,6 +138,8 @@ tmp/
 autocliper-v2/assets/fonts/
 *.ttf
 *.otf
+*.woff
+*.woff2
 
 # ===========================
 # Whisper.cpp
@@ -109,10 +147,27 @@ autocliper-v2/assets/fonts/
 whisper.cpp/
 
 # ===========================
-# Database backups
+# Database
 # ===========================
 *.sql.backup
 *.db
+*.sqlite
+*.sqlite3
+
+# ===========================
+# Playwright / Browser Automation
+# ===========================
+.playwright-mcp/
+playwright-report/
+test-results/
+playwright/.cache/
+
+# ===========================
+# autocliper-automate
+# ===========================
+autocliper-automate/.env
+autocliper-automate/__pycache__/
+autocliper-automate/src/**/__pycache__/
 
 # ===========================
 # Misc / Draft files
@@ -132,3 +187,10 @@ START_*.md
 SYSTEM_*.md
 VISUAL_*.md
 SUMMARY.txt
+TODO.md
+NOTES.md
+*.draft
+*.bak
+*.backup
+*.tmp
+*.temp

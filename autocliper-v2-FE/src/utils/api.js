@@ -1,4 +1,5 @@
 const BASE = 'http://localhost:8000';
+const TIKTOK_BASE = 'http://localhost:8001';
 
 // Load all fonts from DB via Google Fonts CDN
 export function loadGoogleFonts(fonts) {
@@ -152,7 +153,20 @@ export const api = {
     return { status: res.status, data: await res.json() };
   },
 
-  fileUrl: (path) => `${BASE}${path}`,
+  // Convert backend file path to API endpoint URL
+  fileUrl: (path) => {
+    if (!path) return null
+    // If already a full URL, return as-is
+    if (path.startsWith('http')) return path
+    // If it's a relative path like ./tmp/output/VideoName/clip_1_final.mp4
+    // Extract filename and use the files endpoint
+    // Format: ./tmp/output/{video_name}/{filename}
+    const parts = path.split('/')
+    const filename = parts[parts.length - 1] // e.g. clip_1_final.mp4 or clip_1_thumb.jpg
+    // We need job_id but we don't have it here, so return the direct path
+    // The authenticated fetch will handle it
+    return `${BASE}/api/v1/files?path=${encodeURIComponent(path)}`
+  },
 
   // Jobs (batch support — urls can be newline-separated)
   createJob: (urls, styleId, hookStyleId) => api._req('/api/v1/jobs/', {
@@ -161,6 +175,7 @@ export const api = {
   }),
   getJobs: () => api._req('/api/v1/jobs/'),
   getJobQueue: () => api._req('/api/v1/jobs/queue'),
+  clearStuckQueue: () => api._req('/api/v1/jobs/queue/clear-stuck', { method: 'POST' }),
   getJobLogs: () => api._req('/api/v1/jobs/logs'),
   getJobHistory: () => api._req('/api/v1/jobs/history'),
   getJob: (id) => api._req(`/api/v1/jobs/${id}`),
@@ -183,11 +198,12 @@ export const api = {
   }),
   getBaseClips: (jobId) => api._req(`/api/v1/jobs/${jobId}/base-clips`),
   getBaseClipUrl: (jobId, clipIndex) => `${BASE}/api/v1/jobs/${jobId}/base-clip/${clipIndex}`,
+  getClipThumbnailUrl: (jobId, clipIndex) => `${BASE}/api/v1/jobs/${jobId}/thumbnail/${clipIndex}`,
   
   // Style Rendering Pipeline (apply style to base clips)
-  applyStyle: (jobId, captionStyle, hookStyleId) => api._req(`/api/v1/jobs/${jobId}/apply-style`, {
+  applyStyle: (jobId, captionStyleId, hookStyleId) => api._req(`/api/v1/jobs/${jobId}/apply-style`, {
     method: 'POST',
-    body: JSON.stringify({ caption_style: captionStyle, ...(hookStyleId ? { hook_style_id: hookStyleId } : {}) }),
+    body: JSON.stringify({ caption_style_id: captionStyleId, ...(hookStyleId ? { hook_style_id: hookStyleId } : {}) }),
   }),
 
   // Preview (5-second low-res preview before full processing)
@@ -264,11 +280,15 @@ export const api = {
 
   // Stats
   getDashboardStats: () => api._req('/api/v1/stats/dashboard'),
-  getUsageStats: (period = '7d') => api._req(`/api/v1/stats/usage?period=${period}`),
+  getUsageStats: (period = '7d') => {
+    // Convert period string to days number
+    const days = parseInt(period) || 7
+    return api._req(`/api/v1/stats/usage?days=${days}`)
+  },
 
   // Analytics (enhanced)
   getAnalyticsOverview: () => api._req('/api/v1/analytics/overview'),
-  getClipsAnalytics: (sortBy = 'score', limit = 20) => api._req(`/api/v1/analytics/clips?sort_by=${sortBy}&limit=${limit}`),
+  getClipsAnalytics: (days = 30, limit = 100) => api._req(`/api/v1/analytics/clips?days=${days}`),
 
   // Engagement Prediction
   predictEngagement: (clips, language = 'id') => api._req('/api/v1/engagement/predict', {
@@ -290,6 +310,130 @@ export const api = {
 
   // WebSocket URL
   getWebSocketUrl: () => BASE.replace('http', 'ws') + '/ws',
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // TikTok Automate API (connects to port 8001)
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  // TikTok helper for requests to automate server
+  async _tiktokReq(path, opts = {}) {
+    const token = localStorage.getItem('access_token');
+    const res = await fetch(`${TIKTOK_BASE}${path}`, {
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      ...opts,
+    });
+    
+    if (res.status === 401) {
+      const refreshed = await _tryRefreshToken();
+      if (refreshed) {
+        const newToken = localStorage.getItem('access_token');
+        const retryRes = await fetch(`${TIKTOK_BASE}${path}`, {
+          headers: {
+            'Content-Type': 'application/json',
+            ...(newToken ? { Authorization: `Bearer ${newToken}` } : {}),
+          },
+          ...opts,
+        });
+        if (retryRes.status === 401) {
+          localStorage.clear();
+          window.location.href = '/';
+        }
+        return retryRes.json();
+      }
+      localStorage.clear();
+      window.location.href = '/';
+    }
+    return res.json();
+  },
+
+  // TikTok Health
+  getTikTokHealth: () => fetch(`${TIKTOK_BASE}/health`).then(r => r.json()).catch(() => null),
+
+  // TikTok Accounts
+  getTikTokAccounts: () => api._tiktokReq('/api/v1/tiktok/accounts'),
+  getTikTokAccountsAvailable: () => api._tiktokReq('/api/v1/tiktok/accounts/available'),
+  getTikTokAccount: (id) => api._tiktokReq(`/api/v1/tiktok/accounts/${id}`),
+  createTikTokAccount: (d) => api._tiktokReq('/api/v1/tiktok/accounts', {
+    method: 'POST',
+    body: JSON.stringify(d),
+  }),
+  updateTikTokAccount: (id, d) => api._tiktokReq(`/api/v1/tiktok/accounts/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(d),
+  }),
+  deleteTikTokAccount: (id) => api._tiktokReq(`/api/v1/tiktok/accounts/${id}`, { method: 'DELETE' }),
+  triggerTikTokLogin: (id) => api._tiktokReq(`/api/v1/tiktok/accounts/${id}/login`, { method: 'POST' }),
+  validateTikTokSession: (id) => api._tiktokReq(`/api/v1/tiktok/accounts/${id}/validate`, { method: 'POST' }),
+
+  // TikTok Uploads
+  getTikTokQueue: (status = null) => {
+    const params = status ? `?status=${status}` : '';
+    return api._tiktokReq(`/api/v1/tiktok/upload/queue${params}`);
+  },
+  getTikTokUpload: (id) => api._tiktokReq(`/api/v1/tiktok/upload/${id}`),
+  uploadToTikTok: (d) => api._tiktokReq('/api/v1/tiktok/upload/from-clip', {
+    method: 'POST',
+    body: JSON.stringify(d),
+  }),
+  bulkUploadToTikTok: (uploads) => api._tiktokReq('/api/v1/tiktok/upload/bulk', {
+    method: 'POST',
+    body: JSON.stringify({ uploads }),
+  }),
+  updateTikTokUpload: (id, d) => api._tiktokReq(`/api/v1/tiktok/upload/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(d),
+  }),
+  cancelTikTokUpload: (id) => api._tiktokReq(`/api/v1/tiktok/upload/${id}`, { method: 'DELETE' }),
+  retryTikTokUpload: (id) => api._tiktokReq(`/api/v1/tiktok/upload/${id}/retry`, { method: 'POST' }),
+  getTikTokUploadHistory: (id) => api._tiktokReq(`/api/v1/tiktok/upload/${id}/history`),
+  suggestTikTokSchedule: (accountId, clipsCount = 1) => 
+    api._tiktokReq(`/api/v1/tiktok/upload/suggest-schedule?account_id=${accountId}&clips_count=${clipsCount}`),
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Multi-Platform Social Media API (connects to port 8001)
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  // Get available platforms
+  getSocialPlatforms: () => api._tiktokReq('/api/v1/social/platforms'),
+
+  // Social Accounts (multi-platform)
+  getSocialAccounts: (platform = null) => {
+    const params = platform ? `?platform=${platform}` : '';
+    return api._tiktokReq(`/api/v1/social/accounts${params}`);
+  },
+  getSocialAccount: (id) => api._tiktokReq(`/api/v1/social/accounts/${id}`),
+  createSocialAccount: (d) => api._tiktokReq('/api/v1/social/accounts', {
+    method: 'POST',
+    body: JSON.stringify(d),
+  }),
+  deleteSocialAccount: (id) => api._tiktokReq(`/api/v1/social/accounts/${id}`, { method: 'DELETE' }),
+  triggerSocialLogin: (id, manual = false) => api._tiktokReq(`/api/v1/social/accounts/${id}/login`, {
+    method: 'POST',
+    body: JSON.stringify({ manual }),
+  }),
+  importSocialCookies: (id, cookies, platformUsername = null) => api._tiktokReq(`/api/v1/social/accounts/${id}/import-cookies`, {
+    method: 'POST',
+    body: JSON.stringify({ cookies, platform_username: platformUsername }),
+  }),
+
+  // Social Uploads (multi-platform)
+  getSocialQueue: (platform = null, status = null) => {
+    const params = new URLSearchParams();
+    if (platform) params.set('platform', platform);
+    if (status) params.set('status', status);
+    const query = params.toString();
+    return api._tiktokReq(`/api/v1/social/upload/queue${query ? '?' + query : ''}`);
+  },
+  getSocialUpload: (id) => api._tiktokReq(`/api/v1/social/upload/${id}`),
+  createSocialUpload: (d) => api._tiktokReq('/api/v1/social/upload', {
+    method: 'POST',
+    body: JSON.stringify(d),
+  }),
+  cancelSocialUpload: (id) => api._tiktokReq(`/api/v1/social/upload/${id}`, { method: 'DELETE' }),
+  retrySocialUpload: (id) => api._tiktokReq(`/api/v1/social/upload/${id}/retry`, { method: 'POST' }),
 };
 
 // Flatten nested hook style config into flat fields for UI use
