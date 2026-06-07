@@ -730,14 +730,7 @@ class YouTubeDownloader:
         probe_opts = {
             'quiet': True,
             'no_warnings': True,
-            'extractor_args': {'youtube': {
-                # IMPORTANT: Use 'tv' + 'android_sdkless' clients only.
-                # - 'tv' provides full DASH formats including 1080p (format 137, 248, 399)
-                # - 'web' forces SABR streaming on many videos (only HLS/storyboard)
-                # - 'android' requires PO Token (403 without it)
-                # - 'ios' may have limited formats
-                'player_client': ['tv', 'android_sdkless'],
-            }},
+            'skip_download': True,
         }
         
         # Try cookies.txt file first
