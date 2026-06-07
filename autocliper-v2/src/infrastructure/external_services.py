@@ -852,10 +852,6 @@ class YouTubeDownloader:
             'format': format_string,
             'quiet': True,
             'no_warnings': True,
-            'extractor_args': {'youtube': {
-                # Same client strategy as probe — tv + android_sdkless
-                'player_client': ['tv', 'android_sdkless'],
-            }},
             **cookies_opt,
             'outtmpl': output_template,
             'merge_output_format': 'mp4',
