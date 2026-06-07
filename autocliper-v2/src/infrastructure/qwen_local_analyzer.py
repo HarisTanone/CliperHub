@@ -226,7 +226,7 @@ class QwenLocalAnalyzer(IAIAnalyzer):
 VIDEO: {metadata.get('title', 'Unknown')} ({metadata.get('duration', 0)}s)
 CHUNK #{chunk_id} (mulai dari {chunk_start_time:.0f}s)
 
-TUGAS: Cari maksimal {max_candidates} momen PALING VIRAL (30-60 detik each).
+TUGAS: Cari maksimal {max_candidates} momen PALING VIRAL (45-90 detik each).
 Score 0.0-1.0 untuk setiap dimensi: viral, curiosity, emotion, controversy, story.
 
 KRITERIA MOMEN VIRAL:
@@ -236,14 +236,20 @@ KRITERIA MOMEN VIRAL:
 - Tips actionable
 - Cerita engaging / relatable
 
-HANYA RETURN JSON (tanpa text lain):
+DURASI WAJIB: Setiap clip MINIMAL 45 detik, MAKSIMAL 90 detik.
+- Jangan potong di tengah kalimat atau topik
+- Mulai dari awal topik/kalimat, akhiri saat topik selesai atau ada jeda natural
+- Beri ruang 2 detik sebelum dan sesudah momen inti
+
+HANYA RETURN JSON VALID (tanpa text lain, tanpa markdown, tanpa penjelasan):
 {{"status":200,"chunk_id":{chunk_id},"candidates":[{{"start_time":float,"end_time":float,"viral_score":float,"curiosity_score":float,"emotion_score":float,"controversy_score":float,"story_score":float,"brief_reason":"alasan singkat kenapa viral"}}]}}
 
 ATURAN:
 - timestamp HARUS ABSOLUT (bukan relatif dari awal chunk)
-- durasi setiap clip 30-60 detik
-- jangan potong di tengah kalimat
+- durasi setiap clip 45-90 detik (WAJIB!)
+- jangan potong di tengah kalimat atau topik
 - score harus realistis (jangan semua 0.9)
+- HANYA JSON, tanpa text apapun sebelum atau sesudah JSON
 
 TRANSCRIPT:
 {transcript_chunk}"""

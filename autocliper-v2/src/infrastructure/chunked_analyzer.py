@@ -426,7 +426,7 @@ CHUNK INFO:
 
 TUGAS:
 1. Cari maksimal {CHUNK_CONFIG['max_candidates_per_chunk']} momen TERBAIK dalam chunk ini
-2. Setiap momen harus 30-60 detik
+2. Setiap momen harus 45-90 detik (WAJIB minimal 45 detik!)
 3. BERIKAN MULTI-SCORE untuk setiap kandidat
 
 KRITERIA SCORING (0.0 - 1.0):
@@ -458,10 +458,12 @@ FORMAT RESPONSE (JSON VALID SAJA, tanpa text lain):
 
 ATURAN PENTING:
 - start_time dan end_time dalam DETIK (float, timestamp ABSOLUT dari video)
-- Durasi 30-60 detik per kandidat
-- JANGAN potong di tengah kalimat
-- Beri ruang 1-2 detik sebelum kalimat inti dimulai
-- Beri ruang 1-2 detik setelah kalimat terakhir selesai
+- Durasi MINIMAL 45 detik, MAKSIMAL 90 detik per kandidat (WAJIB!)
+- JANGAN potong di tengah kalimat, topik, atau cerita yang sedang berjalan
+- Mulai dari awal topik/kalimat, akhiri saat topik selesai atau ada jeda/perpindahan topik
+- Pastikan cerita atau poin yang disampaikan LENGKAP, tidak nanggung
+- Beri ruang 2 detik sebelum kalimat inti dimulai
+- Beri ruang 2 detik setelah kalimat terakhir selesai
 - Score HARUS realistis (bukan semua 0.9+)
 - CLIP TIDAK BOLEH OVERLAP dalam chunk yang sama
 - HANYA RETURN JSON, tanpa text tambahan apapun"""
@@ -662,7 +664,12 @@ class ProviderExecutor:
         primary_name: str = "Primary",
         fallback_name: str = "Fallback",
     ) -> ChunkResult:
-        """Execute Pass #1 for a single chunk with retry + fallback."""
+        """Execute Pass #1 for a single chunk with retry + fallback.
+        
+        Fallback triggers on:
+        - Exception (connection error, timeout, HTTP error)
+        - Primary returns 0 candidates after all retries (empty result = quality failure)
+        """
         max_retries = CHUNK_CONFIG["retry_max"]
         delay_base = CHUNK_CONFIG["retry_delay_base"]
         
@@ -685,12 +692,23 @@ class ProviderExecutor:
                 # Validate timestamps within chunk bounds (5s tolerance)
                 valid_candidates = self._validate_candidates(candidates, chunk)
                 
-                return ChunkResult(
-                    chunk_id=chunk.chunk_id,
-                    success=True,
-                    candidates=valid_candidates,
-                    retries_used=attempt,
-                )
+                # Filter out clips that are too short (< 25s)
+                min_duration = 25.0
+                valid_candidates = [c for c in valid_candidates 
+                                   if (c.end_time - c.start_time) >= min_duration]
+                
+                if valid_candidates:
+                    return ChunkResult(
+                        chunk_id=chunk.chunk_id,
+                        success=True,
+                        candidates=valid_candidates,
+                        retries_used=attempt,
+                    )
+                
+                # Primary returned 0 valid candidates — treat as failure, try fallback
+                last_error = f"0 valid candidates (>={min_duration}s) after validation"
+                logger.warning(f"  ⚠️ Chunk {chunk.chunk_id}: {primary_name} returned 0 valid candidates")
+                break
                 
             except Exception as e:
                 last_error = str(e)
@@ -730,18 +748,25 @@ class ProviderExecutor:
                 )
                 
                 valid_candidates = self._validate_candidates(candidates, chunk)
+                # Filter short clips
+                min_duration = 25.0
+                valid_candidates = [c for c in valid_candidates 
+                                   if (c.end_time - c.start_time) >= min_duration]
                 
-                logger.info(f"  ✅ Chunk {chunk.chunk_id}: {fallback_name} fallback succeeded "
-                           f"({len(valid_candidates)} candidates)")
-                self._progress(f"✅ Chunk {chunk.chunk_id}: {fallback_name} fallback — "
-                              f"{len(valid_candidates)} candidates")
-                
-                return ChunkResult(
-                    chunk_id=chunk.chunk_id,
-                    success=True,
-                    candidates=valid_candidates,
-                    retries_used=max_retries,
-                )
+                if valid_candidates:
+                    logger.info(f"  ✅ Chunk {chunk.chunk_id}: {fallback_name} fallback succeeded "
+                               f"({len(valid_candidates)} candidates)")
+                    self._progress(f"✅ Chunk {chunk.chunk_id}: {fallback_name} fallback — "
+                                  f"{len(valid_candidates)} candidates")
+                    
+                    return ChunkResult(
+                        chunk_id=chunk.chunk_id,
+                        success=True,
+                        candidates=valid_candidates,
+                        retries_used=max_retries,
+                    )
+                else:
+                    logger.warning(f"  ⚠️ Chunk {chunk.chunk_id}: {fallback_name} also returned 0 valid candidates")
             except Exception as fallback_err:
                 logger.error(f"  ❌ Chunk {chunk.chunk_id}: Fallback also failed: {fallback_err}")
         
