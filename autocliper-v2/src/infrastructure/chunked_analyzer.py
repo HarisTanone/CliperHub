@@ -551,6 +551,10 @@ FORMAT RESPONSE (JSON VALID SAJA):
 ATURAN:
 - Urut berdasarkan final_score tertinggi (weighted: viral*0.35 + curiosity*0.25 + story*0.20 + emotion*0.10 + controversy*0.10)
 - CLIP TIDAK BOLEH OVERLAP
+- Durasi setiap clip MINIMAL 45 detik, MAKSIMAL 90 detik
+- JANGAN potong di tengah kalimat, topik, atau cerita yang sedang berjalan
+- Pastikan cerita/poin LENGKAP — tidak nanggung/terpotong
+- Akhiri di jeda natural (perpindahan topik, akhir kalimat, pause)
 - HANYA RETURN JSON, tanpa text tambahan"""
     
     # ─── Response Parsers ────────────────────────────────────────────────────

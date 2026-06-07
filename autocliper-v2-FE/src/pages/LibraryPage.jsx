@@ -530,6 +530,12 @@ function JobRow({ job, onDelete, onViewProgress, onApplyStyle, onPostToSocial })
             </div>
 
             <div className="flex items-center gap-2 mt-3">
+              {job.status === 'failed' && job.error_message && (
+                <div className="w-full mb-2 px-3 py-2 rounded-lg text-xs" style={{ background: 'var(--color-error-bg)', color: 'var(--color-error-text)', border: '1px solid var(--color-error-border)' }}>
+                  <span className="material-symbols-outlined text-[13px] align-middle mr-1">error</span>
+                  {job.error_message}
+                </div>
+              )}
               {isActive && (
                 <button onClick={() => onViewProgress(job)}
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors"

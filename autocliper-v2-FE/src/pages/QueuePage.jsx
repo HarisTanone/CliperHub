@@ -244,7 +244,12 @@ function QueuePage() {
                         setLogs(msg.data)
                     } else if (msg.type === 'queue_status' || msg.type === 'queue_update') {
                         if (msg.data.pending) setQueue(msg.data)
-                    } else if (msg.type === 'job_completed' || msg.type === 'job_failed') {
+                    } else if (msg.type === 'job_completed') {
+                        toast.success(`✅ Video selesai diproses!`)
+                        loadData()
+                    } else if (msg.type === 'job_failed') {
+                        const errorMsg = msg.data?.error || 'Processing failed'
+                        toast.error(`❌ ${errorMsg}`, { duration: 8000 })
                         loadData()
                     }
                 } catch { /* ignore */ }
