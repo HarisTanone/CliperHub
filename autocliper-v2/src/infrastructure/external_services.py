@@ -754,8 +754,7 @@ class YouTubeDownloader:
                     print(f"[Download] ✅ Using cookies.txt file")
                     cookies_opt = {'cookiefile': cookies_file}
             except Exception as e:
-                if 'bot' in str(e).lower() or 'sign in' in str(e).lower():
-                    print(f"[Cookies] ⚠️ cookies.txt: Bot detection")
+                print(f"[Cookies] ⚠️ cookies.txt probe failed: {str(e)[:100]}")
         
         # Fallback: try browser cookies
         if info is None:
@@ -768,9 +767,17 @@ class YouTubeDownloader:
                         cookies_opt = {'cookiesfrombrowser': (browser,)}
                         break
                 except Exception as e:
-                    if 'bot' in str(e).lower() or 'sign in' in str(e).lower():
-                        print(f"[Cookies] ⚠️ {browser}: Bot detection")
+                    print(f"[Cookies] ⚠️ {browser}: {str(e)[:80]}")
                     continue
+        
+        # Last resort: try without any cookies (some videos are public)
+        if info is None:
+            try:
+                with yt_dlp.YoutubeDL(probe_opts) as ydl:
+                    info = ydl.extract_info(url, download=False)
+                    print(f"[Download] ✅ No cookies needed (public video)")
+            except Exception:
+                pass
         
         if info is None:
             raise Exception("YouTube bot detection. Upload cookies.txt atau login ke YouTube di Chrome.")
@@ -837,9 +844,12 @@ class YouTubeDownloader:
         os.makedirs(video_output_dir, exist_ok=True)
         output_template = os.path.join(video_output_dir, 'original.%(ext)s')
         
-        # Build format string: best_format_id + best audio
-        # Use format ID directly for precision, with fallback chain
+        # Build format string: prefer specific format ID, with robust fallback chain
+        # Use filter-based format as primary (more reliable across different clients)
+        # then specific format ID as secondary option
         format_string = (
+            f"bestvideo[height>={best_height}][ext=mp4]+bestaudio[ext=m4a]/"
+            f"bestvideo[height>={self.MIN_HEIGHT}]+bestaudio/"
             f"{best_format_id}+bestaudio[ext=m4a]/"
             f"{best_format_id}+bestaudio/"
             f"bestvideo[height>={self.MIN_HEIGHT}]+bestaudio/best"
