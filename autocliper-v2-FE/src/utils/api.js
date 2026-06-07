@@ -1,5 +1,5 @@
-const BASE = 'http://localhost:8000';
-const TIKTOK_BASE = 'http://localhost:8001';
+const BASE = import.meta.env.VITE_API_URL || `${window.location.protocol}//${window.location.hostname}:8000`;
+const TIKTOK_BASE = import.meta.env.VITE_AUTOMATE_URL || `${window.location.protocol}//${window.location.hostname}:8001`;
 
 // Load all fonts from DB via Google Fonts CDN
 export function loadGoogleFonts(fonts) {
