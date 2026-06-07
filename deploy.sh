@@ -2,22 +2,22 @@
 # ═══════════════════════════════════════════════════════════════════════════════
 # AutoCliper — Full Server Deployment Script
 #
-# Handles:
-#   1. System dependencies (ffmpeg, python3, redis, etc.)
-#   2. MySQL connection check
-#   3. autocliper-v2 (backend, port 8000)
-#   4. autocliper-automate (social upload, port 8001)
-#   5. Ollama + Qwen2.5:14b setup
-#   6. Systemd services (auto-restart on boot)
-#
-# Usage:
-#   chmod +x deploy.sh
+# One command to rule them all:
 #   ./deploy.sh
 #
-# Run on: Ubuntu/Debian server
+# What it does:
+#   1. Git pull latest code
+#   2. System dependencies (only installs missing ones)
+#   3. MySQL connection check
+#   4. autocliper-v2 setup (backend, port 8000)
+#   5. autocliper-automate setup (social upload, port 8001)
+#   6. Ollama + Qwen2.5:14b (skip if already installed)
+#   7. Systemd services + restart
+#
+# Designed to be idempotent — safe to run multiple times.
+# Second run is fast because it skips already-installed components.
 # ═══════════════════════════════════════════════════════════════════════════════
 
-# Don't use set -e — we handle errors per-step so one failure doesn't kill the whole script
 export DEBIAN_FRONTEND=noninteractive
 
 # ─── Configuration ───────────────────────────────────────────────────────────
@@ -36,42 +36,69 @@ echo "  User:    $DEPLOY_USER"
 echo "  Python:  $($PYTHON_BIN --version 2>/dev/null || echo 'not found')"
 echo ""
 
-# ─── Step 1: System Dependencies ────────────────────────────────────────────
+# ─── Step 1: Git Pull ───────────────────────────────────────────────────────
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "  📦 Step 1: System Dependencies"
+echo "  📥 Step 1: Git Pull"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+cd "$PROJECT_DIR"
+if [ -d ".git" ]; then
+    echo "  Fetching latest from origin..."
+    git fetch origin 2>/dev/null || true
+    
+    # Stash local changes if any
+    if ! git diff --quiet 2>/dev/null; then
+        echo "  Stashing local changes..."
+        git stash 2>/dev/null || true
+    fi
+    
+    git pull origin main 2>/dev/null || git pull 2>/dev/null || true
+    echo "  ✅ Code updated"
+else
+    echo "  ⚠️  Not a git repo — skipping pull"
+fi
+
+# ─── Step 2: System Dependencies (skip if already installed) ─────────────────
+echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "  📦 Step 2: System Dependencies"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
 if command -v apt-get &> /dev/null; then
-    echo "  Installing system packages..."
-    sudo apt-get update -qq 2>/dev/null || true
-    sudo apt-get install -y --no-install-recommends \
-        python3 python3-pip python3-venv \
-        ffmpeg \
-        cmake build-essential \
-        redis-server \
-        curl wget git \
-        libnss3 libatk-bridge2.0-0 libdrm2 libxcomposite1 \
-        libxdamage1 libxrandr2 libgbm1 libpango-1.0-0 \
-        libasound2 libxshmfence1 2>/dev/null || true
-    echo "  ✅ System packages installed"
+    # Check if key packages exist — skip full install if they do
+    if command -v ffmpeg &> /dev/null && command -v cmake &> /dev/null && command -v redis-server &> /dev/null; then
+        echo "  ✅ System packages already installed (skipping apt)"
+    else
+        echo "  Installing missing system packages..."
+        sudo apt-get update -qq 2>/dev/null || true
+        sudo apt-get install -y --no-install-recommends \
+            python3 python3-pip python3-venv \
+            ffmpeg \
+            cmake build-essential \
+            redis-server \
+            curl wget git \
+            libnss3 libatk-bridge2.0-0t64 libdrm2 libxcomposite1 \
+            libxdamage1 libxrandr2 libgbm1 libpango-1.0-0 \
+            libasound2t64 libxshmfence1 2>/dev/null || true
+        echo "  ✅ System packages installed"
+    fi
 
-    # Start and enable Redis
-    echo "  Starting Redis..."
+    # Ensure Redis is running
     sudo systemctl enable redis-server 2>/dev/null || true
     sudo systemctl start redis-server 2>/dev/null || true
     if redis-cli ping 2>/dev/null | grep -q "PONG"; then
-        echo "  ✅ Redis running (PONG)"
+        echo "  ✅ Redis running"
     else
-        echo "  ⚠️  Redis installed but not responding — check manually"
+        echo "  ⚠️  Redis not responding — check: sudo systemctl status redis-server"
     fi
 else
     echo "  ⚠️  apt-get not found — skip system packages"
 fi
 
-# ─── Step 2: MySQL Connection Check ─────────────────────────────────────────
+# ─── Step 3: MySQL Connection Check ─────────────────────────────────────────
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "  🗄️  Step 2: MySQL Connection Check"
+echo "  🗄️  Step 3: MySQL Connection Check"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
 if [ -f "$V2_DIR/.env" ]; then
@@ -81,15 +108,8 @@ if [ -f "$V2_DIR/.env" ]; then
         DB_PORT=$(echo "$DB_URL" | sed -E 's|.*:([0-9]+)/.*|\1|')
         DB_PORT="${DB_PORT:-3306}"
 
-        echo "  Checking MySQL at $DB_HOST:$DB_PORT..."
-        if command -v mysqladmin &> /dev/null; then
-            if mysqladmin ping -h "$DB_HOST" -P "$DB_PORT" --connect-timeout=5 2>/dev/null | grep -q "alive"; then
-                echo "  ✅ MySQL reachable"
-            else
-                echo "  ⚠️  MySQL not responding at $DB_HOST:$DB_PORT"
-            fi
-        elif nc -z -w5 "$DB_HOST" "$DB_PORT" 2>/dev/null; then
-            echo "  ✅ MySQL port open at $DB_HOST:$DB_PORT"
+        if nc -z -w5 "$DB_HOST" "$DB_PORT" 2>/dev/null; then
+            echo "  ✅ MySQL reachable at $DB_HOST:$DB_PORT"
         else
             echo "  ⚠️  Cannot reach MySQL at $DB_HOST:$DB_PORT"
         fi
@@ -100,10 +120,10 @@ else
     echo "  ⚠️  .env not found — MySQL check skipped"
 fi
 
-# ─── Step 3: autocliper-v2 Setup ────────────────────────────────────────────
+# ─── Step 4: autocliper-v2 Setup ────────────────────────────────────────────
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "  🎬 Step 3: autocliper-v2 (Backend — port 8000)"
+echo "  🎬 Step 4: autocliper-v2 (Backend — port 8000)"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
 if [ -d "$V2_DIR" ]; then
@@ -115,8 +135,8 @@ if [ -d "$V2_DIR" ]; then
         $PYTHON_BIN -m venv venv
     fi
 
-    # Install dependencies
-    echo "  Installing Python dependencies..."
+    # Install/update dependencies (pip is fast when nothing changed)
+    echo "  Syncing Python dependencies..."
     source venv/bin/activate
     pip install --upgrade pip -q 2>/dev/null
     pip install -r requirements.txt -q 2>/dev/null
@@ -125,7 +145,7 @@ if [ -d "$V2_DIR" ]; then
     # Create .env from example if not exists
     if [ ! -f ".env" ]; then
         echo "  ⚠️  No .env found — copying from .env.example"
-        echo "  ⚠️  EDIT .env WITH YOUR ACTUAL CREDENTIALS BEFORE STARTING"
+        echo "  ⚠️  EDIT .env WITH YOUR ACTUAL CREDENTIALS"
         cp .env.example .env
     fi
 
@@ -144,14 +164,10 @@ if [ -d "$V2_DIR" ]; then
         else
             wget -q --show-progress -O models/ggml-medium.bin \
                 "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-medium.bin" \
-                || echo "  ⚠️  Whisper model download failed — download manually"
-        fi
-
-        if [ -f "models/ggml-medium.bin" ]; then
-            echo "  ✅ Whisper model downloaded"
+                || echo "  ⚠️  Download failed — run manually"
         fi
     else
-        echo "  ✅ Whisper model already exists"
+        echo "  ✅ Whisper model exists"
     fi
 
     # Build whisper.cpp if not already built
@@ -162,6 +178,8 @@ if [ -d "$V2_DIR" ]; then
         cmake --build build --config Release -j$(nproc) 2>/dev/null || true
         cd "$V2_DIR"
         echo "  ✅ whisper.cpp built"
+    else
+        echo "  ✅ whisper.cpp ready"
     fi
 
     echo "  ✅ autocliper-v2 ready"
@@ -169,10 +187,10 @@ else
     echo "  ❌ Directory not found: $V2_DIR"
 fi
 
-# ─── Step 4: autocliper-automate Setup ──────────────────────────────────────
+# ─── Step 5: autocliper-automate Setup ──────────────────────────────────────
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "  🤖 Step 4: autocliper-automate (Social Upload — port 8001)"
+echo "  🤖 Step 5: autocliper-automate (Social Upload — port 8001)"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
 if [ -d "$AUTOMATE_DIR" ]; then
@@ -184,15 +202,19 @@ if [ -d "$AUTOMATE_DIR" ]; then
         $PYTHON_BIN -m venv venv
     fi
 
-    # Install dependencies
-    echo "  Installing Python dependencies..."
+    # Install/update dependencies
+    echo "  Syncing Python dependencies..."
     source venv/bin/activate
     pip install --upgrade pip -q 2>/dev/null
     pip install -r requirements.txt -q 2>/dev/null
 
-    # Install Playwright browsers
-    echo "  Installing Playwright browsers..."
-    playwright install chromium 2>/dev/null || echo "  ⚠️  Playwright install skipped (run manually if needed)"
+    # Install Playwright only if not already cached
+    if [ ! -d "$HOME/.cache/ms-playwright/chromium-"* ] 2>/dev/null; then
+        echo "  Installing Playwright browsers..."
+        playwright install chromium 2>/dev/null || echo "  ⚠️  Playwright install failed"
+    else
+        echo "  ✅ Playwright browsers cached"
+    fi
     deactivate
 
     # Create .env from example if not exists
@@ -206,49 +228,96 @@ else
     echo "  ❌ Directory not found: $AUTOMATE_DIR"
 fi
 
-# ─── Step 5: Ollama + Qwen Setup ────────────────────────────────────────────
+# ─── Step 6: Ollama + Qwen Setup ────────────────────────────────────────────
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "  🧠 Step 5: Ollama + Qwen2.5:14b"
+echo "  🧠 Step 6: Ollama + Qwen2.5:14b"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
 QWEN_MODEL="${QWEN_MODEL:-qwen2.5:14b}"
 OLLAMA_URL="${OLLAMA_URL:-http://localhost:11434}"
 
-# Install Ollama if needed
+# Install Ollama only if not present
 if ! command -v ollama &> /dev/null; then
     echo "  Installing Ollama..."
     curl -fsSL https://ollama.com/install.sh | sh || echo "  ⚠️  Ollama install failed"
+else
+    echo "  ✅ Ollama already installed"
 fi
 
-# Start Ollama if not running
+# Ensure Ollama is running
 if ! curl -s "$OLLAMA_URL/api/tags" > /dev/null 2>&1; then
     echo "  Starting Ollama server..."
     sudo systemctl start ollama 2>/dev/null || nohup ollama serve > /tmp/ollama.log 2>&1 &
     sleep 5
 fi
 
-# Pull model if not available
+# Pull model only if not available
 if command -v ollama &> /dev/null; then
     AVAILABLE=$(ollama list 2>/dev/null | grep -c "$(echo $QWEN_MODEL | cut -d: -f1)" || true)
     if [ "$AVAILABLE" -eq 0 ]; then
-        echo "  Pulling $QWEN_MODEL (this takes a while for 14B)..."
-        ollama pull "$QWEN_MODEL" || echo "  ⚠️  Model pull failed — run manually: ollama pull $QWEN_MODEL"
+        echo "  Pulling $QWEN_MODEL (~9GB, be patient)..."
+        ollama pull "$QWEN_MODEL" || echo "  ⚠️  Pull failed — run: ollama pull $QWEN_MODEL"
     else
-        echo "  ✅ Model $QWEN_MODEL already available"
+        echo "  ✅ Model $QWEN_MODEL ready"
     fi
 fi
 
 if curl -s "$OLLAMA_URL/api/tags" > /dev/null 2>&1; then
-    echo "  ✅ Ollama running at $OLLAMA_URL"
+    echo "  ✅ Ollama running"
 else
-    echo "  ⚠️  Ollama not responding — check manually"
+    echo "  ⚠️  Ollama not responding"
 fi
 
-# ─── Step 6: Systemd Services ───────────────────────────────────────────────
+# ─── Step 7: Frontend Build ─────────────────────────────────────────────────
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "  ⚙️  Step 6: Systemd Services"
+echo "  🌐 Step 7: autocliper-v2-FE (Frontend — port 5173)"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+FE_DIR="$PROJECT_DIR/autocliper-v2-FE"
+
+if [ -d "$FE_DIR" ]; then
+    cd "$FE_DIR"
+
+    # Install Node.js if not present
+    if ! command -v node &> /dev/null; then
+        echo "  Installing Node.js..."
+        curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash - 2>/dev/null || true
+        sudo apt-get install -y nodejs 2>/dev/null || true
+    fi
+
+    if command -v node &> /dev/null; then
+        echo "  Node: $(node --version)"
+
+        # Install dependencies only if node_modules is missing or package-lock changed
+        if [ ! -d "node_modules" ] || [ "package-lock.json" -nt "node_modules/.package-lock.json" ]; then
+            echo "  Installing npm dependencies..."
+            npm install --silent 2>/dev/null || npm install 2>/dev/null || true
+        else
+            echo "  ✅ npm dependencies up to date"
+        fi
+
+        # Build frontend
+        echo "  Building frontend (vite build)..."
+        npm run build 2>/dev/null || true
+
+        if [ -d "dist" ] && [ -f "dist/index.html" ]; then
+            echo "  ✅ Frontend built (dist/)"
+        else
+            echo "  ⚠️  Build may have failed — check: cd $FE_DIR && npm run build"
+        fi
+    else
+        echo "  ⚠️  Node.js not available — skip frontend build"
+    fi
+else
+    echo "  ❌ Directory not found: $FE_DIR"
+fi
+
+# ─── Step 8: Systemd Services ───────────────────────────────────────────────
+echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "  ⚙️  Step 8: Systemd Services + Restart"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
 # Backend service
@@ -272,7 +341,6 @@ RestartSec=5
 [Install]
 WantedBy=multi-user.target
 EOF
-echo "  ✅ cliperhub-backend.service created"
 
 # Automate service
 sudo tee /etc/systemd/system/cliperhub-automate.service > /dev/null << EOF
@@ -292,49 +360,58 @@ RestartSec=5
 [Install]
 WantedBy=multi-user.target
 EOF
-echo "  ✅ cliperhub-automate.service created"
 
-# Reload and enable
+# Frontend service
+FE_DIR="$PROJECT_DIR/autocliper-v2-FE"
+sudo tee /etc/systemd/system/cliperhub-frontend.service > /dev/null << EOF
+[Unit]
+Description=CliperHub Frontend
+After=network.target
+
+[Service]
+Type=simple
+User=$DEPLOY_USER
+WorkingDirectory=$FE_DIR
+ExecStart=/usr/bin/python3 -m http.server 5173 --directory dist --bind 0.0.0.0
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+# Reload, enable, restart
 sudo systemctl daemon-reload
-sudo systemctl enable cliperhub-backend cliperhub-automate 2>/dev/null || true
-echo "  ✅ Services enabled (auto-start on boot)"
-
-# ─── Step 7: Start/Restart Services ─────────────────────────────────────────
-echo ""
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "  🚀 Step 7: Starting Services"
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-
+sudo systemctl enable cliperhub-backend cliperhub-automate cliperhub-frontend 2>/dev/null || true
 sudo systemctl restart cliperhub-backend 2>/dev/null || true
-echo "  ✅ cliperhub-backend restarted (port 8000)"
-
 sudo systemctl restart cliperhub-automate 2>/dev/null || true
-echo "  ✅ cliperhub-automate restarted (port 8001)"
+sudo systemctl restart cliperhub-frontend 2>/dev/null || true
+
+echo "  ✅ All services restarted"
 
 # Wait and check
 sleep 3
 
+# ─── Final Status ────────────────────────────────────────────────────────────
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "  📊 Final Status"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
 check_service() {
-    local name=$1
-    local port=$2
-    if sudo systemctl is-active --quiet "$name" 2>/dev/null; then
-        echo "  ✅ $name — RUNNING (port $port)"
+    if sudo systemctl is-active --quiet "$1" 2>/dev/null; then
+        echo "  ✅ $1 — RUNNING (port $2)"
     else
-        echo "  ❌ $name — FAILED"
-        echo "     → sudo journalctl -u $name -n 20 --no-pager"
+        echo "  ❌ $1 — FAILED → sudo journalctl -u $1 -n 20"
     fi
 }
 
 check_service "cliperhub-backend" "8000"
 check_service "cliperhub-automate" "8001"
+check_service "cliperhub-frontend" "5173"
 
 if curl -s "$OLLAMA_URL/api/tags" > /dev/null 2>&1; then
-    echo "  ✅ ollama — RUNNING ($OLLAMA_URL)"
+    echo "  ✅ ollama — RUNNING"
 else
     echo "  ⚠️  ollama — NOT RUNNING"
 fi
@@ -345,20 +422,15 @@ else
     echo "  ⚠️  redis — NOT RUNNING"
 fi
 
-# ─── Done ────────────────────────────────────────────────────────────────────
 echo ""
 echo "═══════════════════════════════════════════════════════════════"
-echo "  ✅ Deployment Complete!"
+echo "  ✅ Done! All services deployed."
 echo ""
 echo "  Backend:  http://0.0.0.0:8000"
 echo "  Automate: http://0.0.0.0:8001"
+echo "  Frontend: http://0.0.0.0:5173"
 echo "  Ollama:   $OLLAMA_URL"
 echo ""
-echo "  Commands:"
-echo "    sudo systemctl status cliperhub-backend"
-echo "    sudo systemctl status cliperhub-automate"
-echo "    sudo journalctl -u cliperhub-backend -f"
-echo "    sudo journalctl -u cliperhub-automate -f"
-echo "    sudo systemctl restart cliperhub-backend"
-echo "    sudo systemctl restart cliperhub-automate"
+echo "  Next run will be fast (skips installed components)."
+echo "  Just run: ./deploy.sh"
 echo "═══════════════════════════════════════════════════════════════"
