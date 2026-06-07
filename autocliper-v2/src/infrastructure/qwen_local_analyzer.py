@@ -34,31 +34,29 @@ logger = logging.getLogger(__name__)
 # ─────────────────────────────────────────────────────────────────────────────
 QWEN_CONFIG = {
     "base_url": os.getenv("OLLAMA_URL", "http://localhost:11434"),
-    "model": os.getenv("QWEN_MODEL", "qwen3:4b"),  # Local dev: qwen3:4b, Server: qwen2.5:14b
+    "model": os.getenv("QWEN_MODEL", "qwen2.5:14b"),  # Default: qwen2.5:14b
     "temperature": 0.3,
     "num_predict_pass1": 3000,
     "num_predict_pass2": 4000,
-    "timeout": 600,              # 10 minutes
+    "timeout": 300,              # 5 minutes (configurable via QWEN_TIMEOUT)
     "think": False,              # disable thinking mode
-    "max_candidates_pass1": 5,
+    "max_candidates_pass1": 10,
     "retry_on_parse_fail": 2,
 }
 
 
 class QwenLocalAnalyzer(IAIAnalyzer):
-    """Local Qwen3:4b implementation via Ollama for chunked multi-pass analysis.
+    """Local Qwen2.5:14b implementation via Ollama for chunked multi-pass analysis.
     
-    Acts as fallback when Gemini is unavailable.
+    Acts as fallback when Gemini is unavailable, or as primary for Pass #1 in hybrid mode.
     Produces identical JSON format to GeminiChunkedAnalyzer.
     """
     
-    def __init__(self, base_url: str = None, model: str = None):
+    def __init__(self, base_url: str = None, model: str = None, timeout: int = None):
         self.base_url = base_url or QWEN_CONFIG["base_url"]
         self.model = model or QWEN_CONFIG["model"]
+        self.timeout = timeout or QWEN_CONFIG["timeout"]
         self.chat_url = f"{self.base_url}/api/chat"
-        
-        # Verify Ollama is reachable
-        self._verify_connection()
     
     def _verify_connection(self):
         """Check if Ollama server is running and model is available."""
@@ -99,7 +97,7 @@ class QwenLocalAnalyzer(IAIAnalyzer):
         resp = requests.post(
             self.chat_url,
             json=payload,
-            timeout=QWEN_CONFIG["timeout"]
+            timeout=self.timeout
         )
         resp.raise_for_status()
         
