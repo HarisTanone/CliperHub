@@ -199,6 +199,7 @@ export const api = {
   getBaseClips: (jobId) => api._req(`/api/v1/jobs/${jobId}/base-clips`),
   getBaseClipUrl: (jobId, clipIndex) => `${BASE}/api/v1/jobs/${jobId}/base-clip/${clipIndex}`,
   getClipThumbnailUrl: (jobId, clipIndex) => `${BASE}/api/v1/jobs/${jobId}/thumbnail/${clipIndex}`,
+  getBaseThumbnailUrl: (jobId, clipIndex) => `${BASE}/api/v1/jobs/${jobId}/base-thumbnail/${clipIndex}`,
   
   // Style Rendering Pipeline (apply style to base clips)
   applyStyle: (jobId, captionStyleId, hookStyleId) => api._req(`/api/v1/jobs/${jobId}/apply-style`, {
@@ -251,6 +252,7 @@ export const api = {
   // Admin endpoints
   getHealth: () => fetch(`${BASE}/health`).then(r => r.json()),
   adminCleanup: (days) => api._req(`/api/v1/admin/cleanup?days=${days}`, { method: 'POST' }),
+  adminClearAllData: () => api._req('/api/v1/admin/clear-all-data', { method: 'POST' }),
   getAdminConfig: () => api._req('/api/v1/admin/config'),
   updateAdminConfig: (d) => api._req('/api/v1/admin/config', { method: 'PUT', body: JSON.stringify(d) }),
 

@@ -84,6 +84,16 @@ def _parse_clips_from_response(caption_response) -> List[ClipInfo]:
         for i, h in enumerate(hooks, start=1):
             # Handle both dict and ClipData objects
             if hasattr(h, 'hook'):  # ClipData object
+                scores_data = None
+                if hasattr(h, 'scores') and h.scores:
+                    scores_data = {
+                        "viral_score": h.scores.viral_score,
+                        "curiosity_score": h.scores.curiosity_score,
+                        "emotion_score": h.scores.emotion_score,
+                        "controversy_score": h.scores.controversy_score,
+                        "story_score": h.scores.story_score,
+                        "final_score": h.scores.final_score,
+                    }
                 clips.append(ClipInfo(
                     index=h.index if hasattr(h, 'index') else i,
                     hook=h.hook or "",
@@ -94,8 +104,12 @@ def _parse_clips_from_response(caption_response) -> List[ClipInfo]:
                     thumbnail_path=getattr(h, 'thumbnail_path', None),
                     keywords=getattr(h, 'keywords', []) or [],
                     reason=getattr(h, 'reason', None),
+                    scores=scores_data,
                 ))
             else:  # dict
+                scores_data = None
+                if "scores" in h and h["scores"]:
+                    scores_data = h["scores"]
                 clips.append(ClipInfo(
                     index=i,
                     hook=h.get("hook", ""),
@@ -106,6 +120,7 @@ def _parse_clips_from_response(caption_response) -> List[ClipInfo]:
                     thumbnail_path=h.get("thumbnail_path"),
                     keywords=h.get("keywords", []),
                     reason=h.get("reason"),
+                    scores=scores_data,
                 ))
     except (json.JSONDecodeError, TypeError) as e:
         logger.warning(f"Failed to parse clips: {e}")
@@ -143,9 +158,10 @@ def _build_job_history_response(log, include_files: bool = True) -> JobHistoryRe
     thumbnails = []
     if include_files and log.output_path and os.path.isdir(log.output_path):
         for i, clip in enumerate(clips, start=1):
-            # Check for _final.mp4 first, fallback to _base.mp4
+            # Check for _final.mp4 first, fallback to _base.mp4, then _raw.mp4
             final_path = os.path.join(log.output_path, f"clip_{i}_final.mp4")
             base_path = os.path.join(log.output_path, f"clip_{i}_base.mp4")
+            raw_path = os.path.join(log.output_path, f"clip_{i}_raw.mp4")
             thumb_path = os.path.join(log.output_path, f"clip_{i}_thumb.jpg")
             
             # Determine which video file exists
@@ -156,10 +172,22 @@ def _build_job_history_response(log, include_files: bool = True) -> JobHistoryRe
             elif os.path.exists(base_path):
                 video_file = base_path
                 output_files.append(base_path)
+            elif os.path.exists(raw_path):
+                video_file = raw_path
+                output_files.append(raw_path)
             
             # Generate thumbnail if missing (on-demand)
-            if video_file and not os.path.exists(thumb_path):
-                _generate_thumbnail_if_missing(video_file, thumb_path)
+            # Prefer base/raw for thumbnail to avoid showing overlaid content
+            if not os.path.exists(thumb_path):
+                thumb_source = None
+                if os.path.exists(base_path):
+                    thumb_source = base_path
+                elif os.path.exists(raw_path):
+                    thumb_source = raw_path
+                elif video_file:
+                    thumb_source = video_file
+                if thumb_source:
+                    _generate_thumbnail_if_missing(thumb_source, thumb_path)
             
             if os.path.exists(thumb_path):
                 thumbnails.append(thumb_path)
@@ -338,6 +366,9 @@ async def clear_stuck_processing(_: dict = Depends(require_admin)):
     """
     previous_url = job_queue.processing_url
     job_queue.set_processing(None)
+    # Also reset job_logger so the Queue page doesn't show "Currently Processing"
+    job_logger._reset_state()
+    job_logger._push_ws()
     logger.info(f"Admin cleared stuck processing state. Previous URL: {previous_url}")
     return {
         "status": "cleared",
@@ -348,9 +379,20 @@ async def clear_stuck_processing(_: dict = Depends(require_admin)):
 
 @router.delete("/queue/{url:path}")
 async def cancel_queued_job(url: str, _: dict = Depends(require_admin)):
-    """Cancel a pending job from queue (admin only)."""
+    """Cancel a pending or currently processing job from queue (admin only)."""
+    # Try removing from pending queue first
     if job_queue.cancel(url):
         return {"status": "cancelled", "url": url}
+    
+    # If URL is currently being processed, clear the processing state
+    if job_queue.is_processing(url):
+        job_queue.set_processing(None)
+        # Reset job_logger if it's tracking this URL
+        if job_logger.get_state().get("youtube_url") == url:
+            job_logger._reset_state()
+            job_logger._push_ws()
+        return {"status": "cancelled", "url": url, "was_processing": True}
+    
     raise HTTPException(status_code=404, detail="URL not found in queue")
 
 
@@ -415,8 +457,14 @@ async def delete_job(job_id: int, current: dict = Depends(get_current_user)):
             raise HTTPException(status_code=404, detail="Job not found")
         if not is_admin and log.user_id != user_id:
             raise HTTPException(status_code=403, detail="Access denied")
+        
+        # If the job is currently processing, clear the processing state
         if job_queue.is_processing_job_id(job_id):
-            raise HTTPException(status_code=409, detail="Job sedang diproses, tidak bisa dibatalkan")
+            job_queue.set_processing(None)
+            # Reset job_logger if it's tracking this job
+            if job_logger.get_state().get("youtube_url") == log.youtube_url:
+                job_logger._reset_state()
+                job_logger._push_ws()
         
         job_queue.cancel(log.youtube_url)
         repo.delete(job_id)
@@ -553,10 +601,12 @@ async def get_base_clips(job_id: int, current: dict = Depends(get_current_user))
             
             for i, clip_data in enumerate(caption_data):
                 clip_index = i + 1
-                final_path = os.path.join(video_dir, f"clip_{clip_index}_final.mp4")
                 base_path = os.path.join(video_dir, f"clip_{clip_index}_base.mp4")
+                raw_path = os.path.join(video_dir, f"clip_{clip_index}_raw.mp4")
+                final_path = os.path.join(video_dir, f"clip_{clip_index}_final.mp4")
                 
-                if not (os.path.exists(final_path) or os.path.exists(base_path)):
+                # Must have at least base or raw clip to show for re-styling
+                if not (os.path.exists(base_path) or os.path.exists(raw_path) or os.path.exists(final_path)):
                     continue
                 
                 if hasattr(clip_data, 'start_time'):
@@ -570,7 +620,14 @@ async def get_base_clips(job_id: int, current: dict = Depends(get_current_user))
                     score = clip_data.get('score', 0)
                     keywords = clip_data.get('keywords', [])
 
-                video_file = f"clip_{clip_index}_base.mp4" if os.path.exists(base_path) else f"clip_{clip_index}_final.mp4"
+                # Priority: base > raw (never use _final for re-styling preview)
+                if os.path.exists(base_path):
+                    video_file = f"clip_{clip_index}_base.mp4"
+                elif os.path.exists(raw_path):
+                    video_file = f"clip_{clip_index}_raw.mp4"
+                else:
+                    # Only use final as last resort so clips still show up
+                    video_file = f"clip_{clip_index}_final.mp4"
                 
                 # Check if thumbnail exists
                 thumb_path = os.path.join(video_dir, f"clip_{clip_index}_thumb.jpg")
@@ -609,7 +666,7 @@ async def get_base_clips(job_id: int, current: dict = Depends(get_current_user))
 
 @router.get("/{job_id}/clip-thumbnail/{clip_index}")
 async def serve_clip_thumbnail(job_id: int, clip_index: int, _: dict = Depends(get_current_user)):
-    """Serve a clip thumbnail image."""
+    """Serve a clip thumbnail image. Generates from base/raw if missing."""
     session = database.get_session()
     try:
         log = RequestLogRepository(session).get_by_id(job_id)
@@ -622,10 +679,26 @@ async def serve_clip_thumbnail(job_id: int, clip_index: int, _: dict = Depends(g
         
         thumb_path = os.path.join(video_dir, f"clip_{clip_index}_thumb.jpg")
         
+        # If thumbnail doesn't exist, try generating from base/raw
+        if not os.path.exists(thumb_path):
+            base_path = os.path.join(video_dir, f"clip_{clip_index}_base.mp4")
+            raw_path = os.path.join(video_dir, f"clip_{clip_index}_raw.mp4")
+            final_path = os.path.join(video_dir, f"clip_{clip_index}_final.mp4")
+            
+            source = None
+            if os.path.exists(base_path):
+                source = base_path
+            elif os.path.exists(raw_path):
+                source = raw_path
+            elif os.path.exists(final_path):
+                source = final_path
+            
+            if source:
+                _generate_thumbnail_if_missing(source, thumb_path)
+        
         if os.path.exists(thumb_path):
             return FileResponse(thumb_path, media_type="image/jpeg")
         else:
-            # Return a placeholder or 404
             raise HTTPException(status_code=404, detail="Thumbnail not found")
     finally:
         session.close()
@@ -633,7 +706,7 @@ async def serve_clip_thumbnail(job_id: int, clip_index: int, _: dict = Depends(g
 
 @router.get("/{job_id}/base-clip/{clip_index}")
 async def serve_base_clip(job_id: int, clip_index: int, _: dict = Depends(get_current_user)):
-    """Serve a base clip video file for preview."""
+    """Serve a base clip video file for preview (raw/unprocessed, no overlays)."""
     session = database.get_session()
     try:
         log = RequestLogRepository(session).get_by_id(job_id)
@@ -644,15 +717,63 @@ async def serve_base_clip(job_id: int, clip_index: int, _: dict = Depends(get_cu
         if not video_dir or not os.path.exists(video_dir):
             raise HTTPException(status_code=404, detail="Output directory not found")
         
+        # Priority: _base.mp4 (cropped, no overlay) > _raw.mp4 (raw clip) 
+        # Never fall back to _final.mp4 here — it has overlays applied
         base_path = os.path.join(video_dir, f"clip_{clip_index}_base.mp4")
-        final_path = os.path.join(video_dir, f"clip_{clip_index}_final.mp4")
+        raw_path = os.path.join(video_dir, f"clip_{clip_index}_raw.mp4")
         
         if os.path.exists(base_path):
             return FileResponse(base_path, media_type="video/mp4")
-        elif os.path.exists(final_path):
-            return FileResponse(final_path, media_type="video/mp4")
+        elif os.path.exists(raw_path):
+            return FileResponse(raw_path, media_type="video/mp4")
         else:
-            raise HTTPException(status_code=404, detail="Clip video not found")
+            raise HTTPException(status_code=404, detail="Base clip video not found")
+    finally:
+        session.close()
+
+
+@router.get("/{job_id}/base-thumbnail/{clip_index}")
+async def serve_base_thumbnail(job_id: int, clip_index: int, _: dict = Depends(get_current_user)):
+    """Serve a thumbnail generated from the base/raw clip (no overlays).
+    
+    Used by the Re-Style page to show clean preview thumbnails.
+    Generates from base/raw video, never from _final.mp4.
+    """
+    session = database.get_session()
+    try:
+        log = RequestLogRepository(session).get_by_id(job_id)
+        if not log:
+            raise HTTPException(status_code=404, detail="Job not found")
+        
+        video_dir = log.output_path
+        if not video_dir or not os.path.exists(video_dir):
+            raise HTTPException(status_code=404, detail="Output directory not found")
+        
+        # Use a separate thumbnail file for base previews
+        base_thumb_path = os.path.join(video_dir, f"clip_{clip_index}_base_thumb.jpg")
+        
+        if not os.path.exists(base_thumb_path):
+            # Generate from base/raw only
+            base_path = os.path.join(video_dir, f"clip_{clip_index}_base.mp4")
+            raw_path = os.path.join(video_dir, f"clip_{clip_index}_raw.mp4")
+            
+            source = None
+            if os.path.exists(base_path):
+                source = base_path
+            elif os.path.exists(raw_path):
+                source = raw_path
+            
+            if source:
+                _generate_thumbnail_if_missing(source, base_thumb_path)
+        
+        # Fall back to regular thumb if base thumb can't be generated
+        if not os.path.exists(base_thumb_path):
+            thumb_path = os.path.join(video_dir, f"clip_{clip_index}_thumb.jpg")
+            if os.path.exists(thumb_path):
+                return FileResponse(thumb_path, media_type="image/jpeg")
+            raise HTTPException(status_code=404, detail="Thumbnail not found")
+        
+        return FileResponse(base_thumb_path, media_type="image/jpeg")
     finally:
         session.close()
 
@@ -895,7 +1016,7 @@ async def serve_clip(job_id: int, clip_index: int, _: dict = Depends(get_current
 
 @router.get("/{job_id}/thumbnail/{clip_index}")
 async def serve_thumbnail_by_index(job_id: int, clip_index: int, _: dict = Depends(get_current_user)):
-    """Serve a clip thumbnail by index."""
+    """Serve a clip thumbnail by index. Generates from base/raw if missing."""
     session = database.get_session()
     try:
         log = RequestLogRepository(session).get_by_id(job_id)
@@ -904,6 +1025,23 @@ async def serve_thumbnail_by_index(job_id: int, clip_index: int, _: dict = Depen
         
         job_dir = log.output_path or os.path.join(OUTPUT_DIR, f"job_{job_id}")
         thumb_path = os.path.join(job_dir, f"clip_{clip_index}_thumb.jpg")
+        
+        # If thumbnail doesn't exist, try generating from base/raw (not final)
+        if not os.path.exists(thumb_path):
+            base_path = os.path.join(job_dir, f"clip_{clip_index}_base.mp4")
+            raw_path = os.path.join(job_dir, f"clip_{clip_index}_raw.mp4")
+            final_path = os.path.join(job_dir, f"clip_{clip_index}_final.mp4")
+            
+            source = None
+            if os.path.exists(base_path):
+                source = base_path
+            elif os.path.exists(raw_path):
+                source = raw_path
+            elif os.path.exists(final_path):
+                source = final_path
+            
+            if source:
+                _generate_thumbnail_if_missing(source, thumb_path)
         
         if not os.path.exists(thumb_path):
             raise HTTPException(status_code=404, detail="Thumbnail not found")

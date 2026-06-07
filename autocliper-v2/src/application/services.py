@@ -12,7 +12,7 @@ from ..domain.entities import (
     ProcessingState, ProcessingStatus, VideoInfo, SubtitleSegment
 )
 from ..infrastructure.repositories import CaptionStyleRepository, RequestLogRepository
-from ..infrastructure.external_services import GeminiService, YouTubeDownloader
+from ..infrastructure.external_services import GeminiService, YouTubeDownloader, DownloadQualityError
 from ..infrastructure.video_processor import VideoClipper, AudioExtractor, WhisperService
 from ..infrastructure.mouth_centered_face_tracker import MouthCenteredFaceTracker, MouthCenteredVideoCropper
 from ..infrastructure.repositories import HookStyleRepository
@@ -308,9 +308,35 @@ class VideoProcessingPipeline:
                 logger.warning("Whisper transcript empty, Gemini will fallback to YouTube captions")
                 job_logger.log("⚠️ Whisper transcript empty, falling back to YouTube captions")
 
-            clips = self.gemini_service.analyze_youtube_content(job_request.urls, video_info, whisper_transcript)
-            logger.info(f"AI found {len(clips)} potential clips using Whisper transcript")
-            job_logger.log(f"AI analysis complete — found {len(clips)} potential clips")
+            # Feature flag: USE_CHUNKED_ANALYSIS
+            use_chunked = os.getenv("USE_CHUNKED_ANALYSIS", "false").lower() in ("true", "1", "yes")
+            
+            if use_chunked and whisper_transcript:
+                # ─── Multi-Pass Chunked Analysis ─────────────────────────────
+                from ..infrastructure.chunked_analyzer import ChunkedAnalysisPipeline
+                
+                logger.info("Step 4 [CHUNKED]: Multi-pass analysis enabled")
+                job_logger.log("🧠 Multi-pass chunked analysis enabled", "analyzing_content")
+                
+                # Build metadata for AI context
+                video_id = self.gemini_service._extract_video_id(job_request.urls)
+                metadata = self.gemini_service._get_youtube_metadata(video_id) if video_id else {}
+                metadata.setdefault('title', video_info.title)
+                metadata.setdefault('duration', video_info.duration)
+                
+                # Run chunked pipeline
+                chunked_pipeline = ChunkedAnalysisPipeline(
+                    progress_callback=lambda msg: job_logger.log(msg, "analyzing_content")
+                )
+                clips = chunked_pipeline.analyze(whisper_transcript, metadata)
+                
+                logger.info(f"AI found {len(clips)} clips via chunked multi-pass analysis")
+                job_logger.log(f"AI analysis complete (chunked) — found {len(clips)} clips")
+            else:
+                # ─── Legacy Single-Pass Analysis ─────────────────────────────
+                clips = self.gemini_service.analyze_youtube_content(job_request.urls, video_info, whisper_transcript)
+                logger.info(f"AI found {len(clips)} potential clips using single-pass analysis")
+                job_logger.log(f"AI analysis complete — found {len(clips)} potential clips")
             
             # 5. Create/Update request log with AI results
             logger.info("Step 5: Saving to database")
@@ -459,6 +485,54 @@ class VideoProcessingPipeline:
                 "output_directory": video_dir,
                 "clips": processed_clips
             }
+            
+        except DownloadQualityError as e:
+            # STRICT: Video quality < 1080p — fail immediately, cleanup everything
+            error_msg = str(e)
+            logger.error(f"Download quality insufficient: {error_msg}")
+            self._update_status(ProcessingState.FAILED, error_msg)
+            job_logger.log(f"❌ {error_msg}")
+            job_logger.mark_failed(error_msg)
+            
+            # Clean up output folder if it was created
+            if video_info and video_info.filepath:
+                video_dir_cleanup = os.path.dirname(video_info.filepath)
+                if os.path.exists(video_dir_cleanup):
+                    shutil.rmtree(video_dir_cleanup, ignore_errors=True)
+                    logger.info(f"🗑️ Cleaned up video folder: {video_dir_cleanup}")
+            
+            # Update request_log as failed
+            if request_log:
+                request_log.status = ProcessingState.FAILED
+                try:
+                    request_log_repo.update(request_log)
+                except Exception:
+                    pass
+            
+            # Clear from Redis processing state
+            try:
+                job_queue.set_processing(None)
+            except Exception:
+                pass
+            
+            # Send WebSocket notification
+            try:
+                import asyncio
+                from ..infrastructure.websocket_manager import ws_manager
+                loop = asyncio.new_event_loop()
+                loop.run_until_complete(
+                    ws_manager.notify_job_failed(
+                        user_id=job_request.user_id or 0,
+                        job_id=request_log.id if request_log else 0,
+                        youtube_url=job_request.urls,
+                        error=error_msg
+                    )
+                )
+                loop.close()
+            except Exception as ws_err:
+                logger.warning(f"WebSocket notification failed: {ws_err}")
+            
+            raise
             
         except Exception as e:
             logger.error(f"Pipeline error: {e}")
@@ -619,10 +693,15 @@ class VideoProcessingPipeline:
                         "duration": duration,
                         "hook": clip.hook,
                         "score": clip.score,
+                        "scores": clip.scores.to_dict() if hasattr(clip, 'scores') and clip.scores else None,
                         "keywords": clip.keywords if hasattr(clip, 'keywords') else [],
+                        "hashtags": [f"#{kw.lower()}" for kw in (clip.keywords if hasattr(clip, 'keywords') else [])],
+                        "reason": clip.reason if hasattr(clip, 'reason') else "",
                         "subtitles": subtitles,  # Original subtitles (not adjusted)
                         "base_video": f"clip_{clip_index}_base.mp4",
+                        "final_video": f"clip_{clip_index}_final.mp4",
                         "raw_video": f"clip_{clip_index}_raw.mp4",
+                        "thumbnail": f"clip_{clip_index}_thumb.jpg",
                     }
                     metadata_path = os.path.join(output_dir, f"clip_{clip_index}_metadata.json")
                     with open(metadata_path, 'w', encoding='utf-8') as mf:
@@ -697,10 +776,15 @@ class VideoProcessingPipeline:
                         "duration": duration,
                         "hook": clip.hook,
                         "score": clip.score,
+                        "scores": clip.scores.to_dict() if hasattr(clip, 'scores') and clip.scores else None,
                         "keywords": clip.keywords if hasattr(clip, 'keywords') else [],
+                        "hashtags": [f"#{kw.lower()}" for kw in (clip.keywords if hasattr(clip, 'keywords') else [])],
+                        "reason": clip.reason if hasattr(clip, 'reason') else "",
                         "subtitles": subtitles,
                         "base_video": f"clip_{clip_index}_base.mp4",
+                        "final_video": f"clip_{clip_index}_final.mp4",
                         "raw_video": f"clip_{clip_index}_raw.mp4",
+                        "thumbnail": f"clip_{clip_index}_thumb.jpg",
                     }
                     metadata_path = os.path.join(output_dir, f"clip_{clip_index}_metadata.json")
                     with open(metadata_path, 'w', encoding='utf-8') as mf:
@@ -769,10 +853,15 @@ class VideoProcessingPipeline:
                     "duration": duration,
                     "hook": clip.hook,
                     "score": clip.score,
+                    "scores": clip.scores.to_dict() if hasattr(clip, 'scores') and clip.scores else None,
                     "keywords": clip.keywords if hasattr(clip, 'keywords') else [],
+                    "hashtags": [f"#{kw.lower()}" for kw in (clip.keywords if hasattr(clip, 'keywords') else [])],
+                    "reason": clip.reason if hasattr(clip, 'reason') else "",
                     "subtitles": subtitles,
                     "base_video": f"clip_{clip_index}_base.mp4",
+                    "final_video": f"clip_{clip_index}_final.mp4",
                     "raw_video": f"clip_{clip_index}_raw.mp4",
+                    "thumbnail": f"clip_{clip_index}_thumb.jpg",
                 }
                 metadata_path = os.path.join(output_dir, f"clip_{clip_index}_metadata.json")
                 with open(metadata_path, 'w', encoding='utf-8') as mf:
@@ -988,10 +1077,31 @@ class VideoProcessingPipeline:
                 logger.warning("Whisper transcript empty")
                 job_logger.log("⚠️ Whisper transcript empty, falling back to YouTube captions")
             
-            # 5. AI clip detection
-            clips = self.gemini_service.analyze_youtube_content(job_request.urls, video_info, whisper_transcript)
-            logger.info(f"AI found {len(clips)} potential clips")
-            job_logger.log(f"AI analysis complete — found {len(clips)} potential clips")
+            # 5. AI clip detection (with chunked analysis support)
+            use_chunked = os.getenv("USE_CHUNKED_ANALYSIS", "false").lower() in ("true", "1", "yes")
+            
+            if use_chunked and whisper_transcript:
+                from ..infrastructure.chunked_analyzer import ChunkedAnalysisPipeline
+                
+                logger.info("Step 5 [CHUNKED]: Multi-pass analysis enabled")
+                job_logger.log("🧠 Multi-pass chunked analysis enabled", "analyzing_content")
+                
+                video_id = self.gemini_service._extract_video_id(job_request.urls)
+                metadata = self.gemini_service._get_youtube_metadata(video_id) if video_id else {}
+                metadata.setdefault('title', video_info.title)
+                metadata.setdefault('duration', video_info.duration)
+                
+                chunked_pipeline = ChunkedAnalysisPipeline(
+                    progress_callback=lambda msg: job_logger.log(msg, "analyzing_content")
+                )
+                clips = chunked_pipeline.analyze(whisper_transcript, metadata)
+                
+                logger.info(f"AI found {len(clips)} clips via chunked multi-pass analysis")
+                job_logger.log(f"AI analysis complete (chunked) — found {len(clips)} clips")
+            else:
+                clips = self.gemini_service.analyze_youtube_content(job_request.urls, video_info, whisper_transcript)
+                logger.info(f"AI found {len(clips)} potential clips")
+                job_logger.log(f"AI analysis complete — found {len(clips)} potential clips")
             
             # 6. Save to database (use caption_style=1 as placeholder for base processing)
             logger.info("Step 6: Saving to database")
@@ -1121,6 +1231,52 @@ class VideoProcessingPipeline:
                 "mode": "base_only"
             }
             
+        except DownloadQualityError as e:
+            # STRICT: Video quality < 1080p — fail immediately, cleanup everything
+            error_msg = str(e)
+            logger.error(f"Download quality insufficient: {error_msg}")
+            self._update_status(ProcessingState.FAILED, error_msg)
+            job_logger.log(f"❌ {error_msg}")
+            job_logger.mark_failed(error_msg)
+            
+            # Clean up output folder if it was created
+            if video_info and video_info.filepath:
+                video_dir_cleanup = os.path.dirname(video_info.filepath)
+                if os.path.exists(video_dir_cleanup):
+                    shutil.rmtree(video_dir_cleanup, ignore_errors=True)
+                    logger.info(f"🗑️ Cleaned up video folder: {video_dir_cleanup}")
+            
+            if request_log:
+                request_log.status = ProcessingState.FAILED
+                try:
+                    request_log_repo.update(request_log)
+                except Exception:
+                    pass
+            
+            try:
+                job_queue.set_processing(None)
+            except Exception:
+                pass
+            
+            # Send WebSocket notification
+            try:
+                import asyncio
+                from ..infrastructure.websocket_manager import ws_manager
+                loop = asyncio.new_event_loop()
+                loop.run_until_complete(
+                    ws_manager.notify_job_failed(
+                        user_id=job_request.user_id or 0,
+                        job_id=request_log.id if request_log else 0,
+                        youtube_url=job_request.urls,
+                        error=error_msg
+                    )
+                )
+                loop.close()
+            except Exception as ws_err:
+                logger.warning(f"WebSocket notification failed: {ws_err}")
+            
+            raise
+            
         except Exception as e:
             logger.error(f"Base pipeline error: {e}")
             self._update_status(ProcessingState.FAILED, str(e))
@@ -1198,8 +1354,10 @@ class VideoProcessingPipeline:
                 "hook": hook,
                 "score": score,
                 "keywords": keywords,
+                "hashtags": [f"#{kw.lower()}" for kw in (keywords or [])],
                 "subtitles": [],  # No subtitles for legacy jobs - will render without captions
                 "base_video": video_file,
+                "thumbnail": f"clip_{clip_index}_thumb.jpg",
             }
             
             # Save metadata file
@@ -1302,9 +1460,14 @@ class VideoProcessingPipeline:
                 "duration": duration,
                 "hook": clip.hook,
                 "score": clip.score,
+                "scores": clip.scores.to_dict() if hasattr(clip, 'scores') and clip.scores else None,
                 "keywords": clip.keywords,
+                "hashtags": [f"#{kw.lower()}" for kw in (clip.keywords or [])],
+                "reason": clip.reason if hasattr(clip, 'reason') else "",
                 "subtitles": subtitles,
                 "base_video": os.path.basename(base_path),
+                "raw_video": f"clip_{clip_index}_raw.mp4",
+                "thumbnail": f"clip_{clip_index}_thumb.jpg",
                 "source_video": os.path.basename(clipped_video_path),
             }
             

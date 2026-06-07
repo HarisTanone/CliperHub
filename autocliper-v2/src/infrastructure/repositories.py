@@ -129,7 +129,8 @@ class CaptionStyleRepository:
         editable = {
             'name', 'font_id', 'font_weight', 'font_size', 'color', 'highlight_color',
             'outline_color', 'outline_width', 'shadow_color',
-            'shadow_offset_x', 'shadow_offset_y', 'line_spacing', 'caption_bottom_margin'
+            'shadow_offset_x', 'shadow_offset_y', 'line_spacing', 'caption_bottom_margin',
+            'config'
         }
         for k, v in data.items():
             if k in editable:
@@ -271,8 +272,11 @@ class RequestLogRepository:
                 continue
             try:
                 files = os.listdir(m.output_path)
-                # Check for either _final.mp4 (styled) or _base.mp4 (base processed)
-                has_video = any(f.endswith('_final.mp4') or f.endswith('_base.mp4') for f in files)
+                # Check for _final.mp4 (styled), _base.mp4 (base processed), or _raw.mp4 (raw clip)
+                has_video = any(
+                    f.endswith('_final.mp4') or f.endswith('_base.mp4') or f.endswith('_raw.mp4')
+                    for f in files
+                )
                 if has_video:
                     clips = self._json_to_clips(m.caption_response)
                     result.append(self._to_entity(m, clips))
@@ -319,8 +323,9 @@ class RequestLogRepository:
         if not clips:
             return []
         
-        return [
-            {
+        result = []
+        for clip in clips:
+            clip_dict = {
                 "index": clip.index,
                 "start_time": clip.start_time,
                 "end_time": clip.end_time,
@@ -329,16 +334,36 @@ class RequestLogRepository:
                 "reason": clip.reason,
                 "keywords": getattr(clip, 'keywords', []),
             }
-            for clip in clips
-        ]
+            # Include multi-scores if available
+            if hasattr(clip, 'scores') and clip.scores:
+                clip_dict["scores"] = clip.scores.to_dict()
+            if hasattr(clip, 'chunk_id') and clip.chunk_id is not None:
+                clip_dict["chunk_id"] = clip.chunk_id
+            result.append(clip_dict)
+        
+        return result
     
     def _json_to_clips(self, json_data: List[dict]) -> List[ClipData]:
         """Convert JSON list to ClipData list"""
         if not json_data:
             return []
         
-        return [
-            ClipData(
+        from ..domain.entities import ClipScores
+        
+        clips = []
+        for clip in json_data:
+            scores = None
+            if "scores" in clip and clip["scores"]:
+                s = clip["scores"]
+                scores = ClipScores(
+                    viral_score=s.get("viral_score", 0.0),
+                    curiosity_score=s.get("curiosity_score", 0.0),
+                    emotion_score=s.get("emotion_score", 0.0),
+                    controversy_score=s.get("controversy_score", 0.0),
+                    story_score=s.get("story_score", 0.0),
+                )
+            
+            clips.append(ClipData(
                 index=clip.get("index", 0),
                 start_time=clip.get("start_time", 0.0),
                 end_time=clip.get("end_time", 0.0),
@@ -346,9 +371,11 @@ class RequestLogRepository:
                 score=clip.get("score", 0.0),
                 reason=clip.get("reason", ""),
                 keywords=clip.get("keywords", []),
-            )
-            for clip in json_data
-        ]
+                scores=scores,
+                chunk_id=clip.get("chunk_id"),
+            ))
+        
+        return clips
     
     def _to_entity(self, model: RequestLogModel, clips: List[ClipData]) -> RequestLog:
         """Convert model to entity"""

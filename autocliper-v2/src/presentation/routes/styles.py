@@ -46,6 +46,18 @@ def _hook_style_to_response(s) -> HookStyleResponse:
 
 
 def _caption_style_to_response(s) -> CaptionStyleResponse:
+    # Parse config JSON if it's a string
+    config_data = None
+    if hasattr(s, 'config') and s.config:
+        import json
+        if isinstance(s.config, str):
+            try:
+                config_data = json.loads(s.config)
+            except (json.JSONDecodeError, TypeError):
+                config_data = None
+        elif isinstance(s.config, dict):
+            config_data = s.config
+
     return CaptionStyleResponse(
         id=s.id,
         name=s.name,
@@ -62,7 +74,8 @@ def _caption_style_to_response(s) -> CaptionStyleResponse:
         shadow_offset_y=s.shadow_offset_y,
         line_spacing=s.line_spacing,
         caption_bottom_margin=s.caption_bottom_margin,
-        user_id=s.user_id
+        user_id=s.user_id,
+        config=config_data
     )
 
 

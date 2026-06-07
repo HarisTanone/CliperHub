@@ -29,21 +29,22 @@ function timeAgo(d) {
 
 function QuickActions({ onNavigate }) {
   const actions = [
-    { key: 'create', icon: 'add_circle', label: 'New Clip', desc: 'Process a video', color: 'bg-primary' },
-    { key: 'library', icon: 'video_library', label: 'Library', desc: 'View outputs', color: 'bg-emerald-500' },
-    { key: 'styles', icon: 'palette', label: 'Styles', desc: 'Edit presets', color: 'bg-violet-500' },
+    { key: 'create', icon: 'add_circle', label: 'New Clip', desc: 'Process a video', gradient: 'linear-gradient(135deg, var(--crimson-wine), var(--burgundy))' },
+    { key: 'library', icon: 'video_library', label: 'Library', desc: 'View outputs', gradient: 'linear-gradient(135deg, var(--deep-indigo), var(--dark-plum))' },
+    { key: 'styles', icon: 'palette', label: 'Styles', desc: 'Edit presets', gradient: 'linear-gradient(135deg, var(--dark-plum), var(--crimson-wine))' },
   ]
   return (
     <div className="grid grid-cols-3 gap-3">
       {actions.map(a => (
-        <motion.button key={a.key} whileHover={{ y: -2 }} whileTap={{ scale: 0.97 }}
+        <motion.button key={a.key} whileHover={{ y: -4, scale: 1.02 }} whileTap={{ scale: 0.97 }}
           onClick={() => onNavigate(a.key)}
-          className="bg-white dark:bg-[#152230] rounded-2xl border border-slate-200 dark:border-[#233648] p-4 shadow-sm text-left hover:shadow-md transition-shadow">
-          <div className={`w-9 h-9 rounded-xl flex items-center justify-center mb-3 ${a.color}`}>
-            <span className="material-symbols-outlined text-white text-[18px]">{a.icon}</span>
+          className="rounded-2xl p-4 shadow-sm text-left hover:shadow-lg transition-all cursor-pointer"
+          style={{ background: 'var(--color-bg-card)', border: '1px solid var(--color-border-subtle)' }}>
+          <div className="w-10 h-10 rounded-xl flex items-center justify-center mb-3 shadow-md" style={{ background: a.gradient }}>
+            <span className="material-symbols-outlined text-white text-[20px]">{a.icon}</span>
           </div>
-          <p className="text-sm font-semibold text-slate-900 dark:text-white">{a.label}</p>
-          <p className="text-[11px] text-slate-400 mt-0.5">{a.desc}</p>
+          <p className="text-sm font-semibold" style={{ color: 'var(--color-text-primary)' }}>{a.label}</p>
+          <p className="text-[11px] mt-0.5" style={{ color: 'var(--color-text-muted)' }}>{a.desc}</p>
         </motion.button>
       ))}
     </div>
@@ -54,13 +55,17 @@ function ActiveJobCard({ job, onViewProgress }) {
   const videoInfo = useVideoInfo(job.youtube_url)
   return (
     <motion.div initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }}
-      className="flex items-center gap-3 p-3 bg-amber-50/50 dark:bg-amber-900/10 border border-amber-200/50 dark:border-amber-800/30 rounded-xl">
-      <div className="w-14 aspect-video rounded-lg overflow-hidden bg-slate-200 dark:bg-slate-800 flex-shrink-0 relative">
+      className="flex items-center gap-3 p-3 rounded-xl"
+      style={{
+        background: 'var(--color-warning-bg)',
+        border: '1px solid var(--color-warning-border)'
+      }}>
+      <div className="w-14 aspect-video rounded-lg overflow-hidden flex-shrink-0 relative" style={{ background: 'var(--color-surface-1)' }}>
         {videoInfo?.thumbnail_url ? (
           <img src={videoInfo.thumbnail_url} alt="" className="w-full h-full object-cover" />
         ) : (
           <div className="w-full h-full flex items-center justify-center">
-            <span className="material-symbols-outlined text-[14px] text-slate-300">smart_display</span>
+            <span className="material-symbols-outlined text-[14px]" style={{ color: 'var(--icon-muted)' }}>smart_display</span>
           </div>
         )}
         <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
@@ -68,11 +73,12 @@ function ActiveJobCard({ job, onViewProgress }) {
         </div>
       </div>
       <div className="flex-1 min-w-0">
-        <p className="text-xs font-semibold text-slate-900 dark:text-white truncate">{videoInfo?.title || 'Processing...'}</p>
-        <p className="text-[10px] text-amber-600 dark:text-amber-400 font-medium mt-0.5 capitalize">{job.status}</p>
+        <p className="text-xs font-semibold truncate" style={{ color: 'var(--color-text-primary)' }}>{videoInfo?.title || 'Processing...'}</p>
+        <p className="text-[10px] font-medium mt-0.5 capitalize" style={{ color: 'var(--color-warning-text)' }}>{job.status}</p>
       </div>
       <button onClick={() => onViewProgress(job)}
-        className="px-2.5 py-1 bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 dark:text-amber-400 rounded-lg text-[11px] font-semibold transition-colors flex-shrink-0">
+        className="px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-colors cursor-pointer"
+        style={{ background: 'var(--color-warning-bg)', color: 'var(--color-warning-text)' }}>
         View
       </button>
     </motion.div>
@@ -85,24 +91,29 @@ function RecentJobRow({ job, onDelete }) {
   const isFailed = job.status === 'failed'
 
   return (
-    <div className="flex items-center gap-3 p-3 hover:bg-slate-50 dark:hover:bg-[#192633]/60 rounded-xl transition-colors group">
-      <div className="w-12 aspect-video rounded-lg overflow-hidden bg-slate-100 dark:bg-slate-800 flex-shrink-0">
+    <div className="flex items-center gap-3 p-3 rounded-xl transition-colors group cursor-pointer"
+      style={{ ':hover': { background: 'var(--color-surface-1)' } }}
+      onMouseEnter={(e) => e.currentTarget.style.background = 'var(--color-surface-1)'}
+      onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}>
+      <div className="w-12 aspect-video rounded-lg overflow-hidden flex-shrink-0" style={{ background: 'var(--color-surface-1)' }}>
         {videoInfo?.thumbnail_url ? (
           <img src={videoInfo.thumbnail_url} alt="" className="w-full h-full object-cover" />
         ) : (
           <div className="w-full h-full flex items-center justify-center">
-            <span className="material-symbols-outlined text-[12px] text-slate-300">smart_display</span>
+            <span className="material-symbols-outlined text-[12px]" style={{ color: 'var(--icon-muted)' }}>smart_display</span>
           </div>
         )}
       </div>
       <div className="flex-1 min-w-0">
-        <p className="text-xs font-medium text-slate-900 dark:text-white truncate">{videoInfo?.title || job.youtube_url}</p>
-        <p className="text-[10px] text-slate-400 mt-0.5">{timeAgo(job.requested_at)} -- {job.clips_count || 0} clips</p>
+        <p className="text-xs font-medium truncate" style={{ color: 'var(--color-text-primary)' }}>{videoInfo?.title || job.youtube_url}</p>
+        <p className="text-[10px] mt-0.5" style={{ color: 'var(--color-text-muted)' }}>{timeAgo(job.requested_at)} -- {job.clips_count || 0} clips</p>
       </div>
       <div className="flex items-center gap-2">
-        <span className={`w-2 h-2 rounded-full flex-shrink-0 ${isCompleted ? 'bg-emerald-500' : isFailed ? 'bg-red-500' : 'bg-amber-500 animate-pulse'}`} />
+        <span className={`w-2 h-2 rounded-full flex-shrink-0 ${isCompleted ? '' : isFailed ? '' : 'animate-pulse'}`}
+          style={{ background: isCompleted ? 'var(--color-success-text)' : isFailed ? 'var(--color-error-text)' : 'var(--color-warning-text)' }} />
         <button onClick={() => onDelete(job.id)}
-          className="p-1 text-slate-300 hover:text-red-500 rounded transition-colors opacity-0 group-hover:opacity-100">
+          className="p-1 rounded transition-colors opacity-0 group-hover:opacity-100 cursor-pointer"
+          style={{ color: 'var(--color-error-text)' }}>
           <span className="material-symbols-outlined text-[14px]">close</span>
         </button>
       </div>
@@ -122,28 +133,28 @@ function SystemHealth() {
   const diskStatus = health.disk?.status || 'ok'
 
   return (
-    <div className="bg-white dark:bg-[#152230] rounded-2xl border border-slate-200 dark:border-[#233648] p-4 shadow-sm">
-      <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">System</h4>
+    <div className="rounded-2xl p-4 shadow-sm" style={{ background: 'var(--color-bg-card)', border: '1px solid var(--color-border-subtle)' }}>
+      <h4 className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: 'var(--color-text-muted)' }}>System</h4>
       <div className="space-y-2.5">
         <div className="flex items-center justify-between">
-          <span className="text-xs text-slate-600 dark:text-slate-300">Server</span>
-          <span className={`flex items-center gap-1.5 text-xs font-medium ${isHealthy ? 'text-emerald-600' : 'text-red-500'}`}>
-            <span className={`w-1.5 h-1.5 rounded-full ${isHealthy ? 'bg-emerald-500' : 'bg-red-500'}`} />
+          <span className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>Server</span>
+          <span className="flex items-center gap-1.5 text-xs font-medium" style={{ color: isHealthy ? 'var(--color-success-text)' : 'var(--color-error-text)' }}>
+            <span className="w-1.5 h-1.5 rounded-full" style={{ background: isHealthy ? 'var(--color-success-text)' : 'var(--color-error-text)' }} />
             {isHealthy ? 'Healthy' : 'Unhealthy'}
           </span>
         </div>
         {diskFree != null && (
           <div className="flex items-center justify-between">
-            <span className="text-xs text-slate-600 dark:text-slate-300">Disk</span>
-            <span className={`text-xs font-medium ${diskStatus === 'ok' ? 'text-slate-600 dark:text-slate-300' : diskStatus === 'warning' ? 'text-amber-600' : 'text-red-500'}`}>
+            <span className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>Disk</span>
+            <span className="text-xs font-medium" style={{ color: diskStatus === 'ok' ? 'var(--color-text-secondary)' : diskStatus === 'warning' ? 'var(--color-warning-text)' : 'var(--color-error-text)' }}>
               {diskFree.toFixed(1)} GB free
             </span>
           </div>
         )}
         {health.queue && (
           <div className="flex items-center justify-between">
-            <span className="text-xs text-slate-600 dark:text-slate-300">Queue</span>
-            <span className="text-xs font-medium text-slate-600 dark:text-slate-300">{health.queue.pending || 0} pending</span>
+            <span className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>Queue</span>
+            <span className="text-xs font-medium" style={{ color: 'var(--color-text-secondary)' }}>{health.queue.pending || 0} pending</span>
           </div>
         )}
       </div>
@@ -186,7 +197,7 @@ function DashboardPage({ onNavigate, onViewProgress }) {
   const recentJobs = jobs.slice(0, 8)
 
   return (
-    <div className="flex-1 overflow-y-auto p-5 md:p-8 bg-slate-50/50 dark:bg-transparent">
+    <div className="flex-1 overflow-y-auto p-5 md:p-8" style={{ background: 'var(--color-bg-primary)' }}>
       <div className="max-w-6xl mx-auto">
 
         {/* Welcome + Stats Row */}
@@ -194,7 +205,8 @@ function DashboardPage({ onNavigate, onViewProgress }) {
           <FadeInUp>
             <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 mb-6">
               {/* Welcome card */}
-              <div className="lg:col-span-2 bg-gradient-to-br from-primary to-primary/80 rounded-2xl p-6 text-white relative overflow-hidden">
+              <div className="lg:col-span-2 rounded-2xl p-6 text-white relative overflow-hidden"
+                style={{ background: 'linear-gradient(135deg, var(--crimson-wine), var(--burgundy), var(--dark-plum))' }}>
                 <div className="absolute -top-10 -right-10 w-40 h-40 rounded-full bg-white/10" />
                 <div className="absolute -bottom-8 -left-8 w-32 h-32 rounded-full bg-white/5" />
                 <div className="relative">
@@ -205,29 +217,36 @@ function DashboardPage({ onNavigate, onViewProgress }) {
                       ? `${activeJobs.length} job${activeJobs.length > 1 ? 's' : ''} currently processing`
                       : `${completedJobs.length} videos processed so far`}
                   </p>
-                  <button onClick={() => onNavigate('create')}
-                    className="mt-4 inline-flex items-center gap-2 px-4 py-2 bg-white/20 hover:bg-white/30 backdrop-blur-sm rounded-xl text-sm font-semibold transition-colors">
+                  <motion.button
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={() => onNavigate('create')}
+                    className="mt-4 inline-flex items-center gap-2 px-4 py-2 bg-white/20 hover:bg-white/30 backdrop-blur-sm rounded-xl text-sm font-semibold transition-colors cursor-pointer">
                     <span className="material-symbols-outlined text-[16px]">add</span>
                     Create New Clip
-                  </button>
+                  </motion.button>
                 </div>
               </div>
 
               {/* Stat cards */}
-              <motion.div whileHover={{ y: -2 }} className="bg-white dark:bg-[#152230] rounded-2xl border border-slate-200 dark:border-[#233648] p-5 shadow-sm">
-                <div className="w-9 h-9 rounded-xl bg-emerald-500 flex items-center justify-center mb-3">
-                  <span className="material-symbols-outlined text-white text-[18px]">movie_filter</span>
+              <motion.div whileHover={{ y: -4 }} className="rounded-2xl p-5 shadow-sm cursor-pointer"
+                style={{ background: 'var(--color-bg-card)', border: '1px solid var(--color-border-subtle)' }}>
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center mb-3"
+                  style={{ background: 'linear-gradient(135deg, var(--color-success-text), #059669)' }}>
+                  <span className="material-symbols-outlined text-white text-[20px]">movie_filter</span>
                 </div>
-                <p className="text-2xl font-bold text-slate-900 dark:text-white">{clipsGenerated}</p>
-                <p className="text-xs text-slate-500 mt-0.5">Clips Generated</p>
+                <p className="text-2xl font-bold" style={{ color: 'var(--color-text-primary)' }}>{clipsGenerated}</p>
+                <p className="text-xs mt-0.5" style={{ color: 'var(--color-text-muted)' }}>Clips Generated</p>
               </motion.div>
 
-              <motion.div whileHover={{ y: -2 }} className="bg-white dark:bg-[#152230] rounded-2xl border border-slate-200 dark:border-[#233648] p-5 shadow-sm">
-                <div className="w-9 h-9 rounded-xl bg-violet-500 flex items-center justify-center mb-3">
-                  <span className="material-symbols-outlined text-white text-[18px]">work_history</span>
+              <motion.div whileHover={{ y: -4 }} className="rounded-2xl p-5 shadow-sm cursor-pointer"
+                style={{ background: 'var(--color-bg-card)', border: '1px solid var(--color-border-subtle)' }}>
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center mb-3"
+                  style={{ background: 'linear-gradient(135deg, var(--deep-indigo), var(--dark-plum))' }}>
+                  <span className="material-symbols-outlined text-white text-[20px]">work_history</span>
                 </div>
-                <p className="text-2xl font-bold text-slate-900 dark:text-white">{totalJobs}</p>
-                <p className="text-xs text-slate-500 mt-0.5">Total Jobs</p>
+                <p className="text-2xl font-bold" style={{ color: 'var(--color-text-primary)' }}>{totalJobs}</p>
+                <p className="text-xs mt-0.5" style={{ color: 'var(--color-text-muted)' }}>Total Jobs</p>
               </motion.div>
             </div>
           </FadeInUp>
@@ -239,11 +258,11 @@ function DashboardPage({ onNavigate, onViewProgress }) {
             {/* Active Jobs */}
             {activeJobs.length > 0 && (
               <FadeInUp delay={0.1}>
-                <div className="bg-white dark:bg-[#152230] rounded-2xl border border-slate-200 dark:border-[#233648] p-5 shadow-sm">
+                <div className="rounded-2xl p-5 shadow-sm" style={{ background: 'var(--color-bg-card)', border: '1px solid var(--color-border-subtle)' }}>
                   <div className="flex items-center gap-2 mb-3">
-                    <div className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
-                    <h3 className="text-sm font-semibold text-slate-900 dark:text-white">Active Jobs</h3>
-                    <span className="text-[10px] text-slate-400 ml-auto">Auto-refreshing</span>
+                    <div className="w-2 h-2 rounded-full animate-pulse" style={{ background: 'var(--color-warning-text)' }} />
+                    <h3 className="text-sm font-semibold" style={{ color: 'var(--color-text-primary)' }}>Active Jobs</h3>
+                    <span className="text-[10px] ml-auto" style={{ color: 'var(--color-text-muted)' }}>Auto-refreshing</span>
                   </div>
                   <div className="space-y-2">
                     {activeJobs.map(job => (
@@ -261,10 +280,10 @@ function DashboardPage({ onNavigate, onViewProgress }) {
 
             {/* Recent Activity */}
             <FadeInUp delay={0.2}>
-              <div className="bg-white dark:bg-[#152230] rounded-2xl border border-slate-200 dark:border-[#233648] shadow-sm overflow-hidden">
-                <div className="px-5 py-4 border-b border-slate-100 dark:border-[#233648] flex items-center justify-between">
-                  <h3 className="text-sm font-semibold text-slate-900 dark:text-white">Recent Activity</h3>
-                  <button onClick={() => onNavigate('library')} className="text-[11px] text-primary font-semibold hover:underline">View All</button>
+              <div className="rounded-2xl shadow-sm overflow-hidden" style={{ background: 'var(--color-bg-card)', border: '1px solid var(--color-border-subtle)' }}>
+                <div className="px-5 py-4 flex items-center justify-between" style={{ borderBottom: '1px solid var(--color-border-subtle)' }}>
+                  <h3 className="text-sm font-semibold" style={{ color: 'var(--color-text-primary)' }}>Recent Activity</h3>
+                  <button onClick={() => onNavigate('library')} className="text-[11px] font-semibold hover:underline cursor-pointer" style={{ color: 'var(--color-accent)' }}>View All</button>
                 </div>
                 {loading ? (
                   <><CardSkeleton /><CardSkeleton /></>
@@ -293,8 +312,8 @@ function DashboardPage({ onNavigate, onViewProgress }) {
 
             {/* Tips */}
             <FadeInUp delay={0.3}>
-              <div className="bg-white dark:bg-[#152230] rounded-2xl border border-slate-200 dark:border-[#233648] p-4 shadow-sm">
-                <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Tips</h4>
+              <div className="rounded-2xl p-4 shadow-sm" style={{ background: 'var(--color-bg-card)', border: '1px solid var(--color-border-subtle)' }}>
+                <h4 className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: 'var(--color-text-muted)' }}>Tips</h4>
                 <div className="space-y-3">
                   {[
                     { icon: 'bolt', text: 'Use Quick Process for fast results with AI-selected clips' },
@@ -302,8 +321,8 @@ function DashboardPage({ onNavigate, onViewProgress }) {
                     { icon: 'keyboard', text: 'Cmd+N to quickly create a new clip from anywhere' },
                   ].map((tip, i) => (
                     <div key={i} className="flex gap-2.5">
-                      <span className="material-symbols-outlined text-[14px] text-primary mt-0.5 flex-shrink-0">{tip.icon}</span>
-                      <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">{tip.text}</p>
+                      <span className="material-symbols-outlined text-[14px] mt-0.5 flex-shrink-0" style={{ color: 'var(--icon-accent)' }}>{tip.icon}</span>
+                      <p className="text-[11px] leading-relaxed" style={{ color: 'var(--color-text-tertiary)' }}>{tip.text}</p>
                     </div>
                   ))}
                 </div>

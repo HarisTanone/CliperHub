@@ -7,18 +7,17 @@ import EmptyState from '../components/EmptyState'
 
 const EMPTY_FORM = { username: '', password: '', email: '', role: 'user' }
 
-const AVATAR_COLORS = [
-  'bg-primary/20 text-primary',
-  'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400',
-  'bg-violet-100 dark:bg-violet-900/30 text-violet-600 dark:text-violet-400',
-  'bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400',
-  'bg-rose-100 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400',
-]
-
 function avatarColor(username) {
   let hash = 0
   for (const c of username) hash = (hash * 31 + c.charCodeAt(0)) & 0xffffffff
-  return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length]
+  const colors = [
+    { bg: 'var(--color-accent-subtle)', color: 'var(--color-accent)' },
+    { bg: 'var(--color-success-bg)', color: 'var(--color-success-text)' },
+    { bg: 'var(--color-info-bg)', color: 'var(--color-info-text)' },
+    { bg: 'var(--color-warning-bg)', color: 'var(--color-warning-text)' },
+    { bg: 'var(--color-error-bg)', color: 'var(--color-error-text)' },
+  ]
+  return colors[Math.abs(hash) % colors.length]
 }
 
 function UsersPage() {
@@ -85,49 +84,68 @@ function UsersPage() {
   const activeCount = users.filter(u => u.is_active).length
 
   return (
-    <div className="flex-1 overflow-y-auto p-6 md:p-8 bg-slate-50/50 dark:bg-transparent">
+    <div className="flex-1 overflow-y-auto p-6 md:p-8" style={{ background: 'var(--color-bg-primary)' }}>
       <div className="max-w-4xl mx-auto space-y-5">
 
         {/* Stats */}
         {users.length > 0 && (
           <div className="grid grid-cols-3 gap-4">
             {[
-              { label: 'Total Users', value: users.length, icon: 'group', color: 'bg-primary' },
-              { label: 'Active', value: activeCount, icon: 'check_circle', color: 'bg-emerald-500' },
-              { label: 'Admins', value: adminCount, icon: 'admin_panel_settings', color: 'bg-violet-500' },
+              { label: 'Total Users', value: users.length, icon: 'group', gradient: 'linear-gradient(135deg, var(--crimson-wine), var(--burgundy))' },
+              { label: 'Active', value: activeCount, icon: 'check_circle', gradient: 'linear-gradient(135deg, var(--color-success-text), #059669)' },
+              { label: 'Admins', value: adminCount, icon: 'admin_panel_settings', gradient: 'linear-gradient(135deg, var(--deep-indigo), var(--dark-plum))' },
             ].map(s => (
-              <div key={s.label} className="bg-white dark:bg-[#152230] rounded-2xl border border-slate-200 dark:border-[#233648] p-4 shadow-sm flex items-center gap-3">
-                <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${s.color}`}>
+              <motion.div
+                key={s.label}
+                whileHover={{ y: -2 }}
+                className="rounded-2xl p-4 shadow-sm flex items-center gap-3"
+                style={{ background: 'var(--color-bg-card)', border: '1px solid var(--color-border-subtle)' }}
+              >
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: s.gradient }}>
                   <span className="material-symbols-outlined text-white text-[20px]">{s.icon}</span>
                 </div>
                 <div>
-                  <p className="text-2xl font-bold text-slate-900 dark:text-white">{s.value}</p>
-                  <p className="text-xs text-slate-500">{s.label}</p>
+                  <p className="text-2xl font-bold" style={{ color: 'var(--color-text-primary)' }}>{s.value}</p>
+                  <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>{s.label}</p>
                 </div>
-              </div>
+              </motion.div>
             ))}
           </div>
         )}
 
         {/* Users list */}
-        <div className="bg-white dark:bg-[#152230] rounded-2xl border border-slate-200 dark:border-[#233648] shadow-sm overflow-hidden">
-          <div className="px-5 py-4 border-b border-slate-100 dark:border-[#233648] flex items-center justify-between">
-            <h3 className="font-semibold flex items-center gap-2 text-slate-900 dark:text-white">
-              <span className="material-symbols-outlined text-primary text-[20px]">group</span>
+        <div className="rounded-2xl shadow-sm overflow-hidden" style={{ background: 'var(--color-bg-card)', border: '1px solid var(--color-border-subtle)' }}>
+          <div className="px-5 py-4 flex items-center justify-between" style={{ borderBottom: '1px solid var(--color-border-subtle)' }}>
+            <h3 className="font-semibold flex items-center gap-2" style={{ color: 'var(--color-text-primary)' }}>
+              <span className="material-symbols-outlined text-[20px]" style={{ color: 'var(--icon-accent)' }}>group</span>
               Users
-              <span className="text-xs font-normal text-slate-400 ml-1">{users.length} total</span>
+              <span className="text-xs font-normal ml-1" style={{ color: 'var(--color-text-muted)' }}>{users.length} total</span>
             </h3>
             <div className="flex items-center gap-2">
               <div className="relative">
-                <span className="absolute left-2.5 top-1/2 -translate-y-1/2 material-symbols-outlined text-[14px] text-slate-400">search</span>
+                <span className="absolute left-2.5 top-1/2 -translate-y-1/2 material-symbols-outlined text-[14px]" style={{ color: 'var(--icon-muted)' }}>search</span>
                 <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search users..."
-                  className="w-40 pl-8 pr-3 py-1.5 text-xs border border-slate-200 dark:border-[#324d67] rounded-xl bg-white dark:bg-[#192633] text-slate-700 dark:text-slate-300 placeholder-slate-400 outline-none focus:border-primary/50 transition-colors" />
+                  className="w-40 pl-8 pr-3 py-1.5 text-xs rounded-xl outline-none transition-colors"
+                  style={{
+                    background: 'var(--color-bg-input)',
+                    border: '1px solid var(--color-border-default)',
+                    color: 'var(--color-text-primary)'
+                  }} />
               </div>
-              <button onClick={openCreate}
-                className="flex items-center gap-1.5 px-4 py-2 bg-primary hover:bg-primary/90 text-white rounded-xl text-sm font-semibold transition-colors shadow-sm shadow-primary/20">
+              <motion.button
+                onClick={openCreate}
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold transition-colors cursor-pointer"
+                style={{
+                  background: 'var(--btn-primary-bg)',
+                  color: 'var(--btn-primary-text)',
+                  boxShadow: 'var(--btn-primary-shadow)'
+                }}
+              >
                 <span className="material-symbols-outlined text-[18px]">person_add</span>
                 Add User
-              </button>
+              </motion.button>
             </div>
           </div>
 
@@ -136,47 +154,79 @@ function UsersPage() {
           ) : filteredUsers.length === 0 ? (
             <EmptyState type="noUsers" title={search ? `No users match "${search}"` : "No users found"} description={search ? "Try a different search" : "Add users to manage access to ClipForge"} />
           ) : (
-            <div className="divide-y divide-slate-100 dark:divide-[#1e2e40]">
-              {filteredUsers.map(user => (
-                <div key={user.id} className="px-5 py-4 flex items-center gap-4 hover:bg-slate-50/80 dark:hover:bg-[#192633]/60 transition-colors group">
-                  <div className={`w-11 h-11 rounded-2xl flex items-center justify-center font-bold text-base flex-shrink-0 ${avatarColor(user.username)}`}>
-                    {user.username[0].toUpperCase()}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <p className="font-semibold text-slate-900 dark:text-white">{user.username}</p>
-                      <span className={`px-2 py-0.5 rounded-full text-[11px] font-semibold ${user.role === 'admin' ? 'bg-primary/10 text-primary' : 'bg-slate-100 dark:bg-[#1e2e40] text-slate-500 dark:text-slate-400'}`}>
-                        {user.role}
-                      </span>
-                      {!user.is_active && (
-                        <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400">
-                          inactive
+            <div style={{ borderTop: '1px solid var(--color-border-subtle)' }}>
+              {filteredUsers.map((user, i) => {
+                const avatarStyle = avatarColor(user.username)
+                return (
+                  <div
+                    key={user.id}
+                    className="px-5 py-4 flex items-center gap-4 transition-colors group cursor-pointer"
+                    style={{
+                      borderBottom: i < filteredUsers.length - 1 ? '1px solid var(--color-border-subtle)' : 'none',
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.background = 'var(--color-surface-1)'}
+                    onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                  >
+                    <div
+                      className="w-11 h-11 rounded-2xl flex items-center justify-center font-bold text-base flex-shrink-0"
+                      style={{ background: avatarStyle.bg, color: avatarStyle.color }}
+                    >
+                      {user.username[0].toUpperCase()}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="font-semibold" style={{ color: 'var(--color-text-primary)' }}>{user.username}</p>
+                        <span
+                          className="px-2 py-0.5 rounded-full text-[11px] font-semibold"
+                          style={{
+                            background: user.role === 'admin' ? 'var(--color-accent-subtle)' : 'var(--color-surface-1)',
+                            color: user.role === 'admin' ? 'var(--color-accent)' : 'var(--color-text-muted)'
+                          }}
+                        >
+                          {user.role}
                         </span>
-                      )}
-                      {user.username === currentUsername && (
-                        <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400">
-                          you
-                        </span>
+                        {!user.is_active && (
+                          <span
+                            className="px-2 py-0.5 rounded-full text-[11px] font-semibold"
+                            style={{ background: 'var(--color-error-bg)', color: 'var(--color-error-text)' }}
+                          >
+                            inactive
+                          </span>
+                        )}
+                        {user.username === currentUsername && (
+                          <span
+                            className="px-2 py-0.5 rounded-full text-[11px] font-semibold"
+                            style={{ background: 'var(--color-success-bg)', color: 'var(--color-success-text)' }}
+                          >
+                            you
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs mt-0.5" style={{ color: 'var(--color-text-muted)' }}>
+                        {user.email || 'No email'} · Joined {new Date(user.created_at).toLocaleDateString()}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button onClick={() => openEdit(user)}
+                        className="p-2 rounded-xl transition-colors cursor-pointer"
+                        style={{ color: 'var(--icon-muted)' }}
+                        onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--color-surface-2)'; e.currentTarget.style.color = 'var(--color-text-primary)' }}
+                        onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--icon-muted)' }}
+                      >
+                        <span className="material-symbols-outlined text-[18px]">edit</span>
+                      </button>
+                      {user.username !== currentUsername && (
+                        <button onClick={() => handleDelete(user)}
+                          className="p-2 rounded-xl transition-colors cursor-pointer"
+                          style={{ color: 'var(--color-error-text)' }}
+                        >
+                          <span className="material-symbols-outlined text-[18px]">delete</span>
+                        </button>
                       )}
                     </div>
-                    <p className="text-xs text-slate-400 mt-0.5">
-                      {user.email || 'No email'} · Joined {new Date(user.created_at).toLocaleDateString()}
-                    </p>
                   </div>
-                  <div className="flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button onClick={() => openEdit(user)}
-                      className="p-2 text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-[#1e2e40] rounded-xl transition-colors">
-                      <span className="material-symbols-outlined text-[18px]">edit</span>
-                    </button>
-                    {user.username !== currentUsername && (
-                      <button onClick={() => handleDelete(user)}
-                        className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl transition-colors">
-                        <span className="material-symbols-outlined text-[18px]">delete</span>
-                      </button>
-                    )}
-                  </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
           )}
         </div>
@@ -189,78 +239,128 @@ function UsersPage() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+            className="fixed inset-0 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+            style={{ background: 'var(--color-bg-overlay)' }}
           >
             <motion.div
               initial={{ opacity: 0, scale: 0.92, y: 10 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.92, y: 10 }}
               transition={{ type: 'spring', damping: 25, stiffness: 400 }}
-              className="bg-white dark:bg-[#152230] rounded-2xl border border-slate-200 dark:border-[#233648] shadow-2xl w-full max-w-md"
+              className="rounded-2xl shadow-2xl w-full max-w-md"
+              style={{ background: 'var(--color-bg-modal)', border: '1px solid var(--color-border-default)' }}
             >
-              <div className="px-6 py-4 border-b border-slate-100 dark:border-[#233648] flex items-center justify-between">
-                <h4 className="text-lg font-semibold">{modal === 'create' ? 'Add User' : `Edit: ${modal.username}`}</h4>
-                <button onClick={() => setModal(null)} className="w-8 h-8 rounded-lg hover:bg-slate-100 dark:hover:bg-[#1e2e40] flex items-center justify-center transition-colors">
-                  <span className="material-symbols-outlined text-[18px] text-slate-400">close</span>
+              <div className="px-6 py-4 flex items-center justify-between" style={{ borderBottom: '1px solid var(--color-border-subtle)' }}>
+                <h4 className="text-lg font-semibold" style={{ color: 'var(--color-text-primary)' }}>
+                  {modal === 'create' ? 'Add User' : `Edit: ${modal.username}`}
+                </h4>
+                <button onClick={() => setModal(null)}
+                  className="w-8 h-8 rounded-lg flex items-center justify-center transition-colors cursor-pointer"
+                  style={{ color: 'var(--icon-muted)' }}
+                >
+                  <span className="material-symbols-outlined text-[18px]">close</span>
                 </button>
               </div>
               <div className="p-6 space-y-4">
                 {error && (
-                  <div className="flex items-center gap-2 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/50 rounded-xl text-sm text-red-600 dark:text-red-400">
+                  <div
+                    className="flex items-center gap-2 p-3 rounded-xl text-sm"
+                    style={{ background: 'var(--color-error-bg)', border: '1px solid var(--color-error-border)', color: 'var(--color-error-text)' }}
+                  >
                     <span className="material-symbols-outlined text-[16px]">error</span>{error}
                   </div>
                 )}
                 {modal === 'create' && (
                   <div>
-                    <label className="block text-xs font-semibold text-slate-500 mb-1.5">Username *</label>
+                    <label className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--color-text-muted)' }}>Username *</label>
                     <input value={form.username} onChange={e => set('username', e.target.value)}
-                      className="w-full px-3 py-2.5 border-2 border-slate-200 dark:border-[#324d67] rounded-xl bg-slate-50 dark:bg-[#192633] text-sm focus:border-primary outline-none transition-colors" />
+                      className="w-full px-3 py-2.5 rounded-xl text-sm outline-none transition-colors"
+                      style={{
+                        background: 'var(--color-bg-input)',
+                        border: '2px solid var(--color-border-default)',
+                        color: 'var(--color-text-primary)'
+                      }} />
                   </div>
                 )}
                 <div>
-                  <label className="block text-xs font-semibold text-slate-500 mb-1.5">
-                    Password {modal !== 'create' && <span className="font-normal text-slate-400">(leave blank to keep)</span>}
+                  <label className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--color-text-muted)' }}>
+                    Password {modal !== 'create' && <span className="font-normal" style={{ color: 'var(--color-text-muted)' }}>(leave blank to keep)</span>}
                   </label>
                   <div className="relative">
                     <input type={showPass ? 'text' : 'password'} value={form.password} onChange={e => set('password', e.target.value)}
-                      className="w-full px-3 py-2.5 pr-10 border-2 border-slate-200 dark:border-[#324d67] rounded-xl bg-slate-50 dark:bg-[#192633] text-sm focus:border-primary outline-none transition-colors" />
+                      className="w-full px-3 py-2.5 pr-10 rounded-xl text-sm outline-none transition-colors"
+                      style={{
+                        background: 'var(--color-bg-input)',
+                        border: '2px solid var(--color-border-default)',
+                        color: 'var(--color-text-primary)'
+                      }} />
                     <button type="button" onClick={() => setShowPass(v => !v)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors">
+                      className="absolute right-3 top-1/2 -translate-y-1/2 transition-colors cursor-pointer"
+                      style={{ color: 'var(--icon-muted)' }}
+                    >
                       <span className="material-symbols-outlined text-[16px]">{showPass ? 'visibility_off' : 'visibility'}</span>
                     </button>
                   </div>
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-500 mb-1.5">Email</label>
+                  <label className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--color-text-muted)' }}>Email</label>
                   <input type="email" value={form.email} onChange={e => set('email', e.target.value)}
-                    className="w-full px-3 py-2.5 border-2 border-slate-200 dark:border-[#324d67] rounded-xl bg-slate-50 dark:bg-[#192633] text-sm focus:border-primary outline-none transition-colors" />
+                    className="w-full px-3 py-2.5 rounded-xl text-sm outline-none transition-colors"
+                    style={{
+                      background: 'var(--color-bg-input)',
+                      border: '2px solid var(--color-border-default)',
+                      color: 'var(--color-text-primary)'
+                    }} />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-500 mb-1.5">Role</label>
+                  <label className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--color-text-muted)' }}>Role</label>
                   <div className="flex gap-2">
                     {['user', 'admin'].map(r => (
                       <button key={r} type="button" onClick={() => set('role', r)}
-                        className={`flex-1 py-2.5 rounded-xl text-sm font-semibold border-2 transition-all capitalize ${form.role === r ? 'bg-primary text-white border-primary' : 'border-slate-200 dark:border-[#324d67] text-slate-600 dark:text-slate-400 hover:border-slate-300'}`}>
+                        className="flex-1 py-2.5 rounded-xl text-sm font-semibold transition-all capitalize cursor-pointer"
+                        style={{
+                          background: form.role === r ? 'var(--btn-primary-bg)' : 'transparent',
+                          color: form.role === r ? 'var(--btn-primary-text)' : 'var(--color-text-secondary)',
+                          border: form.role === r ? '2px solid var(--btn-primary-bg)' : '2px solid var(--color-border-default)'
+                        }}
+                      >
                         {r}
                       </button>
                     ))}
                   </div>
                 </div>
                 {modal !== 'create' && (
-                  <label className="flex items-center gap-3 p-3 rounded-xl border-2 border-slate-200 dark:border-[#324d67] cursor-pointer hover:border-slate-300 transition-colors">
+                  <label
+                    className="flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-colors"
+                    style={{ border: '2px solid var(--color-border-default)' }}
+                  >
                     <input type="checkbox" checked={form.is_active ?? true} onChange={e => set('is_active', e.target.checked)}
-                      className="w-4 h-4 rounded border-slate-300 text-primary focus:ring-primary accent-primary" />
+                      className="w-4 h-4 rounded accent-[var(--color-accent)]" />
                     <div>
-                      <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">Active Account</p>
-                      <p className="text-xs text-slate-400">Inactive users cannot log in</p>
+                      <p className="text-sm font-semibold" style={{ color: 'var(--color-text-secondary)' }}>Active Account</p>
+                      <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>Inactive users cannot log in</p>
                     </div>
                   </label>
                 )}
               </div>
               <div className="px-6 pb-6 flex gap-3">
-                <button onClick={() => setModal(null)} className="flex-1 py-2.5 border-2 border-slate-200 dark:border-[#324d67] rounded-xl text-sm font-semibold hover:bg-slate-50 dark:hover:bg-[#192633] transition-colors">Cancel</button>
+                <button onClick={() => setModal(null)}
+                  className="flex-1 py-2.5 rounded-xl text-sm font-semibold transition-colors cursor-pointer"
+                  style={{
+                    background: 'var(--btn-secondary-bg)',
+                    color: 'var(--btn-secondary-text)',
+                    border: '1px solid var(--btn-secondary-border)'
+                  }}
+                >
+                  Cancel
+                </button>
                 <button onClick={handleSave} disabled={saving}
-                  className="flex-1 py-2.5 bg-primary hover:bg-primary/90 disabled:bg-slate-400 text-white rounded-xl text-sm font-semibold transition-colors">
+                  className="flex-1 py-2.5 rounded-xl text-sm font-semibold transition-colors cursor-pointer disabled:opacity-50"
+                  style={{
+                    background: 'var(--btn-primary-bg)',
+                    color: 'var(--btn-primary-text)'
+                  }}
+                >
                   {saving ? 'Saving...' : modal === 'create' ? 'Create User' : 'Save Changes'}
                 </button>
               </div>

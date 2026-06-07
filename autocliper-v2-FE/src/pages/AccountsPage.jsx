@@ -35,18 +35,18 @@ const PlatformIcons = {
 }
 
 const PLATFORM_COLORS = {
-    youtube: { bg: 'bg-red-500', text: 'text-red-500', light: 'bg-red-100 dark:bg-red-900/30' },
-    facebook: { bg: 'bg-blue-600', text: 'text-blue-600', light: 'bg-blue-100 dark:bg-blue-900/30' },
-    instagram: { bg: 'bg-gradient-to-r from-purple-500 to-pink-500', text: 'text-pink-500', light: 'bg-pink-100 dark:bg-pink-900/30' },
-    x: { bg: 'bg-black dark:bg-white', text: 'text-black dark:text-white', light: 'bg-slate-100 dark:bg-slate-700' },
-    tiktok: { bg: 'bg-black', text: 'text-black dark:text-white', light: 'bg-slate-100 dark:bg-slate-700' },
+    youtube: { bg: 'bg-red-500', text: 'text-red-500', light: 'bg-red-100' },
+    facebook: { bg: 'bg-blue-600', text: 'text-blue-600', light: 'bg-blue-100' },
+    instagram: { bg: 'bg-gradient-to-r from-purple-500 to-pink-500', text: 'text-pink-500', light: 'bg-pink-100' },
+    x: { bg: 'bg-black', text: 'text-black', light: 'bg-slate-100' },
+    tiktok: { bg: 'bg-black', text: 'text-black', light: 'bg-slate-100' },
 }
 
 const ACCOUNT_STATUS = {
-    active: { color: 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400', icon: 'check_circle' },
-    suspended: { color: 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400', icon: 'block' },
-    needs_verification: { color: 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400', icon: 'warning' },
-    inactive: { color: 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-400', icon: 'pause_circle' },
+    active: { color: 'badge-success', icon: 'check_circle' },
+    suspended: { color: 'badge-error', icon: 'block' },
+    needs_verification: { color: 'badge-warning', icon: 'warning' },
+    inactive: { color: 'badge-neutral', icon: 'pause_circle' },
 }
 
 
@@ -117,26 +117,29 @@ function AddAccountModal({ isOpen, onClose, onSave, platforms }) {
 
     return (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+            className="fixed inset-0 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+            style={{ background: 'var(--color-bg-overlay)' }}
             onClick={onClose}>
             <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
-                className="bg-white dark:bg-[#152230] rounded-2xl border border-slate-200 dark:border-[#233648] shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto"
+                className="rounded-2xl border shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto"
+                style={{ background: 'var(--color-bg-card)', borderColor: 'var(--color-border-subtle)' }}
                 onClick={e => e.stopPropagation()}>
-                <div className="p-5 border-b border-slate-100 dark:border-[#233648] flex items-center justify-between sticky top-0 bg-white dark:bg-[#152230] z-10">
-                    <h3 className="text-lg font-semibold">Add Social Account</h3>
-                    <button onClick={onClose} disabled={saving} className="p-1 text-slate-400 hover:text-slate-600 rounded-lg">
+                <div className="p-5 flex items-center justify-between sticky top-0 z-10" style={{ borderBottom: '1px solid var(--color-border-subtle)', background: 'var(--color-bg-card)' }}>
+                    <h3 className="text-lg font-semibold" style={{ color: 'var(--color-text-primary)' }}>Add Social Account</h3>
+                    <button onClick={onClose} disabled={saving} className="p-1 rounded-lg" style={{ color: 'var(--color-text-muted)' }}>
                         <span className="material-symbols-outlined text-[20px]">close</span>
                     </button>
                 </div>
 
                 {loginStatus && (
-                    <div className={`mx-5 mt-4 p-3 rounded-xl flex items-center gap-3 ${loginStatus === 'logging_in' ? 'bg-blue-50 dark:bg-blue-900/20' :
-                        loginStatus === 'success' ? 'bg-green-50 dark:bg-green-900/20' :
-                            'bg-red-50 dark:bg-red-900/20'
-                        }`}>
-                        <span className={`material-symbols-outlined text-[20px] ${loginStatus === 'logging_in' ? 'text-blue-500 animate-spin' :
-                            loginStatus === 'success' ? 'text-green-500' : 'text-red-500'
-                            }`}>
+                    <div className="mx-5 mt-4 p-3 rounded-xl flex items-center gap-3"
+                        style={{
+                            background: loginStatus === 'logging_in' ? 'var(--color-info-bg)' :
+                                loginStatus === 'success' ? 'var(--color-success-bg)' : 'var(--color-error-bg)',
+                            color: loginStatus === 'logging_in' ? 'var(--color-info-text)' :
+                                loginStatus === 'success' ? 'var(--color-success-text)' : 'var(--color-error-text)'
+                        }}>
+                        <span className={`material-symbols-outlined text-[20px] ${loginStatus === 'logging_in' ? 'animate-spin' : ''}`}>
                             {loginStatus === 'logging_in' ? 'sync' : loginStatus === 'success' ? 'check_circle' : 'error'}
                         </span>
                         <span className="text-sm font-medium">
@@ -149,17 +152,18 @@ function AddAccountModal({ isOpen, onClose, onSave, platforms }) {
                 <form onSubmit={handleSubmit} className="p-5 space-y-4">
                     {/* Platform Selection */}
                     <div>
-                        <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-2">Platform</label>
+                        <label className="form-label">Platform</label>
                         <div className="grid grid-cols-5 gap-2">
                             {platforms.map(p => (
                                 <button key={p.id} type="button"
                                     onClick={() => setForm({ ...form, platform: p.id, login_type: p.supported_login.includes('google') ? 'google' : 'manual' })}
-                                    className={`p-3 rounded-xl border-2 transition-all flex flex-col items-center gap-1 ${form.platform === p.id
-                                        ? 'border-primary bg-primary/5'
-                                        : 'border-slate-200 dark:border-[#324d67] hover:border-slate-300'
-                                        }`}>
+                                    className="p-3 rounded-xl border-2 transition-all flex flex-col items-center gap-1"
+                                    style={{
+                                        borderColor: form.platform === p.id ? 'var(--color-accent)' : 'var(--color-border-default)',
+                                        background: form.platform === p.id ? 'var(--color-accent-subtle)' : 'transparent'
+                                    }}>
                                     <span className={PLATFORM_COLORS[p.id]?.text}>{PlatformIcons[p.id]}</span>
-                                    <span className="text-[10px] font-medium truncate w-full text-center">{p.id === 'x' ? 'X' : p.id.charAt(0).toUpperCase() + p.id.slice(1)}</span>
+                                    <span className="text-[10px] font-medium truncate w-full text-center" style={{ color: 'var(--color-text-secondary)' }}>{p.id === 'x' ? 'X' : p.id.charAt(0).toUpperCase() + p.id.slice(1)}</span>
                                 </button>
                             ))}
                         </div>
@@ -167,27 +171,27 @@ function AddAccountModal({ isOpen, onClose, onSave, platforms }) {
 
                     {/* Account Name */}
                     <div>
-                        <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Account Name</label>
+                        <label className="form-label">Account Name</label>
                         <input type="text" value={form.account_name}
                             onChange={e => setForm({ ...form, account_name: e.target.value })}
                             placeholder="My Channel"
-                            className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-[#324d67] rounded-xl bg-white dark:bg-[#192633] focus:border-primary/50 outline-none"
+                            className="input"
                             required disabled={saving} />
                     </div>
 
                     {/* Login Type */}
                     <div>
-                        <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Login Method</label>
+                        <label className="form-label">Login Method</label>
                         <select value={form.login_type}
                             onChange={e => setForm({ ...form, login_type: e.target.value })}
-                            className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-[#324d67] rounded-xl bg-white dark:bg-[#192633] focus:border-primary/50 outline-none"
+                            className="select"
                             disabled={saving}>
                             {currentPlatform?.supported_login.includes('google') && <option value="google">Google Login (Recommended)</option>}
                             {currentPlatform?.supported_login.includes('manual') && <option value="manual">Manual Login</option>}
                             {currentPlatform?.supported_login.includes('email') && <option value="email">Auto Login with Email</option>}
                             {currentPlatform?.supported_login.includes('phone') && <option value="phone">Auto Login with Phone</option>}
                         </select>
-                        <p className="text-xs text-slate-500 mt-1 flex items-center gap-1">
+                        <p className="text-xs mt-1 flex items-center gap-1" style={{ color: 'var(--color-text-muted)' }}>
                             <span className="material-symbols-outlined text-[14px]">{isManualLogin ? 'lock_open' : 'warning'}</span>
                             {isManualLogin ? 'Browser opens, you login manually.' : 'Credentials encrypted and stored.'}
                         </p>
@@ -197,25 +201,25 @@ function AddAccountModal({ isOpen, onClose, onSave, platforms }) {
                     {!isManualLogin && (
                         <>
                             <div>
-                                <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
+                                <label className="form-label">
                                     {form.login_type === 'email' ? 'Email' : form.login_type === 'phone' ? 'Phone' : 'Username'}
                                 </label>
                                 <input type={form.login_type === 'email' ? 'email' : 'text'}
                                     value={form.login_identifier}
                                     onChange={e => setForm({ ...form, login_identifier: e.target.value })}
-                                    className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-[#324d67] rounded-xl bg-white dark:bg-[#192633] focus:border-primary/50 outline-none"
+                                    className="input"
                                     required disabled={saving} />
                             </div>
                             <div>
-                                <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Password</label>
+                                <label className="form-label">Password</label>
                                 <div className="relative">
                                     <input type={showPassword ? "text" : "password"}
                                         value={form.password}
                                         onChange={e => setForm({ ...form, password: e.target.value })}
-                                        className="w-full px-3 py-2 pr-10 text-sm border border-slate-200 dark:border-[#324d67] rounded-xl bg-white dark:bg-[#192633] focus:border-primary/50 outline-none"
+                                        className="input pr-10"
                                         required disabled={saving} />
                                     <button type="button" onClick={() => setShowPassword(!showPassword)}
-                                        className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-slate-400">
+                                        className="absolute right-2 top-1/2 -translate-y-1/2 p-1" style={{ color: 'var(--color-text-muted)' }}>
                                         <span className="material-symbols-outlined text-[18px]">{showPassword ? 'visibility_off' : 'visibility'}</span>
                                     </button>
                                 </div>
@@ -225,21 +229,21 @@ function AddAccountModal({ isOpen, onClose, onSave, platforms }) {
 
                     {/* Daily Limit */}
                     <div>
-                        <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Daily Upload Limit</label>
+                        <label className="form-label">Daily Upload Limit</label>
                         <input type="number" min="1" max="10" value={form.daily_upload_limit}
                             onChange={e => setForm({ ...form, daily_upload_limit: parseInt(e.target.value) })}
-                            className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-[#324d67] rounded-xl bg-white dark:bg-[#192633] focus:border-primary/50 outline-none"
+                            className="input"
                             disabled={saving} />
                     </div>
 
                     {/* Buttons */}
                     <div className="flex gap-3 pt-2">
                         <button type="button" onClick={onClose} disabled={saving}
-                            className="flex-1 px-4 py-2 text-sm font-medium border border-slate-200 dark:border-[#324d67] rounded-xl hover:bg-slate-50 dark:hover:bg-[#1e2e40] disabled:opacity-50">
+                            className="btn btn-secondary flex-1">
                             Cancel
                         </button>
                         <button type="submit" disabled={saving}
-                            className="flex-1 px-4 py-2 text-sm font-medium bg-primary text-white rounded-xl hover:bg-primary/90 disabled:opacity-50 flex items-center justify-center gap-2">
+                            className="btn btn-primary flex-1">
                             {saving ? <><span className="material-symbols-outlined text-[16px] animate-spin">sync</span> Opening...</> : 'Add & Login'}
                         </button>
                     </div>
@@ -278,42 +282,42 @@ function AccountCard({ account, onLogin, onDelete, onRefresh, onImportCookies })
 
     return (
         <motion.div whileHover={{ y: -2 }}
-            className="bg-white dark:bg-[#152230] rounded-2xl border border-slate-200 dark:border-[#233648] p-4 shadow-sm">
+            className="card card-hover">
             <div className="flex items-start justify-between mb-3">
                 <div className="flex items-center gap-3">
                     <div className={`w-10 h-10 rounded-full ${colors.bg} flex items-center justify-center text-white`}>
                         {PlatformIcons[platform]}
                     </div>
                     <div>
-                        <h4 className="font-semibold text-slate-900 dark:text-white">{account.account_name}</h4>
-                        <p className="text-xs text-slate-500">
+                        <h4 className="font-semibold" style={{ color: 'var(--color-text-primary)' }}>{account.account_name}</h4>
+                        <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
                             {account.platform_username ? `@${account.platform_username}` : account.login_identifier || platform}
                         </p>
                     </div>
                 </div>
-                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${status.color}`}>
+                <span className={`badge ${status.color}`}>
                     <span className="material-symbols-outlined text-[12px]">{status.icon}</span>
                     {account.status}
                 </span>
             </div>
 
             <div className="grid grid-cols-3 gap-2 mb-3">
-                <div className="text-center p-2 bg-slate-50 dark:bg-[#192633] rounded-lg">
-                    <p className="text-lg font-bold text-slate-900 dark:text-white">{account.uploads_today || 0}</p>
-                    <p className="text-[10px] text-slate-500">Today</p>
+                <div className="text-center p-2 rounded-lg" style={{ background: 'var(--color-surface-1)' }}>
+                    <p className="text-lg font-bold" style={{ color: 'var(--color-text-primary)' }}>{account.uploads_today || 0}</p>
+                    <p className="text-[10px]" style={{ color: 'var(--color-text-muted)' }}>Today</p>
                 </div>
-                <div className="text-center p-2 bg-slate-50 dark:bg-[#192633] rounded-lg">
-                    <p className="text-lg font-bold text-slate-900 dark:text-white">{account.daily_upload_limit || 3}</p>
-                    <p className="text-[10px] text-slate-500">Limit</p>
+                <div className="text-center p-2 rounded-lg" style={{ background: 'var(--color-surface-1)' }}>
+                    <p className="text-lg font-bold" style={{ color: 'var(--color-text-primary)' }}>{account.daily_upload_limit || 3}</p>
+                    <p className="text-[10px]" style={{ color: 'var(--color-text-muted)' }}>Limit</p>
                 </div>
-                <div className="text-center p-2 bg-slate-50 dark:bg-[#192633] rounded-lg">
-                    <p className="text-lg font-bold text-slate-900 dark:text-white">{account.health_score || 100}</p>
-                    <p className="text-[10px] text-slate-500">Health</p>
+                <div className="text-center p-2 rounded-lg" style={{ background: 'var(--color-surface-1)' }}>
+                    <p className="text-lg font-bold" style={{ color: 'var(--color-text-primary)' }}>{account.health_score || 100}</p>
+                    <p className="text-[10px]" style={{ color: 'var(--color-text-muted)' }}>Health</p>
                 </div>
             </div>
 
-            <div className="flex items-center gap-1 text-xs text-slate-500 mb-3">
-                <span className={`w-2 h-2 rounded-full ${account.session_valid ? 'bg-green-500' : 'bg-red-500'}`}></span>
+            <div className="flex items-center gap-1 text-xs mb-3" style={{ color: 'var(--color-text-muted)' }}>
+                <span className="w-2 h-2 rounded-full" style={{ background: account.session_valid ? 'var(--color-success-text)' : 'var(--color-error-text)' }}></span>
                 Session: {account.session_valid ? 'Valid' : 'Invalid'}
             </div>
 
@@ -321,19 +325,22 @@ function AccountCard({ account, onLogin, onDelete, onRefresh, onImportCookies })
                 {!account.session_valid && (
                     <>
                         <button onClick={handleLogin} disabled={loggingIn}
-                            className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium bg-primary/10 hover:bg-primary/20 text-primary rounded-lg transition-colors disabled:opacity-50">
+                            className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium rounded-lg transition-colors disabled:opacity-50"
+                            style={{ background: 'var(--color-accent-subtle)', color: 'var(--color-accent)' }}>
                             <span className="material-symbols-outlined text-[14px]">{loggingIn ? 'sync' : 'login'}</span>
                             {loggingIn ? 'Logging in...' : 'Login'}
                         </button>
                         <button onClick={() => onImportCookies(account)}
-                            className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium bg-amber-500/10 hover:bg-amber-500/20 text-amber-600 dark:text-amber-400 rounded-lg transition-colors">
+                            className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium rounded-lg transition-colors"
+                            style={{ background: 'var(--color-warning-bg)', color: 'var(--color-warning-text)' }}>
                             <span className="material-symbols-outlined text-[14px]">cookie</span>
                             Import Cookies
                         </button>
                     </>
                 )}
                 <button onClick={() => onDelete(account.id)}
-                    className={`${account.session_valid ? 'flex-1' : ''} px-3 py-2 text-xs text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors inline-flex items-center justify-center gap-1.5`}>
+                    className={`${account.session_valid ? 'flex-1' : ''} px-3 py-2 text-xs rounded-lg transition-colors inline-flex items-center justify-center gap-1.5`}
+                    style={{ color: 'var(--color-error-text)' }}>
                     <span className="material-symbols-outlined text-[14px]">delete</span>
                     {account.session_valid && 'Delete'}
                 </button>
@@ -383,27 +390,28 @@ function ImportCookiesModal({ account, onClose, onSuccess }) {
     }
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'var(--color-bg-overlay)' }}>
             <motion.div
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
-                className="bg-white dark:bg-[#152230] rounded-2xl w-full max-w-lg shadow-xl"
+                className="rounded-2xl w-full max-w-lg shadow-xl"
+                style={{ background: 'var(--color-bg-card)' }}
             >
-                <div className="p-5 border-b border-slate-200 dark:border-[#233648]">
+                <div className="p-5" style={{ borderBottom: '1px solid var(--color-border-subtle)' }}>
                     <div className="flex items-center justify-between">
-                        <h3 className="text-lg font-semibold text-slate-900 dark:text-white">
+                        <h3 className="text-lg font-semibold" style={{ color: 'var(--color-text-primary)' }}>
                             Import Cookies - {account.account_name}
                         </h3>
-                        <button onClick={onClose} className="p-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg">
+                        <button onClick={onClose} className="p-1 rounded-lg" style={{ color: 'var(--color-text-muted)' }}>
                             <span className="material-symbols-outlined">close</span>
                         </button>
                     </div>
                 </div>
 
                 <div className="p-5 space-y-4">
-                    <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl p-4">
-                        <h4 className="font-medium text-amber-800 dark:text-amber-300 mb-2">How to export cookies:</h4>
-                        <ol className="text-sm text-amber-700 dark:text-amber-400 space-y-1 list-decimal list-inside">
+                    <div className="rounded-xl p-4" style={{ background: 'var(--color-warning-bg)', border: '1px solid var(--color-warning-border)' }}>
+                        <h4 className="font-medium mb-2" style={{ color: 'var(--color-warning-text)' }}>How to export cookies:</h4>
+                        <ol className="text-sm space-y-1 list-decimal list-inside" style={{ color: 'var(--color-warning-text)' }}>
                             <li>Install "Cookie-Editor" extension in Chrome</li>
                             <li>Login to YouTube in your browser</li>
                             <li>Go to youtube.com</li>
@@ -414,7 +422,7 @@ function ImportCookiesModal({ account, onClose, onSuccess }) {
                     </div>
 
                     <div>
-                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                        <label className="form-label">
                             YouTube Channel Name (optional)
                         </label>
                         <input
@@ -422,12 +430,12 @@ function ImportCookiesModal({ account, onClose, onSuccess }) {
                             value={username}
                             onChange={(e) => setUsername(e.target.value)}
                             placeholder="e.g. MyChannel"
-                            className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-[#192633] text-slate-900 dark:text-white text-sm"
+                            className="input"
                         />
                     </div>
 
                     <div>
-                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                        <label className="form-label">
                             Cookies JSON
                         </label>
                         <textarea
@@ -435,24 +443,23 @@ function ImportCookiesModal({ account, onClose, onSuccess }) {
                             onChange={(e) => setCookiesJson(e.target.value)}
                             placeholder='[{"name": "SID", "value": "...", ...}, ...]'
                             rows={8}
-                            className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-[#192633] text-slate-900 dark:text-white text-sm font-mono"
+                            className="textarea font-mono"
                         />
                     </div>
 
                     {error && (
-                        <div className="text-sm text-red-500 bg-red-50 dark:bg-red-900/20 p-3 rounded-lg">
+                        <div className="text-sm p-3 rounded-lg" style={{ background: 'var(--color-error-bg)', color: 'var(--color-error-text)' }}>
                             {error}
                         </div>
                     )}
                 </div>
 
-                <div className="p-5 border-t border-slate-200 dark:border-[#233648] flex justify-end gap-3">
-                    <button onClick={onClose}
-                        className="px-4 py-2 text-sm font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg">
+                <div className="p-5 flex justify-end gap-3" style={{ borderTop: '1px solid var(--color-border-subtle)' }}>
+                    <button onClick={onClose} className="btn btn-ghost">
                         Cancel
                     </button>
                     <button onClick={handleImport} disabled={importing || !cookiesJson.trim()}
-                        className="px-4 py-2 text-sm font-medium bg-primary text-white rounded-lg hover:bg-primary/90 disabled:opacity-50 inline-flex items-center gap-2">
+                        className="btn btn-primary">
                         {importing && <span className="material-symbols-outlined text-[16px] animate-spin">sync</span>}
                         {importing ? 'Importing...' : 'Import Cookies'}
                     </button>
@@ -513,9 +520,17 @@ function AccountsPage() {
 
     const handleDeleteAccount = async (id) => {
         if (!confirm('Delete this account?')) return
-        await api.deleteSocialAccount(id)
-        loadData()
-        toast.success('Account deleted')
+        try {
+            const res = await api.deleteSocialAccount(id)
+            if (res.detail) {
+                toast.error(res.detail)
+                return
+            }
+            toast.success('Account deleted')
+            loadData()
+        } catch (e) {
+            toast.error('Failed to delete account')
+        }
     }
 
     const stats = {
@@ -532,13 +547,13 @@ function AccountsPage() {
 
     if (!serviceOnline && !loading) {
         return (
-            <div className="flex-1 overflow-y-auto p-6 md:p-8 bg-slate-50/50 dark:bg-transparent">
+            <div className="flex-1 overflow-y-auto p-6 md:p-8" style={{ background: 'var(--color-bg-primary)' }}>
                 <div className="max-w-4xl mx-auto">
                     <EmptyState type="error" title="Social Service Offline"
                         description="The social media automation service is not running. Start it with 'python main.py' in the autocliper-automate folder." />
                     <div className="mt-4 text-center">
                         <button onClick={loadData}
-                            className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-xl hover:bg-primary/90 transition-colors">
+                            className="btn btn-primary">
                             <span className="material-symbols-outlined text-[18px]">refresh</span>
                             Retry Connection
                         </button>
@@ -549,25 +564,25 @@ function AccountsPage() {
     }
 
     return (
-        <div className="flex-1 overflow-y-auto p-6 md:p-8 bg-slate-50/50 dark:bg-transparent">
+        <div className="flex-1 overflow-y-auto p-6 md:p-8" style={{ background: 'var(--color-bg-primary)' }}>
             <div className="max-w-6xl mx-auto space-y-5">
                 {/* Stats */}
                 <FadeInUp>
                     <div className="grid grid-cols-4 gap-4">
                         {[
-                            { label: 'Total Accounts', value: stats.totalAccounts, icon: 'group', bg: 'bg-primary' },
-                            { label: 'Active', value: stats.activeAccounts, icon: 'check_circle', bg: 'bg-emerald-500' },
-                            { label: 'Pending', value: stats.pendingUploads, icon: 'schedule', bg: 'bg-amber-500' },
-                            { label: 'Published', value: stats.publishedToday, icon: 'cloud_done', bg: 'bg-violet-500' },
+                            { label: 'Total Accounts', value: stats.totalAccounts, icon: 'group', color: 'var(--color-accent)' },
+                            { label: 'Active', value: stats.activeAccounts, icon: 'check_circle', color: 'var(--color-success-text)' },
+                            { label: 'Pending', value: stats.pendingUploads, icon: 'schedule', color: 'var(--color-warning-text)' },
+                            { label: 'Published', value: stats.publishedToday, icon: 'cloud_done', color: 'var(--color-info-text)' },
                         ].map(s => (
                             <motion.div key={s.label} whileHover={{ y: -2 }}
-                                className="bg-white dark:bg-[#152230] rounded-2xl border border-slate-200 dark:border-[#233648] p-4 shadow-sm flex items-center gap-3">
-                                <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${s.bg}`}>
+                                className="card card-hover flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: s.color }}>
                                     <span className="material-symbols-outlined text-white text-[20px]">{s.icon}</span>
                                 </div>
                                 <div>
-                                    <p className="text-xl font-bold text-slate-900 dark:text-white">{s.value}</p>
-                                    <p className="text-xs text-slate-500">{s.label}</p>
+                                    <p className="text-xl font-bold" style={{ color: 'var(--color-text-primary)' }}>{s.value}</p>
+                                    <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>{s.label}</p>
                                 </div>
                             </motion.div>
                         ))}
@@ -578,14 +593,22 @@ function AccountsPage() {
                 <FadeInUp delay={0.1}>
                     <div className="flex items-center gap-2 overflow-x-auto pb-2">
                         <button onClick={() => setPlatformFilter(null)}
-                            className={`px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-colors ${!platformFilter ? 'bg-primary text-white' : 'bg-white dark:bg-[#152230] border border-slate-200 dark:border-[#233648] hover:bg-slate-50 dark:hover:bg-[#1e2e40]'
-                                }`}>
+                            className="px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-colors"
+                            style={{
+                                background: !platformFilter ? 'var(--btn-primary-bg)' : 'var(--color-bg-card)',
+                                color: !platformFilter ? 'var(--btn-primary-text)' : 'var(--color-text-secondary)',
+                                border: !platformFilter ? 'none' : '1px solid var(--color-border-subtle)'
+                            }}>
                             All Platforms ({accounts.length})
                         </button>
                         {accountsByPlatform.map(p => (
                             <button key={p.id} onClick={() => setPlatformFilter(p.id)}
-                                className={`px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-colors flex items-center gap-2 ${platformFilter === p.id ? 'bg-primary text-white' : 'bg-white dark:bg-[#152230] border border-slate-200 dark:border-[#233648] hover:bg-slate-50 dark:hover:bg-[#1e2e40]'
-                                    }`}>
+                                className="px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-colors flex items-center gap-2"
+                                style={{
+                                    background: platformFilter === p.id ? 'var(--btn-primary-bg)' : 'var(--color-bg-card)',
+                                    color: platformFilter === p.id ? 'var(--btn-primary-text)' : 'var(--color-text-secondary)',
+                                    border: platformFilter === p.id ? 'none' : '1px solid var(--color-border-subtle)'
+                                }}>
                                 <span className={platformFilter === p.id ? 'text-white' : PLATFORM_COLORS[p.id]?.text}>{PlatformIcons[p.id]}</span>
                                 {p.name} ({p.count})
                             </button>
@@ -596,17 +619,21 @@ function AccountsPage() {
                 {/* Tabs and Add Button */}
                 <FadeInUp delay={0.2}>
                     <div className="flex items-center justify-between">
-                        <div className="flex gap-2 bg-slate-100 dark:bg-[#192633] rounded-xl p-1">
+                        <div className="flex gap-2 rounded-xl p-1" style={{ background: 'var(--color-surface-1)' }}>
                             {['accounts', 'queue'].map(t => (
                                 <button key={t} onClick={() => setTab(t)}
-                                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${tab === t ? 'bg-white dark:bg-[#152230] shadow-sm' : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
-                                        }`}>
+                                    className="px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                                    style={{
+                                        background: tab === t ? 'var(--color-bg-card)' : 'transparent',
+                                        color: tab === t ? 'var(--color-text-primary)' : 'var(--color-text-muted)',
+                                        boxShadow: tab === t ? 'var(--shadow-sm)' : 'none'
+                                    }}>
                                     {t === 'accounts' ? 'Accounts' : 'Upload Queue'}
                                 </button>
                             ))}
                         </div>
                         <button onClick={() => setShowAddModal(true)}
-                            className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-xl hover:bg-primary/90 transition-colors">
+                            className="btn btn-primary">
                             <span className="material-symbols-outlined text-[18px]">add</span>
                             Add Account
                         </button>
@@ -619,9 +646,9 @@ function AccountsPage() {
                         {loading ? (
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                                 {[1, 2, 3].map(i => (
-                                    <div key={i} className="bg-white dark:bg-[#152230] rounded-2xl border border-slate-200 dark:border-[#233648] p-4 animate-pulse">
-                                        <div className="h-12 bg-slate-200 dark:bg-slate-700 rounded-lg mb-3"></div>
-                                        <div className="h-8 bg-slate-200 dark:bg-slate-700 rounded-lg"></div>
+                                    <div key={i} className="card animate-pulse">
+                                        <div className="h-12 rounded-lg mb-3" style={{ background: 'var(--color-surface-1)' }}></div>
+                                        <div className="h-8 rounded-lg" style={{ background: 'var(--color-surface-1)' }}></div>
                                     </div>
                                 ))}
                             </div>
@@ -643,19 +670,19 @@ function AccountsPage() {
                         {queue.length === 0 ? (
                             <EmptyState type="empty" title="No Uploads" description="Queue a video upload from the Library page." />
                         ) : (
-                            <div className="bg-white dark:bg-[#152230] rounded-2xl border border-slate-200 dark:border-[#233648] divide-y divide-slate-100 dark:divide-[#233648]">
+                            <div className="card divide-y" style={{ borderColor: 'var(--color-border-subtle)' }}>
                                 {queue.map(u => (
                                     <div key={u.id} className="p-4 flex items-center gap-4">
                                         <div className={`w-10 h-10 rounded-lg ${PLATFORM_COLORS[u.platform]?.bg} flex items-center justify-center text-white`}>
                                             {PlatformIcons[u.platform]}
                                         </div>
                                         <div className="flex-1 min-w-0">
-                                            <p className="font-medium text-slate-900 dark:text-white truncate">{u.title || `Clip #${u.clip_index || 1}`}</p>
-                                            <p className="text-xs text-slate-500">{u.account_name} - {u.status}</p>
+                                            <p className="font-medium truncate" style={{ color: 'var(--color-text-primary)' }}>{u.title || `Clip #${u.clip_index || 1}`}</p>
+                                            <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>{u.account_name} - {u.status}</p>
                                         </div>
                                         {u.platform_url && (
                                             <a href={u.platform_url} target="_blank" rel="noopener noreferrer"
-                                                className="p-2 text-primary hover:bg-primary/10 rounded-lg">
+                                                className="p-2 rounded-lg transition-colors" style={{ color: 'var(--color-accent)' }}>
                                                 <span className="material-symbols-outlined text-[18px]">open_in_new</span>
                                             </a>
                                         )}

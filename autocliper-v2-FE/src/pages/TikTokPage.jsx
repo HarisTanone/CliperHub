@@ -10,20 +10,20 @@ import EmptyState from '../components/EmptyState'
 //  Status Badges
 // ─────────────────────────────────────────────────────────────────────────────
 const ACCOUNT_STATUS = {
-    active: { color: 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400', icon: 'check_circle' },
-    suspended: { color: 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400', icon: 'block' },
-    needs_verification: { color: 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400', icon: 'warning' },
-    needs_captcha: { color: 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400', icon: 'smart_toy' },
-    inactive: { color: 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-400', icon: 'pause_circle' },
+    active: { color: 'badge-success', icon: 'check_circle' },
+    suspended: { color: 'badge-error', icon: 'block' },
+    needs_verification: { color: 'badge-warning', icon: 'warning' },
+    needs_captcha: { color: 'badge-warning', icon: 'smart_toy' },
+    inactive: { color: 'badge-neutral', icon: 'pause_circle' },
 }
 
 const UPLOAD_STATUS = {
-    pending: { color: 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-400', icon: 'schedule' },
-    processing: { color: 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400', icon: 'pending' },
-    uploading: { color: 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400', icon: 'cloud_upload' },
-    published: { color: 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400', icon: 'check_circle' },
-    failed: { color: 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400', icon: 'error' },
-    cancelled: { color: 'bg-slate-100 dark:bg-slate-700 text-slate-500', icon: 'cancel' },
+    pending: { color: 'badge-neutral', icon: 'schedule' },
+    processing: { color: 'badge-info', icon: 'pending' },
+    uploading: { color: 'badge-info', icon: 'cloud_upload' },
+    published: { color: 'badge-success', icon: 'check_circle' },
+    failed: { color: 'badge-error', icon: 'error' },
+    cancelled: { color: 'badge-neutral', icon: 'cancel' },
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -130,32 +130,40 @@ function AddAccountModal({ isOpen, onClose, onSave }) {
     return (
         <motion.div
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+            className="fixed inset-0 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+            style={{ background: 'var(--color-bg-overlay)' }}
             onClick={onClose}
         >
             <motion.div
                 initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }}
-                className="bg-white dark:bg-[#152230] rounded-2xl border border-slate-200 dark:border-[#233648] shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto"
+                className="rounded-2xl border shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto"
+                style={{ background: 'var(--color-bg-card)', borderColor: 'var(--color-border-subtle)' }}
                 onClick={e => e.stopPropagation()}
             >
-                <div className="p-5 border-b border-slate-100 dark:border-[#233648] flex items-center justify-between sticky top-0 bg-white dark:bg-[#152230] z-10">
-                    <h3 className="text-lg font-semibold">Add TikTok Account</h3>
-                    <button onClick={onClose} disabled={saving} className="p-1 text-slate-400 hover:text-slate-600 rounded-lg disabled:opacity-50">
+                <div className="p-5 flex items-center justify-between sticky top-0 z-10" style={{ borderBottom: '1px solid var(--color-border-subtle)', background: 'var(--color-bg-card)' }}>
+                    <h3 className="text-lg font-semibold" style={{ color: 'var(--color-text-primary)' }}>Add TikTok Account</h3>
+                    <button onClick={onClose} disabled={saving} className="p-1 rounded-lg disabled:opacity-50" style={{ color: 'var(--color-text-muted)' }}>
                         <span className="material-symbols-outlined text-[20px]">close</span>
                     </button>
                 </div>
 
                 {/* Login Status Banner */}
                 {loginStatus && (
-                    <div className={`mx-5 mt-4 p-3 rounded-xl flex items-center gap-3 ${loginStatus === 'logging_in' ? 'bg-blue-50 dark:bg-blue-900/20' :
-                        loginStatus === 'success' ? 'bg-green-50 dark:bg-green-900/20' :
-                            loginStatus === 'verification' ? 'bg-yellow-50 dark:bg-yellow-900/20' :
-                                'bg-red-50 dark:bg-red-900/20'
-                        }`}>
-                        <span className={`material-symbols-outlined text-[20px] ${statusConfig[loginStatus].color} ${statusConfig[loginStatus].spin ? 'animate-spin' : ''}`}>
+                    <div className="mx-5 mt-4 p-3 rounded-xl flex items-center gap-3"
+                        style={{
+                            background: loginStatus === 'logging_in' ? 'var(--color-info-bg)' :
+                                loginStatus === 'success' ? 'var(--color-success-bg)' :
+                                    loginStatus === 'verification' ? 'var(--color-warning-bg)' :
+                                        'var(--color-error-bg)',
+                            color: loginStatus === 'logging_in' ? 'var(--color-info-text)' :
+                                loginStatus === 'success' ? 'var(--color-success-text)' :
+                                    loginStatus === 'verification' ? 'var(--color-warning-text)' :
+                                        'var(--color-error-text)'
+                        }}>
+                        <span className={`material-symbols-outlined text-[20px] ${statusConfig[loginStatus].spin ? 'animate-spin' : ''}`}>
                             {statusConfig[loginStatus].icon}
                         </span>
-                        <span className={`text-sm font-medium ${statusConfig[loginStatus].color}`}>
+                        <span className="text-sm font-medium">
                             {statusConfig[loginStatus].text}
                         </span>
                     </div>
@@ -163,24 +171,24 @@ function AddAccountModal({ isOpen, onClose, onSave }) {
 
                 <form onSubmit={handleSubmit} className="p-5 space-y-4">
                     <div>
-                        <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Account Name</label>
+                        <label className="form-label">Account Name</label>
                         <input
                             type="text"
                             value={form.account_name}
                             onChange={e => setForm({ ...form, account_name: e.target.value })}
                             placeholder="My Main Account"
-                            className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-[#324d67] rounded-xl bg-white dark:bg-[#192633] focus:border-primary/50 outline-none"
+                            className="input"
                             required
                             disabled={saving}
                         />
                     </div>
 
                     <div>
-                        <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Login Method</label>
+                        <label className="form-label">Login Method</label>
                         <select
                             value={form.login_type}
                             onChange={e => setForm({ ...form, login_type: e.target.value })}
-                            className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-[#324d67] rounded-xl bg-white dark:bg-[#192633] focus:border-primary/50 outline-none"
+                            className="select"
                             disabled={saving}
                         >
                             <option value="manual">Manual Login (Recommended)</option>
@@ -188,7 +196,7 @@ function AddAccountModal({ isOpen, onClose, onSave }) {
                             <option value="username">Auto Login with Username</option>
                             <option value="phone">Auto Login with Phone</option>
                         </select>
-                        <p className="text-xs text-slate-500 mt-1 flex items-center gap-1">
+                        <p className="text-xs mt-1 flex items-center gap-1" style={{ color: 'var(--color-text-muted)' }}>
                             <span className="material-symbols-outlined text-[14px]">{isManualLogin ? 'lock_open' : 'warning'}</span>
                             {isManualLogin
                                 ? 'Browser will open, you login manually. No credentials stored.'
@@ -200,7 +208,7 @@ function AddAccountModal({ isOpen, onClose, onSave }) {
                     {!isManualLogin && (
                         <>
                             <div>
-                                <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
+                                <label className="form-label">
                                     {form.login_type === 'email' ? 'Email' : form.login_type === 'phone' ? 'Phone Number' : 'Username'}
                                 </label>
                                 <input
@@ -208,28 +216,29 @@ function AddAccountModal({ isOpen, onClose, onSave }) {
                                     value={form.login_identifier}
                                     onChange={e => setForm({ ...form, login_identifier: e.target.value })}
                                     placeholder={form.login_type === 'email' ? 'email@example.com' : form.login_type === 'phone' ? '812345678' : 'username'}
-                                    className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-[#324d67] rounded-xl bg-white dark:bg-[#192633] focus:border-primary/50 outline-none"
+                                    className="input"
                                     required={!isManualLogin}
                                     disabled={saving}
                                 />
                             </div>
 
                             <div>
-                                <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Password</label>
+                                <label className="form-label">Password</label>
                                 <div className="relative">
                                     <input
                                         type={showPassword ? "text" : "password"}
                                         value={form.password}
                                         onChange={e => setForm({ ...form, password: e.target.value })}
                                         placeholder="••••••••"
-                                        className="w-full px-3 py-2 pr-10 text-sm border border-slate-200 dark:border-[#324d67] rounded-xl bg-white dark:bg-[#192633] focus:border-primary/50 outline-none"
+                                        className="input pr-10"
                                         required={!isManualLogin}
                                         disabled={saving}
                                     />
                                     <button
                                         type="button"
                                         onClick={() => setShowPassword(!showPassword)}
-                                        className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
+                                        className="absolute right-2 top-1/2 -translate-y-1/2 p-1 transition-colors"
+                                        style={{ color: 'var(--color-text-muted)' }}
                                         disabled={saving}
                                     >
                                         <span className="material-symbols-outlined text-[18px]">
@@ -242,26 +251,26 @@ function AddAccountModal({ isOpen, onClose, onSave }) {
                     )}
 
                     <div>
-                        <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Proxy URL (optional)</label>
+                        <label className="form-label">Proxy URL (optional)</label>
                         <input
                             type="text"
                             value={form.proxy_url}
                             onChange={e => setForm({ ...form, proxy_url: e.target.value })}
                             placeholder="http://user:pass@host:port"
-                            className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-[#324d67] rounded-xl bg-white dark:bg-[#192633] focus:border-primary/50 outline-none"
+                            className="input"
                             disabled={saving}
                         />
                     </div>
 
                     <div>
-                        <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Daily Upload Limit</label>
+                        <label className="form-label">Daily Upload Limit</label>
                         <input
                             type="number"
                             min="1"
                             max="10"
                             value={form.daily_upload_limit}
                             onChange={e => setForm({ ...form, daily_upload_limit: parseInt(e.target.value) })}
-                            className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-[#324d67] rounded-xl bg-white dark:bg-[#192633] focus:border-primary/50 outline-none"
+                            className="input"
                             disabled={saving}
                         />
                     </div>
@@ -271,14 +280,14 @@ function AddAccountModal({ isOpen, onClose, onSave }) {
                             type="button"
                             onClick={onClose}
                             disabled={saving}
-                            className="flex-1 px-4 py-2 text-sm font-medium border border-slate-200 dark:border-[#324d67] rounded-xl hover:bg-slate-50 dark:hover:bg-[#1e2e40] transition-colors disabled:opacity-50"
+                            className="btn btn-secondary flex-1"
                         >
                             Cancel
                         </button>
                         <button
                             type="submit"
                             disabled={saving}
-                            className="flex-1 px-4 py-2 text-sm font-medium bg-primary text-white rounded-xl hover:bg-primary/90 disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
+                            className="btn btn-primary flex-1"
                         >
                             {saving ? (
                                 <>
@@ -325,7 +334,7 @@ function AccountCard({ account, onLogin, onDelete, onRefresh }) {
     return (
         <motion.div
             whileHover={{ y: -2 }}
-            className="bg-white dark:bg-[#152230] rounded-2xl border border-slate-200 dark:border-[#233648] p-4 shadow-sm"
+            className="card card-hover"
         >
             <div className="flex items-start justify-between mb-3">
                 <div className="flex items-center gap-3">
@@ -333,35 +342,35 @@ function AccountCard({ account, onLogin, onDelete, onRefresh }) {
                         {account.account_name?.[0]?.toUpperCase() || 'T'}
                     </div>
                     <div>
-                        <h4 className="font-semibold text-slate-900 dark:text-white">{account.account_name}</h4>
-                        <p className="text-xs text-slate-500">
+                        <h4 className="font-semibold" style={{ color: 'var(--color-text-primary)' }}>{account.account_name}</h4>
+                        <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
                             {account.tiktok_username ? `@${account.tiktok_username}` : account.login_identifier}
                         </p>
                     </div>
                 </div>
-                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${status.color}`}>
+                <span className={`badge ${status.color}`}>
                     <span className="material-symbols-outlined text-[12px]">{status.icon}</span>
                     {account.status}
                 </span>
             </div>
 
             <div className="grid grid-cols-3 gap-2 mb-3">
-                <div className="text-center p-2 bg-slate-50 dark:bg-[#192633] rounded-lg">
-                    <p className="text-lg font-bold text-slate-900 dark:text-white">{account.uploads_today || 0}</p>
-                    <p className="text-[10px] text-slate-500">Today</p>
+                <div className="text-center p-2 rounded-lg" style={{ background: 'var(--color-surface-1)' }}>
+                    <p className="text-lg font-bold" style={{ color: 'var(--color-text-primary)' }}>{account.uploads_today || 0}</p>
+                    <p className="text-[10px]" style={{ color: 'var(--color-text-muted)' }}>Today</p>
                 </div>
-                <div className="text-center p-2 bg-slate-50 dark:bg-[#192633] rounded-lg">
-                    <p className="text-lg font-bold text-slate-900 dark:text-white">{account.daily_upload_limit || 3}</p>
-                    <p className="text-[10px] text-slate-500">Limit</p>
+                <div className="text-center p-2 rounded-lg" style={{ background: 'var(--color-surface-1)' }}>
+                    <p className="text-lg font-bold" style={{ color: 'var(--color-text-primary)' }}>{account.daily_upload_limit || 3}</p>
+                    <p className="text-[10px]" style={{ color: 'var(--color-text-muted)' }}>Limit</p>
                 </div>
-                <div className="text-center p-2 bg-slate-50 dark:bg-[#192633] rounded-lg">
-                    <p className="text-lg font-bold text-slate-900 dark:text-white">{account.health_score || 100}</p>
-                    <p className="text-[10px] text-slate-500">Health</p>
+                <div className="text-center p-2 rounded-lg" style={{ background: 'var(--color-surface-1)' }}>
+                    <p className="text-lg font-bold" style={{ color: 'var(--color-text-primary)' }}>{account.health_score || 100}</p>
+                    <p className="text-[10px]" style={{ color: 'var(--color-text-muted)' }}>Health</p>
                 </div>
             </div>
 
-            <div className="flex items-center gap-1 text-xs text-slate-500 mb-3">
-                <span className={`w-2 h-2 rounded-full ${account.session_valid ? 'bg-green-500' : 'bg-red-500'}`}></span>
+            <div className="flex items-center gap-1 text-xs mb-3" style={{ color: 'var(--color-text-muted)' }}>
+                <span className="w-2 h-2 rounded-full" style={{ background: account.session_valid ? 'var(--color-success-text)' : 'var(--color-error-text)' }}></span>
                 Session: {account.session_valid ? 'Valid' : 'Invalid'}
             </div>
 
@@ -369,14 +378,16 @@ function AccountCard({ account, onLogin, onDelete, onRefresh }) {
                 <button
                     onClick={handleLogin}
                     disabled={loggingIn}
-                    className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium bg-primary/10 hover:bg-primary/20 text-primary rounded-lg transition-colors disabled:opacity-50"
+                    className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium rounded-lg transition-colors disabled:opacity-50"
+                    style={{ background: 'var(--color-accent-subtle)', color: 'var(--color-accent)' }}
                 >
                     <span className="material-symbols-outlined text-[14px]">{loggingIn ? 'sync' : 'login'}</span>
                     {loggingIn ? 'Logging in...' : 'Login'}
                 </button>
                 <button
                     onClick={() => onDelete(account.id)}
-                    className="px-3 py-2 text-xs text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                    className="px-3 py-2 text-xs rounded-lg transition-colors"
+                    style={{ color: 'var(--color-error-text)' }}
                 >
                     <span className="material-symbols-outlined text-[14px]">delete</span>
                 </button>
@@ -392,33 +403,33 @@ function UploadQueueItem({ upload, onCancel, onRetry }) {
     const status = UPLOAD_STATUS[upload.status] || UPLOAD_STATUS.pending
 
     return (
-        <div className="p-4 border-b border-slate-100 dark:border-[#233648] last:border-0 hover:bg-slate-50 dark:hover:bg-[#192633] transition-colors">
+        <div className="p-4 last:border-0 transition-colors" style={{ borderBottom: '1px solid var(--color-border-subtle)' }}>
             <div className="flex items-center gap-4">
-                <div className="w-12 h-12 rounded-lg bg-slate-200 dark:bg-slate-700 flex items-center justify-center flex-shrink-0">
-                    <span className="material-symbols-outlined text-slate-400">movie</span>
+                <div className="w-12 h-12 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: 'var(--color-surface-1)' }}>
+                    <span className="material-symbols-outlined" style={{ color: 'var(--color-text-muted)' }}>movie</span>
                 </div>
 
                 <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
-                        <span className="text-sm font-medium text-slate-900 dark:text-white truncate">
+                        <span className="text-sm font-medium truncate" style={{ color: 'var(--color-text-primary)' }}>
                             Clip #{upload.clip_index || 1}
                         </span>
-                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${status.color}`}>
+                        <span className={`badge ${status.color}`}>
                             <span className="material-symbols-outlined text-[11px]">{status.icon}</span>
                             {upload.status}
                         </span>
                     </div>
-                    <p className="text-xs text-slate-500 truncate">{upload.account_name || `Account #${upload.account_id}`}</p>
+                    <p className="text-xs truncate" style={{ color: 'var(--color-text-muted)' }}>{upload.account_name || `Account #${upload.account_id}`}</p>
                     {upload.progress_percent > 0 && upload.status === 'uploading' && (
-                        <div className="mt-2 h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+                        <div className="mt-2 h-1.5 rounded-full overflow-hidden" style={{ background: 'var(--color-surface-1)' }}>
                             <div
-                                className="h-full bg-primary rounded-full transition-all"
-                                style={{ width: `${upload.progress_percent}%` }}
+                                className="h-full rounded-full transition-all"
+                                style={{ width: `${upload.progress_percent}%`, background: 'var(--color-accent)' }}
                             />
                         </div>
                     )}
                     {upload.error_message && (
-                        <p className="text-xs text-red-500 mt-1 truncate">{upload.error_message}</p>
+                        <p className="text-xs mt-1 truncate" style={{ color: 'var(--color-error-text)' }}>{upload.error_message}</p>
                     )}
                 </div>
 
@@ -428,7 +439,8 @@ function UploadQueueItem({ upload, onCancel, onRetry }) {
                             href={upload.tiktok_url}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="p-2 text-primary hover:bg-primary/10 rounded-lg transition-colors"
+                            className="p-2 rounded-lg transition-colors"
+                            style={{ color: 'var(--color-accent)' }}
                         >
                             <span className="material-symbols-outlined text-[18px]">open_in_new</span>
                         </a>
@@ -436,7 +448,8 @@ function UploadQueueItem({ upload, onCancel, onRetry }) {
                     {upload.status === 'failed' && (
                         <button
                             onClick={() => onRetry(upload.id)}
-                            className="p-2 text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-900/20 rounded-lg transition-colors"
+                            className="p-2 rounded-lg transition-colors"
+                            style={{ color: 'var(--color-warning-text)' }}
                         >
                             <span className="material-symbols-outlined text-[18px]">refresh</span>
                         </button>
@@ -444,7 +457,8 @@ function UploadQueueItem({ upload, onCancel, onRetry }) {
                     {['pending', 'processing'].includes(upload.status) && (
                         <button
                             onClick={() => onCancel(upload.id)}
-                            className="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                            className="p-2 rounded-lg transition-colors"
+                            style={{ color: 'var(--color-error-text)' }}
                         >
                             <span className="material-symbols-outlined text-[18px]">cancel</span>
                         </button>
@@ -497,9 +511,17 @@ function TikTokPage() {
 
     const handleDeleteAccount = async (id) => {
         if (!confirm('Delete this TikTok account?')) return
-        await api.deleteTikTokAccount(id)
-        loadData()
-        toast.success('Account deleted')
+        try {
+            const res = await api.deleteTikTokAccount(id)
+            if (res.detail) {
+                toast.error(res.detail)
+                return
+            }
+            toast.success('Account deleted')
+            loadData()
+        } catch (e) {
+            toast.error('Failed to delete account')
+        }
     }
 
     const handleCancelUpload = async (id) => {
@@ -523,7 +545,7 @@ function TikTokPage() {
 
     if (!tiktokOnline && !loading) {
         return (
-            <div className="flex-1 overflow-y-auto p-6 md:p-8 bg-slate-50/50 dark:bg-transparent">
+            <div className="flex-1 overflow-y-auto p-6 md:p-8" style={{ background: 'var(--color-bg-primary)' }}>
                 <div className="max-w-4xl mx-auto">
                     <EmptyState
                         type="error"
@@ -533,7 +555,7 @@ function TikTokPage() {
                     <div className="mt-4 text-center">
                         <button
                             onClick={loadData}
-                            className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-xl hover:bg-primary/90 transition-colors"
+                            className="btn btn-primary"
                         >
                             <span className="material-symbols-outlined text-[18px]">refresh</span>
                             Retry Connection
@@ -545,24 +567,24 @@ function TikTokPage() {
     }
 
     return (
-        <div className="flex-1 overflow-y-auto p-6 md:p-8 bg-slate-50/50 dark:bg-transparent">
+        <div className="flex-1 overflow-y-auto p-6 md:p-8" style={{ background: 'var(--color-bg-primary)' }}>
             <div className="max-w-6xl mx-auto space-y-5">
                 {/* Stats */}
                 <FadeInUp>
                     <div className="grid grid-cols-4 gap-4">
                         {[
-                            { label: 'Total Accounts', value: stats.totalAccounts, icon: 'group', bg: 'bg-primary' },
-                            { label: 'Active', value: stats.activeAccounts, icon: 'check_circle', bg: 'bg-emerald-500' },
-                            { label: 'Pending', value: stats.pendingUploads, icon: 'schedule', bg: 'bg-amber-500' },
-                            { label: 'Published', value: stats.publishedToday, icon: 'cloud_done', bg: 'bg-violet-500' },
+                            { label: 'Total Accounts', value: stats.totalAccounts, icon: 'group', color: 'var(--color-accent)' },
+                            { label: 'Active', value: stats.activeAccounts, icon: 'check_circle', color: 'var(--color-success-text)' },
+                            { label: 'Pending', value: stats.pendingUploads, icon: 'schedule', color: 'var(--color-warning-text)' },
+                            { label: 'Published', value: stats.publishedToday, icon: 'cloud_done', color: 'var(--color-info-text)' },
                         ].map(s => (
-                            <motion.div key={s.label} whileHover={{ y: -2 }} className="bg-white dark:bg-[#152230] rounded-2xl border border-slate-200 dark:border-[#233648] p-4 shadow-sm flex items-center gap-3">
-                                <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${s.bg}`}>
+                            <motion.div key={s.label} whileHover={{ y: -2 }} className="card card-hover flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: s.color }}>
                                     <span className="material-symbols-outlined text-white text-[20px]">{s.icon}</span>
                                 </div>
                                 <div>
-                                    <p className="text-2xl font-bold text-slate-900 dark:text-white">{s.value}</p>
-                                    <p className="text-xs text-slate-500">{s.label}</p>
+                                    <p className="text-2xl font-bold" style={{ color: 'var(--color-text-primary)' }}>{s.value}</p>
+                                    <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>{s.label}</p>
                                 </div>
                             </motion.div>
                         ))}
@@ -570,7 +592,7 @@ function TikTokPage() {
                 </FadeInUp>
 
                 {/* Tabs */}
-                <div className="flex items-center gap-2 border-b border-slate-200 dark:border-[#233648]">
+                <div className="flex items-center gap-2" style={{ borderBottom: '1px solid var(--color-border-subtle)' }}>
                     {[
                         { key: 'accounts', label: 'Accounts', icon: 'group' },
                         { key: 'queue', label: 'Upload Queue', icon: 'cloud_upload' },
@@ -578,10 +600,11 @@ function TikTokPage() {
                         <button
                             key={t.key}
                             onClick={() => setTab(t.key)}
-                            className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${tab === t.key
-                                ? 'border-primary text-primary'
-                                : 'border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
-                                }`}
+                            className="flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors"
+                            style={{
+                                borderColor: tab === t.key ? 'var(--color-accent)' : 'transparent',
+                                color: tab === t.key ? 'var(--color-accent)' : 'var(--color-text-muted)'
+                            }}
                         >
                             <span className="material-symbols-outlined text-[18px]">{t.icon}</span>
                             {t.label}
@@ -591,14 +614,14 @@ function TikTokPage() {
                     <div className="ml-auto flex items-center gap-2">
                         <button
                             onClick={loadData}
-                            className="p-2 text-slate-500 hover:text-primary hover:bg-slate-100 dark:hover:bg-[#1e2e40] rounded-lg transition-colors"
+                            className="btn btn-ghost btn-icon"
                         >
                             <span className="material-symbols-outlined text-[18px]">refresh</span>
                         </button>
                         {tab === 'accounts' && (
                             <button
                                 onClick={() => setShowAddModal(true)}
-                                className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-white text-sm font-medium rounded-xl hover:bg-primary/90 transition-colors"
+                                className="btn btn-primary btn-sm"
                             >
                                 <span className="material-symbols-outlined text-[18px]">add</span>
                                 Add Account
@@ -635,10 +658,10 @@ function TikTokPage() {
                         </div>
                     )
                 ) : (
-                    <div className="bg-white dark:bg-[#152230] rounded-2xl border border-slate-200 dark:border-[#233648] shadow-sm overflow-hidden">
-                        <div className="px-5 py-4 border-b border-slate-100 dark:border-[#233648]">
-                            <h3 className="font-semibold flex items-center gap-2 text-slate-900 dark:text-white">
-                                <span className="material-symbols-outlined text-primary text-[20px]">cloud_upload</span>
+                    <div className="card shadow-sm overflow-hidden">
+                        <div className="px-5 py-4" style={{ borderBottom: '1px solid var(--color-border-subtle)' }}>
+                            <h3 className="font-semibold flex items-center gap-2" style={{ color: 'var(--color-text-primary)' }}>
+                                <span className="material-symbols-outlined text-[20px]" style={{ color: 'var(--color-accent)' }}>cloud_upload</span>
                                 Upload Queue
                             </h3>
                         </div>

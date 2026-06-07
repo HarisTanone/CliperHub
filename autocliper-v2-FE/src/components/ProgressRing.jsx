@@ -14,9 +14,8 @@ function ProgressRing({ progress = 0, size = 80, strokeWidth = 6, className = ''
                     cy={size / 2}
                     r={radius}
                     fill="none"
-                    stroke="currentColor"
                     strokeWidth={strokeWidth}
-                    className="text-slate-200 dark:text-slate-700"
+                    style={{ stroke: 'var(--color-border-default)' }}
                 />
                 {/* Progress circle */}
                 <motion.circle
@@ -24,18 +23,20 @@ function ProgressRing({ progress = 0, size = 80, strokeWidth = 6, className = ''
                     cy={size / 2}
                     r={radius}
                     fill="none"
-                    stroke="currentColor"
                     strokeWidth={strokeWidth}
                     strokeLinecap="round"
-                    className="text-primary"
+                    style={{ stroke: 'var(--color-accent)' }}
                     initial={{ strokeDashoffset: circumference }}
                     animate={{ strokeDashoffset: offset }}
                     transition={{ duration: 0.8, ease: 'easeOut' }}
-                    style={{ strokeDasharray: circumference }}
+                    strokeDasharray={circumference}
                 />
             </svg>
             <div className="absolute inset-0 flex items-center justify-center">
-                <span className="text-sm font-bold text-slate-900 dark:text-white">{Math.round(progress)}%</span>
+                <span
+                    className="text-sm font-bold"
+                    style={{ color: 'var(--color-text-primary)' }}
+                >{Math.round(progress)}%</span>
             </div>
         </div>
     )

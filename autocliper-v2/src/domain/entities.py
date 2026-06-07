@@ -201,6 +201,37 @@ class CaptionStyle:
 
 
 @dataclass
+class ClipScores:
+    """Multi-dimensional scoring for clip virality analysis"""
+    viral_score: float = 0.0
+    curiosity_score: float = 0.0
+    emotion_score: float = 0.0
+    controversy_score: float = 0.0
+    story_score: float = 0.0
+    
+    @property
+    def final_score(self) -> float:
+        """Weighted final score calculation"""
+        return (
+            self.viral_score * 0.35 +
+            self.curiosity_score * 0.25 +
+            self.story_score * 0.20 +
+            self.emotion_score * 0.10 +
+            self.controversy_score * 0.10
+        )
+    
+    def to_dict(self) -> dict:
+        return {
+            "viral_score": self.viral_score,
+            "curiosity_score": self.curiosity_score,
+            "emotion_score": self.emotion_score,
+            "controversy_score": self.controversy_score,
+            "story_score": self.story_score,
+            "final_score": self.final_score,
+        }
+
+
+@dataclass
 class ClipData:
     index: int
     start_time: float
@@ -209,6 +240,8 @@ class ClipData:
     score: float
     reason: str
     keywords: List[str] = field(default_factory=list)
+    scores: Optional[ClipScores] = None
+    chunk_id: Optional[int] = None
 
 
 @dataclass

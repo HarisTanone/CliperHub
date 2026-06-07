@@ -5,9 +5,11 @@ from abc import ABC, abstractmethod
 from typing import List, Dict, Any, Optional
 from dataclasses import dataclass
 
+from .entities import ClipData, VideoInfo
+
 
 class IAIAnalyzer(ABC):
-    """Interface for AI video analysis service"""
+    """Interface for AI video analysis service (provider pattern)"""
     
     @abstractmethod
     def analyze_video(self, video_path: str) -> List[Dict[str, Any]]:
@@ -19,6 +21,37 @@ class IAIAnalyzer(ABC):
             
         Returns:
             List of clip data with start_time, end_time, hook, score, reason
+        """
+        pass
+    
+    @abstractmethod
+    def analyze_candidates(self, transcript_chunk: str, metadata: Dict[str, Any],
+                           chunk_id: int, chunk_start_time: float) -> List[ClipData]:
+        """Pass #1: Detect candidate clips from a transcript chunk.
+        
+        Args:
+            transcript_chunk: JSON transcript segment
+            metadata: Video metadata (title, duration, channel, etc.)
+            chunk_id: Chunk identifier
+            chunk_start_time: Absolute start time of this chunk in seconds
+            
+        Returns:
+            List of ClipData candidates with multi-scores
+        """
+        pass
+    
+    @abstractmethod
+    def rank_candidates(self, candidates: List[ClipData], metadata: Dict[str, Any],
+                        transcript_snippets: Dict[int, str]) -> List[ClipData]:
+        """Pass #2: Final ranking of aggregated candidates.
+        
+        Args:
+            candidates: Pre-filtered candidate clips from aggregator
+            metadata: Video metadata
+            transcript_snippets: Map of clip index → relevant transcript text
+            
+        Returns:
+            Final ranked list of ClipData with hooks, keywords, reasons
         """
         pass
 

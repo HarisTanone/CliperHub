@@ -221,27 +221,26 @@ async def delete_social_account(account_id: int, current: dict = Depends(get_cur
         raise HTTPException(status_code=403, detail="Access denied")
     
     try:
-        # Delete related records first (sessions, upload queue)
+        # Delete ALL related records first
         session = database.get_session()
         try:
-            from ..infrastructure.repositories import SocialSessionRepository, SocialUploadQueueRepository
-            
             # Delete sessions
-            session_repo = SocialSessionRepository(session)
-            session_repo.invalidate(account_id, "Account deleted")
-            
-            # Delete pending upload jobs (cancel them)
             session.execute(
-                text("DELETE FROM social_upload_queue WHERE account_id = :account_id AND status IN ('pending', 'processing')"),
-                {"account_id": account_id}
+                text("DELETE FROM social_sessions WHERE account_id = :aid"),
+                {"aid": account_id}
+            )
+            # Delete all upload queue items (not just pending)
+            session.execute(
+                text("DELETE FROM social_upload_queue WHERE account_id = :aid"),
+                {"aid": account_id}
             )
             session.commit()
         finally:
             session.close()
         
-        # Now delete the account
+        # Now delete the account itself
         if not social_account_service.delete_account(account_id):
-            raise HTTPException(status_code=404, detail="Account not found")
+            raise HTTPException(status_code=500, detail="Failed to delete account")
         
         return {"status": "deleted", "account_id": account_id}
     except HTTPException:

@@ -184,7 +184,7 @@ async def update_account(
 
 @router.delete("/{account_id}")
 async def delete_account(account_id: int, current: dict = Depends(get_current_user)):
-    """Delete an account"""
+    """Delete an account and all related records"""
     user_id = int(current.get("sub"))
     role = current.get("role")
     
@@ -195,8 +195,38 @@ async def delete_account(account_id: int, current: dict = Depends(get_current_us
     if role != "admin" and account.user_id != user_id:
         raise HTTPException(status_code=403, detail="Access denied")
     
+    # Delete related records first to avoid FK constraint violations
+    session = database.get_session()
+    try:
+        from sqlalchemy import text
+        related_tables = [
+            "tiktok_sessions",
+            "upload_history",
+            "upload_queue",
+            "account_activity_log",
+            "account_warmup",
+            "pending_verifications",
+            "video_performance",
+        ]
+        for table in related_tables:
+            try:
+                session.execute(text(f"DELETE FROM `{table}` WHERE account_id = :aid"), {"aid": account_id})
+            except Exception:
+                pass
+        # caption_templates may reference account_id - set to NULL
+        try:
+            session.execute(text("UPDATE caption_templates SET account_id = NULL WHERE account_id = :aid"), {"aid": account_id})
+        except Exception:
+            pass
+        session.commit()
+    except Exception as e:
+        session.rollback()
+        logger.warning(f"Error cleaning related records for account {account_id}: {e}")
+    finally:
+        session.close()
+    
     if not account_service.delete_account(account_id):
-        raise HTTPException(status_code=404, detail="Account not found")
+        raise HTTPException(status_code=500, detail="Failed to delete account")
     
     return {"status": "deleted", "account_id": account_id}
 

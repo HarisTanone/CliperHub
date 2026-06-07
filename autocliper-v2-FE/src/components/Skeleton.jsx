@@ -1,12 +1,22 @@
 import { motion } from 'framer-motion'
 
-// Base skeleton pulse
+// Base skeleton pulse using design system
 function Skeleton({ className = '', rounded = 'rounded-lg' }) {
     return (
         <motion.div
-            className={`bg-slate-200 dark:bg-slate-700/50 ${rounded} ${className}`}
-            animate={{ opacity: [0.5, 1, 0.5] }}
-            transition={{ duration: 1.5, repeat: Infinity, ease: 'easeInOut' }}
+            className={`${rounded} ${className}`}
+            style={{
+                background: 'linear-gradient(90deg, var(--color-border-subtle) 25%, var(--color-surface-1) 50%, var(--color-border-subtle) 75%)',
+                backgroundSize: '400px 100%'
+            }}
+            animate={{
+                backgroundPosition: ['-400px 0', '400px 0']
+            }}
+            transition={{
+                duration: 1.4,
+                repeat: Infinity,
+                ease: 'easeInOut'
+            }}
         />
     )
 }
@@ -31,12 +41,16 @@ export function CardSkeleton() {
 // Stats skeleton
 export function StatsSkeleton() {
     return (
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            {[1, 2, 3].map(i => (
-                <div key={i} className="bg-white dark:bg-[#152230] rounded-2xl border border-slate-200 dark:border-[#233648] p-6">
-                    <div className="flex items-start justify-between mb-4">
-                        <Skeleton className="w-10 h-10" rounded="rounded-xl" />
-                    </div>
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 mb-6">
+            <div className="lg:col-span-2 rounded-2xl p-6" style={{ background: 'var(--color-surface-1)', border: '1px solid var(--color-border-subtle)' }}>
+                <Skeleton className="h-4 w-24 mb-2" />
+                <Skeleton className="h-8 w-40 mb-4" />
+                <Skeleton className="h-4 w-56 mb-4" />
+                <Skeleton className="h-10 w-36" rounded="rounded-xl" />
+            </div>
+            {[1, 2].map(i => (
+                <div key={i} className="rounded-2xl p-5" style={{ background: 'var(--color-bg-card)', border: '1px solid var(--color-border-subtle)' }}>
+                    <Skeleton className="w-10 h-10 mb-3" rounded="rounded-xl" />
                     <Skeleton className="h-8 w-16 mb-2" />
                     <Skeleton className="h-4 w-24" />
                 </div>
@@ -50,9 +64,9 @@ export function GridSkeleton({ count = 6 }) {
     return (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 p-5">
             {Array.from({ length: count }).map((_, i) => (
-                <div key={i} className="rounded-2xl border border-slate-200 dark:border-[#233648] overflow-hidden">
+                <div key={i} className="rounded-2xl overflow-hidden" style={{ border: '1px solid var(--color-border-subtle)' }}>
                     <Skeleton className="aspect-video w-full" rounded="rounded-none" />
-                    <div className="p-3 space-y-2">
+                    <div className="p-3 space-y-2" style={{ background: 'var(--color-bg-card)' }}>
                         <Skeleton className="h-4 w-2/3" />
                         <Skeleton className="h-3 w-1/2" />
                     </div>
@@ -65,9 +79,9 @@ export function GridSkeleton({ count = 6 }) {
 // Table row skeleton
 export function TableRowSkeleton({ rows = 5 }) {
     return (
-        <div className="divide-y divide-slate-100 dark:divide-[#1e2e40]">
+        <div>
             {Array.from({ length: rows }).map((_, i) => (
-                <div key={i} className="px-5 py-4 flex items-center gap-4">
+                <div key={i} className="px-5 py-4 flex items-center gap-4" style={{ borderBottom: '1px solid var(--color-border-subtle)' }}>
                     <Skeleton className="w-11 h-11 flex-shrink-0" rounded="rounded-2xl" />
                     <div className="flex-1 space-y-2">
                         <Skeleton className="h-4 w-1/3" />

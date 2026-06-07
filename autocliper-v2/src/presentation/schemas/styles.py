@@ -69,6 +69,7 @@ class CaptionStyleResponse(BaseModel):
     line_spacing: float
     caption_bottom_margin: int
     user_id: Optional[int] = None
+    config: Optional[dict] = None
 
 
 class CaptionStyleCreateModel(BaseModel):
@@ -85,6 +86,7 @@ class CaptionStyleCreateModel(BaseModel):
     shadow_offset_y: int = 2
     line_spacing: float = 1.0
     caption_bottom_margin: int = 70
+    config: Optional[dict] = None
 
 
 class CaptionStyleUpdateModel(BaseModel):
@@ -101,3 +103,4 @@ class CaptionStyleUpdateModel(BaseModel):
     shadow_offset_y: Optional[int] = None
     line_spacing: Optional[float] = None
     caption_bottom_margin: Optional[int] = None
+    config: Optional[dict] = None

@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { toast } from 'react-hot-toast'
 import { api, getAuthenticatedMediaUrl } from '../utils/api'
 
-// Platform configurations with SVG icons
+// Platform configurations with SVG icons (gradients kept for brand identity)
 const PLATFORM_CONFIG = {
     tiktok: {
         name: 'TikTok',
@@ -65,36 +65,29 @@ function PostToSocialModal({ isOpen, onClose, clip, jobId, outputFile, thumbnail
     const [serviceOnline, setServiceOnline] = useState(false)
     const [thumbBlobUrl, setThumbBlobUrl] = useState(null)
 
-    // Reset state when platform changes
     useEffect(() => {
         if (platform && PLATFORM_CONFIG[platform]) {
             setHashtags(PLATFORM_CONFIG[platform].defaultHashtags)
         }
     }, [platform])
 
-    // Load accounts on mount
     useEffect(() => {
         if (!isOpen) return
         const loadAccounts = async () => {
             setLoadingAccounts(true)
             try {
-                // Check automate service health
                 const health = await api.getTikTokHealth()
                 setServiceOnline(health?.status === 'healthy')
-
                 if (health?.status === 'healthy') {
                     if (platform === 'tiktok') {
-                        // For TikTok, use the existing TikTok-specific API
                         const data = await api.getTikTokAccountsAvailable()
                         if (Array.isArray(data)) {
                             setAccounts(data)
                             if (data.length > 0) setSelectedAccountId(data[0].id)
                         }
                     } else {
-                        // For other platforms (youtube, instagram, facebook), use social API
                         const data = await api.getSocialAccounts(platform)
                         if (Array.isArray(data)) {
-                            // Filter only accounts with valid session
                             const validAccounts = data.filter(acc => acc.session_valid)
                             setAccounts(validAccounts)
                             if (validAccounts.length > 0) setSelectedAccountId(validAccounts[0].id)
@@ -111,14 +104,10 @@ function PostToSocialModal({ isOpen, onClose, clip, jobId, outputFile, thumbnail
         loadAccounts()
     }, [isOpen, platform])
 
-    // Set default caption from hook
     useEffect(() => {
-        if (clip?.hook) {
-            setCaption(clip.hook)
-        }
+        if (clip?.hook) setCaption(clip.hook)
     }, [clip])
 
-    // Load thumbnail with auth
     useEffect(() => {
         if (!thumbnail) return
         const thumbUrl = api.fileUrl(thumbnail)
@@ -129,7 +118,6 @@ function PostToSocialModal({ isOpen, onClose, clip, jobId, outputFile, thumbnail
         return () => { if (revoke) URL.revokeObjectURL(revoke) }
     }, [thumbnail])
 
-    // Load suggested times when account selected (TikTok only for now)
     useEffect(() => {
         if (!selectedAccountId || !serviceOnline || platform !== 'tiktok') return
         const loadSuggested = async () => {
@@ -149,9 +137,7 @@ function PostToSocialModal({ isOpen, onClose, clip, jobId, outputFile, thumbnail
         setLoading(true)
         try {
             const hashtagArray = hashtags.split(/\s+/).filter(h => h.startsWith('#'))
-
             if (platform === 'tiktok') {
-                // Use TikTok-specific API
                 const payload = {
                     account_id: selectedAccountId,
                     request_log_id: jobId,
@@ -169,7 +155,6 @@ function PostToSocialModal({ isOpen, onClose, clip, jobId, outputFile, thumbnail
                     toast.error(result.detail || 'Failed to queue upload')
                 }
             } else {
-                // Use generic Social API for YouTube, Instagram, Facebook
                 const payload = {
                     account_id: selectedAccountId,
                     platform: platform,
@@ -203,9 +188,6 @@ function PostToSocialModal({ isOpen, onClose, clip, jobId, outputFile, thumbnail
 
     if (!isOpen) return null
 
-    // No longer show "Coming Soon" for any platform - all use the social API
-    const hasNoAccounts = !loadingAccounts && accounts.length === 0
-
     return (
         <AnimatePresence>
             <motion.div
@@ -217,23 +199,32 @@ function PostToSocialModal({ isOpen, onClose, clip, jobId, outputFile, thumbnail
                     initial={{ scale: 0.95, opacity: 0, y: 20 }}
                     animate={{ scale: 1, opacity: 1, y: 0 }}
                     exit={{ scale: 0.95, opacity: 0, y: 20 }}
-                    className="bg-white dark:bg-[#152230] rounded-2xl border border-slate-200 dark:border-[#233648] shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto"
+                    className="card rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto"
                     onClick={e => e.stopPropagation()}
                 >
                     {/* Header */}
-                    <div className="p-5 border-b border-slate-100 dark:border-[#233648] flex items-center justify-between sticky top-0 bg-white dark:bg-[#152230] z-10">
+                    <div
+                        className="p-5 flex items-center justify-between sticky top-0 z-10"
+                        style={{
+                            borderBottom: '1px solid var(--color-border-subtle)',
+                            background: 'var(--color-bg-card)'
+                        }}
+                    >
                         <div className="flex items-center gap-3">
                             <div className={`w-11 h-11 rounded-xl bg-gradient-to-br ${config.gradient} flex items-center justify-center shadow-lg text-white`}>
                                 {config.icon}
                             </div>
                             <div>
-                                <h3 className="text-lg font-semibold text-slate-900 dark:text-white">Post to {config.name}</h3>
-                                <p className="text-xs text-slate-500">
+                                <h3 className="text-lg font-semibold" style={{ color: 'var(--color-text-primary)' }}>Post to {config.name}</h3>
+                                <p className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>
                                     {isBulk ? `${clips?.length || 0} clips selected` : `Clip #${clip?.index}`}
                                 </p>
                             </div>
                         </div>
-                        <button onClick={onClose} className="p-2 text-slate-400 hover:text-slate-600 rounded-xl hover:bg-slate-100 dark:hover:bg-[#1e2e40] transition-colors">
+                        <button
+                            onClick={onClose}
+                            className="btn btn-ghost p-2"
+                        >
                             <span className="material-symbols-outlined text-[20px]">close</span>
                         </button>
                     </div>
@@ -241,19 +232,17 @@ function PostToSocialModal({ isOpen, onClose, clip, jobId, outputFile, thumbnail
                     {/* Service Offline */}
                     {!serviceOnline && !loadingAccounts && (
                         <div className="p-8 text-center">
-                            <div className="w-16 h-16 mx-auto rounded-2xl bg-red-100 dark:bg-red-900/30 flex items-center justify-center mb-4">
-                                <span className="material-symbols-outlined text-red-500 text-3xl">cloud_off</span>
+                            <div
+                                className="w-16 h-16 mx-auto rounded-2xl flex items-center justify-center mb-4"
+                                style={{ background: 'var(--color-error-bg)' }}
+                            >
+                                <span className="material-symbols-outlined text-3xl" style={{ color: 'var(--color-error-text)' }}>cloud_off</span>
                             </div>
-                            <h4 className="text-lg font-semibold text-slate-900 dark:text-white mb-2">{config.name} Service Offline</h4>
-                            <p className="text-sm text-slate-500 max-w-xs mx-auto">
+                            <h4 className="text-lg font-semibold mb-2" style={{ color: 'var(--color-text-primary)' }}>{config.name} Service Offline</h4>
+                            <p className="text-sm max-w-xs mx-auto" style={{ color: 'var(--color-text-secondary)' }}>
                                 Start the autocliper-automate server to enable uploads
                             </p>
-                            <button
-                                onClick={onClose}
-                                className="mt-6 px-6 py-2.5 text-sm font-medium border border-slate-200 dark:border-[#324d67] rounded-xl hover:bg-slate-50 dark:hover:bg-[#1e2e40] transition-colors"
-                            >
-                                Close
-                            </button>
+                            <button onClick={onClose} className="btn btn-secondary mt-6">Close</button>
                         </div>
                     )}
 
@@ -262,29 +251,46 @@ function PostToSocialModal({ isOpen, onClose, clip, jobId, outputFile, thumbnail
                         <>
                             <div className="p-5 space-y-5">
                                 {/* Clip Preview */}
-                                <div className="flex gap-4 p-4 bg-gradient-to-r from-slate-50 to-slate-100/50 dark:from-[#192633] dark:to-[#1a2d3d] rounded-xl border border-slate-200/50 dark:border-[#233648]">
-                                    <div className="w-20 h-28 rounded-lg overflow-hidden bg-slate-200 dark:bg-slate-700 flex-shrink-0 shadow-md">
+                                <div
+                                    className="flex gap-4 p-4 rounded-xl"
+                                    style={{
+                                        background: 'var(--color-surface-1)',
+                                        border: '1px solid var(--color-border-subtle)'
+                                    }}
+                                >
+                                    <div
+                                        className="w-20 h-28 rounded-lg overflow-hidden flex-shrink-0 shadow-md"
+                                        style={{ background: 'var(--color-surface-2)' }}
+                                    >
                                         {thumbBlobUrl ? (
                                             <img src={thumbBlobUrl} alt="thumb" className="w-full h-full object-cover" />
                                         ) : (
                                             <div className="w-full h-full flex items-center justify-center">
-                                                <span className="material-symbols-outlined text-2xl text-slate-400">movie</span>
+                                                <span className="material-symbols-outlined text-2xl" style={{ color: 'var(--color-text-muted)' }}>movie</span>
                                             </div>
                                         )}
                                     </div>
                                     <div className="flex-1 min-w-0">
-                                        <p className="text-sm font-medium text-slate-900 dark:text-white line-clamp-2">{clip?.hook}</p>
-                                        <div className="flex items-center gap-3 mt-2 text-xs text-slate-500">
+                                        <p className="text-sm font-medium line-clamp-2" style={{ color: 'var(--color-text-primary)' }}>{clip?.hook}</p>
+                                        <div className="flex items-center gap-3 mt-2 text-xs" style={{ color: 'var(--color-text-secondary)' }}>
                                             {duration && (
-                                                <span className="flex items-center gap-1 px-2 py-0.5 bg-white dark:bg-[#152230] rounded-full">
+                                                <span
+                                                    className="flex items-center gap-1 px-2 py-0.5 rounded-full"
+                                                    style={{ background: 'var(--color-bg-card)' }}
+                                                >
                                                     <span className="material-symbols-outlined text-[12px]">timer</span>
                                                     {duration}s
                                                 </span>
                                             )}
-                                            <span className={`flex items-center gap-1 px-2 py-0.5 rounded-full font-medium
-                                                ${(clip?.score || 0) >= 0.9 ? 'bg-green-100 dark:bg-green-900/30 text-green-600' :
-                                                    (clip?.score || 0) >= 0.75 ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-600' :
-                                                        'bg-slate-100 dark:bg-slate-700 text-slate-600'}`}>
+                                            <span
+                                                className="flex items-center gap-1 px-2 py-0.5 rounded-full font-medium"
+                                                style={{
+                                                    background: (clip?.score || 0) >= 0.9 ? 'var(--color-success-bg)' :
+                                                        (clip?.score || 0) >= 0.75 ? 'var(--color-warning-bg)' : 'var(--color-surface-1)',
+                                                    color: (clip?.score || 0) >= 0.9 ? 'var(--color-success-text)' :
+                                                        (clip?.score || 0) >= 0.75 ? 'var(--color-warning-text)' : 'var(--color-text-secondary)'
+                                                }}
+                                            >
                                                 <span className="material-symbols-outlined text-[12px]">trending_up</span>
                                                 {Math.round((clip?.score || 0) * 100)}%
                                             </span>
@@ -294,21 +300,23 @@ function PostToSocialModal({ isOpen, onClose, clip, jobId, outputFile, thumbnail
 
                                 {/* Account Selection */}
                                 <div>
-                                    <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-2 uppercase tracking-wider">
-                                        Select Account
-                                    </label>
+                                    <label className="form-label uppercase tracking-wider">Select Account</label>
                                     {loadingAccounts ? (
-                                        <div className="h-16 bg-slate-100 dark:bg-[#192633] rounded-xl animate-pulse" />
+                                        <div
+                                            className="h-16 rounded-xl animate-pulse"
+                                            style={{ background: 'var(--color-surface-1)' }}
+                                        />
                                     ) : accounts.length === 0 ? (
-                                        <div className="p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/30 rounded-xl text-center">
-                                            <span className="material-symbols-outlined text-amber-500 text-2xl mb-1">warning</span>
-                                            <p className="text-sm text-amber-700 dark:text-amber-400">No accounts available</p>
-                                            <p className="text-xs text-amber-600 dark:text-amber-500 mt-1">Add an account in the Account List page first</p>
+                                        <div className="alert alert-warning text-center">
+                                            <span className="material-symbols-outlined text-2xl mb-1">warning</span>
+                                            <div>
+                                                <p className="text-sm font-medium">No accounts available</p>
+                                                <p className="text-xs mt-1" style={{ opacity: 0.8 }}>Add an account in the Account List page first</p>
+                                            </div>
                                         </div>
                                     ) : (
                                         <div className="space-y-2">
                                             {accounts.map(acc => {
-                                                // Handle both TikTok and Social account formats
                                                 const displayName = acc.account_name || acc.channel_name || acc.login_identifier
                                                 const username = acc.tiktok_username || acc.channel_id || acc.login_identifier
                                                 const initial = displayName?.[0]?.toUpperCase() || platform[0].toUpperCase()
@@ -317,31 +325,30 @@ function PostToSocialModal({ isOpen, onClose, clip, jobId, outputFile, thumbnail
                                                     <button
                                                         key={acc.id}
                                                         onClick={() => setSelectedAccountId(acc.id)}
-                                                        className={`w-full flex items-center gap-3 p-3 rounded-xl border-2 transition-all ${selectedAccountId === acc.id
-                                                            ? `border-transparent bg-gradient-to-r ${config.gradient} bg-opacity-10 ring-2 ring-offset-2 ring-offset-white dark:ring-offset-[#152230]`
-                                                            : 'border-slate-200 dark:border-[#324d67] hover:border-slate-300 dark:hover:border-[#4a6a8a] bg-white dark:bg-[#192633]'
-                                                            }`}
-                                                        style={selectedAccountId === acc.id ? {
-                                                            background: 'linear-gradient(135deg, rgba(236, 72, 153, 0.1) 0%, rgba(139, 92, 246, 0.1) 100%)'
-                                                        } : {}}
+                                                        className="w-full flex items-center gap-3 p-3 rounded-xl border-2 transition-all"
+                                                        style={{
+                                                            borderColor: selectedAccountId === acc.id ? 'var(--color-accent)' : 'var(--color-border-default)',
+                                                            background: selectedAccountId === acc.id ? 'var(--color-accent-subtle)' : 'var(--color-bg-card)',
+                                                            boxShadow: selectedAccountId === acc.id ? 'var(--shadow-glow)' : 'none'
+                                                        }}
                                                     >
                                                         <div className={`w-10 h-10 rounded-full bg-gradient-to-br ${config.gradient} flex items-center justify-center text-white font-bold text-sm flex-shrink-0 shadow-md`}>
                                                             {initial}
                                                         </div>
                                                         <div className="flex-1 text-left min-w-0">
-                                                            <p className="text-sm font-semibold text-slate-900 dark:text-white truncate">{displayName}</p>
-                                                            <p className="text-xs text-slate-500 truncate">
+                                                            <p className="text-sm font-semibold truncate" style={{ color: 'var(--color-text-primary)' }}>{displayName}</p>
+                                                            <p className="text-xs truncate" style={{ color: 'var(--color-text-secondary)' }}>
                                                                 {username ? (username.startsWith('@') ? username : `@${username}`) : 'Connected'}
                                                             </p>
                                                         </div>
                                                         <div className="text-right flex-shrink-0">
-                                                            <p className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                                                            <p className="text-xs font-bold" style={{ color: 'var(--color-text-primary)' }}>
                                                                 {acc.uploads_today || 0}/{acc.daily_upload_limit || 3}
                                                             </p>
-                                                            <p className="text-[10px] text-slate-400">today</p>
+                                                            <p className="text-[10px]" style={{ color: 'var(--color-text-muted)' }}>today</p>
                                                         </div>
                                                         {selectedAccountId === acc.id && (
-                                                            <span className="material-symbols-outlined text-green-500 text-[22px]">check_circle</span>
+                                                            <span className="material-symbols-outlined text-[22px]" style={{ color: 'var(--color-success-text)' }}>check_circle</span>
                                                         )}
                                                     </button>
                                                 )
@@ -352,54 +359,50 @@ function PostToSocialModal({ isOpen, onClose, clip, jobId, outputFile, thumbnail
 
                                 {/* Caption */}
                                 <div>
-                                    <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-2 uppercase tracking-wider">
-                                        Caption
-                                    </label>
+                                    <label className="form-label uppercase tracking-wider">Caption</label>
                                     <textarea
                                         value={caption}
                                         onChange={e => setCaption(e.target.value)}
                                         rows={3}
                                         maxLength={config.maxCaption}
                                         placeholder="Write your caption here..."
-                                        className="w-full px-4 py-3 text-sm border border-slate-200 dark:border-[#324d67] rounded-xl bg-white dark:bg-[#192633] focus:border-primary/50 focus:ring-2 focus:ring-primary/20 outline-none resize-none transition-all"
+                                        className="textarea"
                                     />
-                                    <p className="text-[10px] text-slate-400 mt-1 text-right">{caption.length}/{config.maxCaption}</p>
+                                    <p className="text-[10px] mt-1 text-right" style={{ color: 'var(--color-text-muted)' }}>{caption.length}/{config.maxCaption}</p>
                                 </div>
 
                                 {/* Hashtags */}
                                 <div>
-                                    <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-2 uppercase tracking-wider">
-                                        Hashtags
-                                    </label>
+                                    <label className="form-label uppercase tracking-wider">Hashtags</label>
                                     <input
                                         type="text"
                                         value={hashtags}
                                         onChange={e => setHashtags(e.target.value)}
                                         placeholder="#fyp #viral #trending"
-                                        className="w-full px-4 py-3 text-sm border border-slate-200 dark:border-[#324d67] rounded-xl bg-white dark:bg-[#192633] focus:border-primary/50 focus:ring-2 focus:ring-primary/20 outline-none transition-all"
+                                        className="input"
                                     />
                                 </div>
 
                                 {/* Schedule Options */}
                                 <div>
-                                    <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-2 uppercase tracking-wider">
-                                        When to Post
-                                    </label>
+                                    <label className="form-label uppercase tracking-wider">When to Post</label>
                                     <div className="grid grid-cols-3 gap-2 mb-3">
                                         {[
-                                            { key: 'now', label: 'Now', icon: 'bolt', desc: 'Post immediately' },
-                                            { key: 'scheduled', label: 'Schedule', icon: 'schedule', desc: 'Pick a time' },
-                                            { key: 'suggested', label: 'Best Time', icon: 'auto_awesome', desc: 'AI suggested' },
+                                            { key: 'now', label: 'Now', icon: 'bolt' },
+                                            { key: 'scheduled', label: 'Schedule', icon: 'schedule' },
+                                            { key: 'suggested', label: 'Best Time', icon: 'auto_awesome' },
                                         ].map(opt => (
                                             <button
                                                 key={opt.key}
                                                 onClick={() => setScheduleType(opt.key)}
-                                                className={`flex flex-col items-center gap-1.5 p-3 rounded-xl border-2 transition-all ${scheduleType === opt.key
-                                                    ? 'border-primary bg-primary/5 text-primary shadow-md'
-                                                    : 'border-slate-200 dark:border-[#324d67] text-slate-600 dark:text-slate-400 hover:border-slate-300 hover:bg-slate-50 dark:hover:bg-[#1a2d3d]'
-                                                    }`}
+                                                className="flex flex-col items-center gap-1.5 p-3 rounded-xl border-2 transition-all"
+                                                style={{
+                                                    borderColor: scheduleType === opt.key ? 'var(--color-accent)' : 'var(--color-border-default)',
+                                                    background: scheduleType === opt.key ? 'var(--color-accent-subtle)' : 'transparent',
+                                                    color: scheduleType === opt.key ? 'var(--color-accent)' : 'var(--color-text-secondary)'
+                                                }}
                                             >
-                                                <span className={`material-symbols-outlined text-[22px] ${scheduleType === opt.key ? '' : 'opacity-70'}`}>{opt.icon}</span>
+                                                <span className="material-symbols-outlined text-[22px]">{opt.icon}</span>
                                                 <span className="text-xs font-semibold">{opt.label}</span>
                                             </button>
                                         ))}
@@ -411,7 +414,7 @@ function PostToSocialModal({ isOpen, onClose, clip, jobId, outputFile, thumbnail
                                             value={scheduledAt}
                                             onChange={e => setScheduledAt(e.target.value)}
                                             min={new Date().toISOString().slice(0, 16)}
-                                            className="w-full px-4 py-3 text-sm border border-slate-200 dark:border-[#324d67] rounded-xl bg-white dark:bg-[#192633] focus:border-primary/50 focus:ring-2 focus:ring-primary/20 outline-none transition-all"
+                                            className="input"
                                         />
                                     )}
 
@@ -424,24 +427,31 @@ function PostToSocialModal({ isOpen, onClose, clip, jobId, outputFile, thumbnail
                                                         setScheduledAt(st.datetime)
                                                         setScheduleType('scheduled')
                                                     }}
-                                                    className="w-full flex items-center justify-between p-3 bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20 rounded-xl hover:shadow-md transition-all border border-amber-200/50 dark:border-amber-700/30"
+                                                    className="w-full flex items-center justify-between p-3 rounded-xl hover:shadow-md transition-all"
+                                                    style={{
+                                                        background: 'var(--color-warning-bg)',
+                                                        border: '1px solid var(--color-warning-border)'
+                                                    }}
                                                 >
                                                     <div className="flex items-center gap-2">
-                                                        <span className="material-symbols-outlined text-amber-500 text-[18px]">star</span>
-                                                        <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                                                        <span className="material-symbols-outlined text-[18px]" style={{ color: 'var(--color-warning-text)' }}>star</span>
+                                                        <span className="text-sm font-medium" style={{ color: 'var(--color-text-primary)' }}>
                                                             {new Date(st.datetime).toLocaleString()}
                                                         </span>
                                                     </div>
-                                                    <span className="text-xs text-amber-600 dark:text-amber-400 font-medium">{st.reason}</span>
+                                                    <span className="text-xs font-medium" style={{ color: 'var(--color-warning-text)' }}>{st.reason}</span>
                                                 </button>
                                             ))}
                                         </div>
                                     )}
 
                                     {scheduleType === 'suggested' && suggestedTimes.length === 0 && (
-                                        <div className="text-center py-4 bg-slate-50 dark:bg-[#192633] rounded-xl">
-                                            <span className="material-symbols-outlined text-slate-400 text-2xl mb-1">insights</span>
-                                            <p className="text-xs text-slate-500">
+                                        <div
+                                            className="text-center py-4 rounded-xl"
+                                            style={{ background: 'var(--color-surface-1)' }}
+                                        >
+                                            <span className="material-symbols-outlined text-2xl mb-1" style={{ color: 'var(--color-text-muted)' }}>insights</span>
+                                            <p className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>
                                                 Post more videos to get personalized time recommendations.
                                             </p>
                                         </div>
@@ -450,13 +460,14 @@ function PostToSocialModal({ isOpen, onClose, clip, jobId, outputFile, thumbnail
                             </div>
 
                             {/* Footer */}
-                            <div className="p-5 border-t border-slate-100 dark:border-[#233648] flex gap-3 sticky bottom-0 bg-white dark:bg-[#152230]">
-                                <button
-                                    onClick={onClose}
-                                    className="flex-1 px-4 py-3 text-sm font-medium border border-slate-200 dark:border-[#324d67] rounded-xl hover:bg-slate-50 dark:hover:bg-[#1e2e40] transition-colors"
-                                >
-                                    Cancel
-                                </button>
+                            <div
+                                className="p-5 flex gap-3 sticky bottom-0"
+                                style={{
+                                    borderTop: '1px solid var(--color-border-subtle)',
+                                    background: 'var(--color-bg-card)'
+                                }}
+                            >
+                                <button onClick={onClose} className="btn btn-secondary flex-1">Cancel</button>
                                 <button
                                     onClick={handleSubmit}
                                     disabled={loading || !selectedAccountId || accounts.length === 0}

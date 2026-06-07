@@ -26,6 +26,15 @@ class JobResponse(BaseModel):
     job_id: Optional[int] = None
 
 
+class ClipScoresResponse(BaseModel):
+    viral_score: float = 0.0
+    curiosity_score: float = 0.0
+    emotion_score: float = 0.0
+    controversy_score: float = 0.0
+    story_score: float = 0.0
+    final_score: float = 0.0
+
+
 class ClipInfo(BaseModel):
     index: int
     hook: str
@@ -36,6 +45,7 @@ class ClipInfo(BaseModel):
     thumbnail_path: Optional[str] = None
     keywords: List[str] = []
     reason: Optional[str] = None
+    scores: Optional[ClipScoresResponse] = None
 
 
 class JobHistoryResponse(BaseModel):

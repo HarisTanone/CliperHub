@@ -21,9 +21,15 @@ import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts'
 import { api } from './utils/api'
 
 const Logo = () => (
-    <div className="size-8 text-primary flex items-center justify-center">
-        <span className="material-symbols-outlined text-[28px]">movie_filter</span>
-    </div>
+    <motion.div
+        className="size-9 rounded-xl flex items-center justify-center relative overflow-hidden"
+        style={{ background: 'linear-gradient(135deg, var(--crimson-wine), var(--burgundy))' }}
+        whileHover={{ scale: 1.05 }}
+        whileTap={{ scale: 0.95 }}
+    >
+        <span className="material-symbols-outlined text-[22px] text-white drop-shadow-sm">movie_filter</span>
+        <div className="absolute inset-0 bg-white/10 opacity-0 hover:opacity-100 transition-opacity" />
+    </motion.div>
 )
 
 const navItems = [
@@ -59,15 +65,15 @@ function SearchBar({ onNavigate }) {
     const inputRef = useRef(null)
 
     const searchItems = [
-        { key: 'dashboard', icon: 'space_dashboard', label: 'Dashboard', desc: 'Overview & statistics', gradient: 'from-blue-500 to-cyan-500' },
-        { key: 'create', icon: 'add_circle', label: 'Create New Clip', desc: 'Process YouTube video', gradient: 'from-green-500 to-emerald-500', keywords: 'new video youtube url process' },
-        { key: 'queue', icon: 'queue', label: 'Queue & Progress', desc: 'View active jobs', gradient: 'from-amber-500 to-orange-500', keywords: 'processing pending jobs active' },
-        { key: 'library', icon: 'video_library', label: 'Library / History', desc: 'Browse completed clips', gradient: 'from-violet-500 to-purple-500', keywords: 'history output download clips completed' },
-        { key: 'accounts', icon: 'group', label: 'Account List', desc: 'Manage social accounts', gradient: 'from-pink-500 to-rose-500', keywords: 'tiktok youtube facebook instagram x upload post schedule accounts social' },
-        { key: 'analytics', icon: 'analytics', label: 'Analytics', desc: 'Performance insights', gradient: 'from-indigo-500 to-blue-500', keywords: 'stats performance score engagement' },
-        { key: 'styles', icon: 'palette', label: 'Styles & Fonts', desc: 'Customize captions', gradient: 'from-fuchsia-500 to-pink-500', keywords: 'caption hook font color theme design' },
-        { key: 'users', icon: 'manage_accounts', label: 'User Management', desc: 'Admin controls', gradient: 'from-slate-500 to-gray-600', keywords: 'admin users accounts roles' },
-        { key: 'settings', icon: 'settings', label: 'Settings', desc: 'App configuration', gradient: 'from-gray-500 to-slate-600', keywords: 'config profile password pipeline storage' },
+        { key: 'dashboard', icon: 'space_dashboard', label: 'Dashboard', desc: 'Overview & statistics', gradient: 'from-[var(--crimson-wine)] to-[var(--burgundy)]' },
+        { key: 'create', icon: 'add_circle', label: 'Create New Clip', desc: 'Process YouTube video', gradient: 'from-[var(--dark-plum)] to-[var(--burgundy)]', keywords: 'new video youtube url process' },
+        { key: 'queue', icon: 'queue', label: 'Queue & Progress', desc: 'View active jobs', gradient: 'from-[var(--deep-indigo)] to-[var(--dark-plum)]', keywords: 'processing pending jobs active' },
+        { key: 'library', icon: 'video_library', label: 'Library / History', desc: 'Browse completed clips', gradient: 'from-[var(--burgundy)] to-[var(--crimson-wine)]', keywords: 'history output download clips completed' },
+        { key: 'accounts', icon: 'group', label: 'Account List', desc: 'Manage social accounts', gradient: 'from-[var(--crimson-wine)] to-[var(--dark-plum)]', keywords: 'tiktok youtube facebook instagram x upload post schedule accounts social' },
+        { key: 'analytics', icon: 'analytics', label: 'Analytics', desc: 'Performance insights', gradient: 'from-[var(--dark-navy)] to-[var(--deep-indigo)]', keywords: 'stats performance score engagement' },
+        { key: 'styles', icon: 'palette', label: 'Styles & Fonts', desc: 'Customize captions', gradient: 'from-[var(--dark-plum)] to-[var(--crimson-wine)]', keywords: 'caption hook font color theme design' },
+        { key: 'users', icon: 'manage_accounts', label: 'User Management', desc: 'Admin controls', gradient: 'from-[var(--deep-indigo)] to-[var(--dark-navy)]', keywords: 'admin users accounts roles' },
+        { key: 'settings', icon: 'settings', label: 'Settings', desc: 'App configuration', gradient: 'from-[var(--burgundy)] to-[var(--deep-indigo)]', keywords: 'config profile password pipeline storage' },
     ]
 
     const filtered = query.trim()
@@ -116,12 +122,13 @@ function SearchBar({ onNavigate }) {
     return (
         <>
             <button onClick={() => setOpen(true)}
-                className="hidden sm:flex items-center gap-2 px-3 py-1.5 text-sm text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 border border-slate-200 dark:border-[#324d67] hover:border-slate-300 dark:hover:border-[#4a6a8a] rounded-xl transition-colors">
+                className="hidden sm:flex items-center gap-2 px-3 py-1.5 text-sm hover:text-[var(--color-text-primary)] border border-[var(--color-border-default)] hover:border-[var(--color-border-strong)] rounded-xl transition-colors cursor-pointer"
+                style={{ color: 'var(--color-text-muted)' }}>
                 <span className="material-symbols-outlined text-[16px]">search</span>
                 <span className="text-xs">Search...</span>
-                <kbd className="hidden md:inline text-[10px] font-mono bg-slate-100 dark:bg-[#1e2e40] px-1.5 py-0.5 rounded text-slate-400">⌘K</kbd>
+                <kbd className="hidden md:inline text-[10px] font-mono px-1.5 py-0.5 rounded" style={{ background: 'var(--color-surface-1)', color: 'var(--color-text-muted)' }}>⌘K</kbd>
             </button>
-            <button onClick={() => setOpen(true)} className="sm:hidden p-2 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white rounded-lg hover:bg-slate-100 dark:hover:bg-[#1e2e40] transition-colors">
+            <button onClick={() => setOpen(true)} className="sm:hidden p-2 rounded-lg transition-colors cursor-pointer" style={{ color: 'var(--color-text-secondary)' }}>
                 <span className="material-symbols-outlined text-[20px]">search</span>
             </button>
 
@@ -135,22 +142,40 @@ function SearchBar({ onNavigate }) {
                             animate={{ opacity: 1, scale: 1, y: 0 }}
                             exit={{ opacity: 0, scale: 0.95, y: -20 }}
                             transition={{ type: 'spring', damping: 25, stiffness: 350 }}
-                            className="w-full max-w-lg bg-white dark:bg-[#0f1a24] border border-slate-200/80 dark:border-[#1e3a50] rounded-2xl shadow-2xl overflow-hidden"
+                            className="w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden"
+                            style={{
+                                background: 'var(--color-bg-modal)',
+                                border: '1px solid var(--color-border-default)'
+                            }}
                             onClick={e => e.stopPropagation()}>
 
                             {/* Search Input */}
-                            <div className="p-4 border-b border-slate-100 dark:border-[#1e3a50]">
-                                <div className="flex items-center gap-3 px-4 py-3 bg-slate-50 dark:bg-[#152230] rounded-xl border border-slate-200 dark:border-[#233648] focus-within:border-primary/50 focus-within:ring-2 focus-within:ring-primary/20 transition-all">
-                                    <span className="material-symbols-outlined text-[20px] text-primary">search</span>
+                            <div className="p-4" style={{ borderBottom: '1px solid var(--color-border-subtle)' }}>
+                                <div
+                                    className="flex items-center gap-3 px-4 py-3 rounded-xl transition-all"
+                                    style={{
+                                        background: 'var(--color-surface-1)',
+                                        border: '1px solid var(--color-border-default)'
+                                    }}
+                                >
+                                    <span className="material-symbols-outlined text-[20px]" style={{ color: 'var(--color-accent)' }}>search</span>
                                     <input
                                         ref={inputRef}
                                         value={query}
                                         onChange={e => setQuery(e.target.value)}
                                         onKeyDown={handleKeyDown}
                                         placeholder="Search pages, actions..."
-                                        className="flex-1 bg-transparent text-sm text-slate-900 dark:text-white placeholder-slate-400 outline-none"
+                                        className="flex-1 bg-transparent text-sm outline-none"
+                                        style={{ color: 'var(--color-text-primary)' }}
                                     />
-                                    <kbd className="text-[10px] font-mono bg-white dark:bg-[#1e2e40] px-2 py-1 rounded-md text-slate-400 border border-slate-200 dark:border-[#324d67] shadow-sm">ESC</kbd>
+                                    <kbd
+                                        className="text-[10px] font-mono px-2 py-1 rounded-md shadow-sm"
+                                        style={{
+                                            background: 'var(--color-bg-card)',
+                                            color: 'var(--color-text-muted)',
+                                            border: '1px solid var(--color-border-default)'
+                                        }}
+                                    >ESC</kbd>
                                 </div>
                             </div>
 
@@ -164,24 +189,49 @@ function SearchBar({ onNavigate }) {
                                             animate={{ opacity: 1, x: 0 }}
                                             transition={{ delay: index * 0.03 }}
                                             onClick={() => { onNavigate(item.key); setOpen(false); setQuery('') }}
-                                            onMouseEnter={() => setSelectedIndex(index)}
                                             className={`w-full flex items-center gap-4 px-4 py-3 rounded-xl text-left transition-all group ${selectedIndex === index
-                                                    ? 'bg-gradient-to-r from-primary/10 to-accent/10 border border-primary/20'
-                                                    : 'hover:bg-slate-50 dark:hover:bg-[#152230] border border-transparent'
-                                                }`}>
+                                                ? 'border'
+                                                : 'border border-transparent'
+                                                }`}
+                                            style={{
+                                                background: selectedIndex === index
+                                                    ? 'var(--color-accent-subtle)'
+                                                    : 'transparent',
+                                                borderColor: selectedIndex === index
+                                                    ? 'var(--color-accent-border)'
+                                                    : 'transparent'
+                                            }}
+                                            onMouseEnter={(e) => {
+                                                setSelectedIndex(index)
+                                                if (selectedIndex !== index) {
+                                                    e.currentTarget.style.background = 'var(--color-surface-1)'
+                                                }
+                                            }}
+                                            onMouseLeave={(e) => {
+                                                if (selectedIndex !== index) {
+                                                    e.currentTarget.style.background = 'transparent'
+                                                }
+                                            }}
+                                        >
                                             <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${item.gradient} flex items-center justify-center shadow-lg group-hover:shadow-xl group-hover:scale-105 transition-all`}>
                                                 <span className="material-symbols-outlined text-[20px] text-white">{item.icon}</span>
                                             </div>
                                             <div className="flex-1 min-w-0">
-                                                <p className={`text-sm font-semibold ${selectedIndex === index ? 'text-primary' : 'text-slate-800 dark:text-slate-100'}`}>
+                                                <p
+                                                    className="text-sm font-semibold"
+                                                    style={{ color: selectedIndex === index ? 'var(--color-accent)' : 'var(--color-text-primary)' }}
+                                                >
                                                     {item.label}
                                                 </p>
-                                                <p className="text-xs text-slate-500 dark:text-slate-400 truncate">{item.desc}</p>
+                                                <p className="text-xs truncate" style={{ color: 'var(--color-text-secondary)' }}>{item.desc}</p>
                                             </div>
-                                            <span className={`material-symbols-outlined text-[18px] transition-all ${selectedIndex === index
-                                                    ? 'text-primary opacity-100 translate-x-0'
-                                                    : 'text-slate-300 dark:text-slate-600 opacity-0 -translate-x-2 group-hover:opacity-100 group-hover:translate-x-0'
-                                                }`}>
+                                            <span
+                                                className={`material-symbols-outlined text-[18px] transition-all ${selectedIndex === index
+                                                    ? 'opacity-100 translate-x-0'
+                                                    : 'opacity-0 -translate-x-2 group-hover:opacity-100 group-hover:translate-x-0'
+                                                    }`}
+                                                style={{ color: selectedIndex === index ? 'var(--color-accent)' : 'var(--color-text-muted)' }}
+                                            >
                                                 arrow_forward
                                             </span>
                                         </motion.button>
@@ -189,26 +239,50 @@ function SearchBar({ onNavigate }) {
                                 </div>
                                 {filtered.length === 0 && (
                                     <div className="text-center py-10">
-                                        <span className="material-symbols-outlined text-4xl text-slate-300 dark:text-slate-600 mb-2">search_off</span>
-                                        <p className="text-sm text-slate-400">No results for "{query}"</p>
+                                        <span className="material-symbols-outlined text-4xl mb-2" style={{ color: 'var(--color-text-muted)' }}>search_off</span>
+                                        <p className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>No results for "{query}"</p>
                                     </div>
                                 )}
                             </div>
 
                             {/* Footer hints */}
-                            <div className="px-4 py-3 border-t border-slate-100 dark:border-[#1e3a50] bg-slate-50/50 dark:bg-[#0a1218] flex items-center justify-between">
-                                <div className="flex items-center gap-4 text-[10px] text-slate-400">
+                            <div
+                                className="px-4 py-3 flex items-center justify-between"
+                                style={{
+                                    borderTop: '1px solid var(--color-border-subtle)',
+                                    background: 'var(--color-surface-1)'
+                                }}
+                            >
+                                <div className="flex items-center gap-4 text-[10px]" style={{ color: 'var(--color-text-muted)' }}>
                                     <span className="flex items-center gap-1">
-                                        <kbd className="px-1.5 py-0.5 bg-white dark:bg-[#1e2e40] rounded border border-slate-200 dark:border-[#324d67] font-mono">↑</kbd>
-                                        <kbd className="px-1.5 py-0.5 bg-white dark:bg-[#1e2e40] rounded border border-slate-200 dark:border-[#324d67] font-mono">↓</kbd>
+                                        <kbd
+                                            className="px-1.5 py-0.5 rounded font-mono"
+                                            style={{
+                                                background: 'var(--color-bg-card)',
+                                                border: '1px solid var(--color-border-default)'
+                                            }}
+                                        >↑</kbd>
+                                        <kbd
+                                            className="px-1.5 py-0.5 rounded font-mono"
+                                            style={{
+                                                background: 'var(--color-bg-card)',
+                                                border: '1px solid var(--color-border-default)'
+                                            }}
+                                        >↓</kbd>
                                         <span className="ml-1">Navigate</span>
                                     </span>
                                     <span className="flex items-center gap-1">
-                                        <kbd className="px-1.5 py-0.5 bg-white dark:bg-[#1e2e40] rounded border border-slate-200 dark:border-[#324d67] font-mono">↵</kbd>
+                                        <kbd
+                                            className="px-1.5 py-0.5 rounded font-mono"
+                                            style={{
+                                                background: 'var(--color-bg-card)',
+                                                border: '1px solid var(--color-border-default)'
+                                            }}
+                                        >↵</kbd>
                                         <span className="ml-1">Select</span>
                                     </span>
                                 </div>
-                                <span className="text-[10px] text-slate-400">{filtered.length} result{filtered.length !== 1 ? 's' : ''}</span>
+                                <span className="text-[10px]" style={{ color: 'var(--color-text-muted)' }}>{filtered.length} result{filtered.length !== 1 ? 's' : ''}</span>
                             </div>
                         </motion.div>
                     </motion.div>
@@ -220,13 +294,23 @@ function SearchBar({ onNavigate }) {
 
 function Layout({ page, setPage, onLogout, children, activeJobCount = 0, notifications = [], unreadCount = 0, showNotifs, setShowNotifs, markAllRead }) {
     const [sidebarOpen, setSidebarOpen] = useState(false)
+    const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+        const saved = localStorage.getItem('sidebar_collapsed')
+        return saved === 'true'
+    })
     const username = localStorage.getItem('username') || 'User'
     const role = localStorage.getItem('role') || 'user'
+
+    const toggleSidebar = () => {
+        const next = !sidebarCollapsed
+        setSidebarCollapsed(next)
+        localStorage.setItem('sidebar_collapsed', String(next))
+    }
 
     const NOTIF_COLOR = { success: 'text-emerald-500', error: 'text-red-500', info: 'text-blue-500' }
 
     return (
-        <div className="flex h-screen overflow-hidden bg-background-light dark:bg-background-dark font-display text-slate-900 dark:text-slate-100">
+        <div className="flex h-screen overflow-hidden font-display" style={{ background: 'var(--color-bg-primary)', color: 'var(--color-text-primary)' }}>
             {/* Mobile overlay */}
             <AnimatePresence>
                 {sidebarOpen && (
@@ -236,54 +320,129 @@ function Layout({ page, setPage, onLogout, children, activeJobCount = 0, notific
             </AnimatePresence>
 
             {/* Sidebar */}
-            <aside className={`w-60 flex-shrink-0 bg-white dark:bg-[#152230] border-r border-slate-200 dark:border-[#233648] flex flex-col fixed md:relative inset-y-0 left-0 z-40 transform transition-transform duration-300 ease-out md:translate-x-0 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'} md:flex`}>
-                <div className="flex items-center gap-2.5 px-5 py-4 border-b border-slate-200 dark:border-[#233648]">
+            <motion.aside
+                animate={{ width: sidebarCollapsed ? 68 : 240 }}
+                transition={{ duration: 0.25, ease: [0.25, 0.46, 0.45, 0.94] }}
+                className={`flex-shrink-0 flex flex-col fixed md:relative inset-y-0 left-0 z-40 transform transition-transform duration-300 ease-out md:translate-x-0 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'} md:flex overflow-hidden`}
+                style={{ background: 'var(--color-bg-card)', borderRight: '1px solid var(--color-border-subtle)' }}>
+
+                {/* Logo */}
+                <div className="flex items-center gap-2.5 px-4 py-4 flex-shrink-0" style={{ borderBottom: '1px solid var(--color-border-subtle)' }}>
                     <Logo />
-                    <h1 className="text-lg font-bold tracking-tight">ClipForge</h1>
+                    <AnimatePresence>
+                        {!sidebarCollapsed && (
+                            <motion.h1
+                                initial={{ opacity: 0, x: -10 }}
+                                animate={{ opacity: 1, x: 0 }}
+                                exit={{ opacity: 0, x: -10 }}
+                                transition={{ duration: 0.15 }}
+                                className="text-lg font-bold tracking-tight gradient-text whitespace-nowrap">
+                                ClipForge
+                            </motion.h1>
+                        )}
+                    </AnimatePresence>
                 </div>
-                <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-0.5">
+
+                {/* Collapse button */}
+                <div className="px-3 pt-3 flex-shrink-0 hidden md:block">
+                    <motion.button
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        onClick={toggleSidebar}
+                        className="w-full flex items-center justify-center p-1.5 rounded-lg transition-colors cursor-pointer"
+                        style={{ background: 'var(--color-surface-1)', border: '1px solid var(--color-border-subtle)' }}
+                    >
+                        <motion.span
+                            animate={{ rotate: sidebarCollapsed ? 180 : 0 }}
+                            transition={{ duration: 0.25 }}
+                            className="material-symbols-outlined text-[16px]"
+                            style={{ color: 'var(--icon-muted)' }}>
+                            chevron_left
+                        </motion.span>
+                    </motion.button>
+                </div>
+
+                {/* Navigation */}
+                <nav className="flex-1 overflow-y-auto py-3 px-2.5 space-y-0.5">
                     {navItems.filter(item => !item.adminOnly || role === 'admin').map(item => (
-                        <motion.a key={item.key} whileHover={{ x: 2 }} whileTap={{ scale: 0.98 }}
+                        <motion.a key={item.key} whileHover={{ x: sidebarCollapsed ? 0 : 2 }} whileTap={{ scale: 0.98 }}
                             onClick={() => { setPage(item.key); setSidebarOpen(false) }}
-                            className={`flex items-center gap-3 px-3 py-2.5 rounded-xl font-medium transition-colors cursor-pointer relative ${page === item.key ? 'bg-primary/10 text-primary' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-[#1e2e40]'}`}>
+                            className={`flex items-center gap-3 px-3 py-2.5 rounded-xl font-medium transition-all cursor-pointer relative ${page === item.key ? '' : 'hover:bg-[var(--color-surface-1)]'}`}
+                            style={{
+                                background: page === item.key ? 'var(--color-accent-subtle)' : 'transparent',
+                                color: page === item.key ? 'var(--color-accent)' : 'var(--color-text-secondary)',
+                                justifyContent: sidebarCollapsed ? 'center' : 'flex-start'
+                            }}
+                            title={sidebarCollapsed ? item.label : undefined}>
                             {page === item.key && (
-                                <motion.div layoutId="nav-pill" className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 bg-primary rounded-full"
+                                <motion.div layoutId="nav-pill" className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-full"
+                                    style={{ background: 'var(--color-accent)' }}
                                     transition={{ type: 'spring', stiffness: 350, damping: 30 }} />
                             )}
-                            <span className="material-symbols-outlined text-[20px]">{item.icon}</span>
-                            <span className="flex-1 text-sm">{item.label}</span>
-                            {item.key === 'dashboard' && activeJobCount > 0 && (
+                            <span className="material-symbols-outlined text-[20px] flex-shrink-0" style={{ color: page === item.key ? 'var(--icon-accent)' : 'var(--icon-muted)' }}>{item.icon}</span>
+                            <AnimatePresence>
+                                {!sidebarCollapsed && (
+                                    <motion.span
+                                        initial={{ opacity: 0, width: 0 }}
+                                        animate={{ opacity: 1, width: 'auto' }}
+                                        exit={{ opacity: 0, width: 0 }}
+                                        transition={{ duration: 0.15 }}
+                                        className="flex-1 text-sm whitespace-nowrap overflow-hidden">
+                                        {item.label}
+                                    </motion.span>
+                                )}
+                            </AnimatePresence>
+                            {item.key === 'dashboard' && activeJobCount > 0 && !sidebarCollapsed && (
                                 <motion.span initial={{ scale: 0 }} animate={{ scale: 1 }}
-                                    className="w-5 h-5 rounded-full bg-amber-400 text-white text-[10px] font-bold flex items-center justify-center">
+                                    className="w-5 h-5 rounded-full text-white text-[10px] font-bold flex items-center justify-center"
+                                    style={{ background: 'var(--color-warning-text)' }}>
                                     {activeJobCount}
                                 </motion.span>
                             )}
                         </motion.a>
                     ))}
                 </nav>
-                <div className="p-3 border-t border-slate-200 dark:border-[#233648]">
-                    <motion.div whileHover={{ backgroundColor: 'rgba(0,0,0,0.02)' }}
-                        className="flex items-center gap-3 px-3 py-2 rounded-xl cursor-pointer" onClick={onLogout}>
-                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary/30 to-primary/10 flex items-center justify-center text-primary font-bold text-sm">
+
+                {/* User Profile */}
+                <div className="p-2.5 flex-shrink-0" style={{ borderTop: '1px solid var(--color-border-subtle)' }}>
+                    <motion.div whileHover={{ scale: 1.02 }}
+                        className={`flex items-center gap-3 px-3 py-2 rounded-xl cursor-pointer transition-all hover:bg-[var(--color-surface-1)] ${sidebarCollapsed ? 'justify-center' : ''}`} onClick={onLogout}
+                        title={sidebarCollapsed ? `${username} — Logout` : undefined}>
+                        <div className="w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm flex-shrink-0"
+                            style={{ background: 'var(--color-accent)', color: 'white' }}>
                             {username[0].toUpperCase()}
                         </div>
-                        <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium truncate">{username}</p>
-                            <p className="text-[11px] text-slate-400 capitalize">{role}</p>
-                        </div>
-                        <span className="material-symbols-outlined text-slate-400 text-[18px]">logout</span>
+                        <AnimatePresence>
+                            {!sidebarCollapsed && (
+                                <motion.div
+                                    initial={{ opacity: 0, width: 0 }}
+                                    animate={{ opacity: 1, width: 'auto' }}
+                                    exit={{ opacity: 0, width: 0 }}
+                                    transition={{ duration: 0.15 }}
+                                    className="flex-1 min-w-0 overflow-hidden">
+                                    <p className="text-sm font-medium truncate" style={{ color: 'var(--color-text-primary)' }}>{username}</p>
+                                    <p className="text-[11px] capitalize" style={{ color: 'var(--color-text-muted)' }}>{role}</p>
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
+                        {!sidebarCollapsed && (
+                            <span className="material-symbols-outlined text-[18px]" style={{ color: 'var(--icon-muted)' }}>logout</span>
+                        )}
                     </motion.div>
                 </div>
-            </aside>
+            </motion.aside>
 
             {/* Main */}
             <main className="flex-1 flex flex-col overflow-hidden">
-                <header className="h-14 flex items-center justify-between px-5 md:px-7 border-b border-slate-200 dark:border-[#233648] bg-white dark:bg-[#152230] flex-shrink-0">
+                <header className="h-14 flex items-center justify-between px-5 md:px-7 flex-shrink-0"
+                    style={{ background: 'var(--color-bg-card)', borderBottom: '1px solid var(--color-border-subtle)' }}>
                     <div className="flex items-center gap-3">
-                        <button className="md:hidden p-1.5 text-slate-500 rounded-lg hover:bg-slate-100 dark:hover:bg-[#1e2e40]" onClick={() => setSidebarOpen(!sidebarOpen)}>
+                        <button className="md:hidden p-1.5 rounded-lg transition-colors cursor-pointer hover:bg-[var(--color-surface-1)]"
+                            style={{ color: 'var(--color-text-secondary)' }}
+                            onClick={() => setSidebarOpen(!sidebarOpen)}>
                             <span className="material-symbols-outlined text-[22px]">menu</span>
                         </button>
-                        <h2 className="text-lg font-semibold">{pageTitles[page] || ''}</h2>
+                        <h2 className="text-lg font-semibold" style={{ color: 'var(--color-text-primary)' }}>{pageTitles[page] || ''}</h2>
                     </div>
                     <div className="flex items-center gap-1.5">
                         {/* Search */}
@@ -292,36 +451,47 @@ function Layout({ page, setPage, onLogout, children, activeJobCount = 0, notific
                         <ThemeToggle />
                         {/* Notifications */}
                         <div className="relative">
-                            <button onClick={() => { setShowNotifs(v => !v); markAllRead() }}
-                                className="relative p-2 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white rounded-lg hover:bg-slate-100 dark:hover:bg-[#1e2e40] transition-colors">
+                            <motion.button
+                                whileHover={{ scale: 1.05 }}
+                                whileTap={{ scale: 0.95 }}
+                                onClick={() => { setShowNotifs(v => !v); markAllRead() }}
+                                className="relative p-2 rounded-lg transition-colors cursor-pointer"
+                                style={{ color: 'var(--icon-secondary)' }}>
                                 <span className="material-symbols-outlined text-[20px]">notifications</span>
                                 {unreadCount > 0 && (
                                     <motion.span initial={{ scale: 0 }} animate={{ scale: 1 }}
-                                        className="absolute top-1 right-1 w-4 h-4 rounded-full bg-red-500 text-white text-[9px] font-bold flex items-center justify-center">
+                                        className="absolute top-1 right-1 w-4 h-4 rounded-full text-white text-[9px] font-bold flex items-center justify-center"
+                                        style={{ background: 'var(--color-error-text)' }}>
                                         {unreadCount > 9 ? '9+' : unreadCount}
                                     </motion.span>
                                 )}
-                            </button>
+                            </motion.button>
                             <AnimatePresence>
                                 {showNotifs && (
                                     <motion.div initial={{ opacity: 0, y: -6, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -6, scale: 0.95 }}
                                         transition={{ duration: 0.12 }}
-                                        className="absolute right-0 top-11 w-72 bg-white dark:bg-[#152230] border border-slate-200 dark:border-[#233648] rounded-xl shadow-xl z-50 overflow-hidden">
-                                        <div className="p-3 border-b border-slate-100 dark:border-[#233648] flex items-center justify-between">
-                                            <p className="text-sm font-semibold">Notifications</p>
-                                            <button onClick={() => setShowNotifs(false)} className="text-slate-400 hover:text-slate-600">
+                                        className="absolute right-0 top-11 w-72 rounded-xl shadow-xl z-50 overflow-hidden"
+                                        style={{ background: 'var(--color-bg-card)', border: '1px solid var(--color-border-default)' }}>
+                                        <div className="p-3 flex items-center justify-between" style={{ borderBottom: '1px solid var(--color-border-subtle)' }}>
+                                            <p className="text-sm font-semibold" style={{ color: 'var(--color-text-primary)' }}>Notifications</p>
+                                            <button onClick={() => setShowNotifs(false)} className="cursor-pointer" style={{ color: 'var(--icon-muted)' }}>
                                                 <span className="material-symbols-outlined text-[16px]">close</span>
                                             </button>
                                         </div>
-                                        <div className="max-h-64 overflow-y-auto divide-y divide-slate-100 dark:divide-[#233648]">
+                                        <div className="max-h-64 overflow-y-auto">
                                             {notifications.length === 0 ? (
-                                                <div className="p-5 text-center text-slate-400 text-xs">No notifications</div>
+                                                <div className="p-5 text-center text-xs" style={{ color: 'var(--color-text-muted)' }}>No notifications</div>
                                             ) : notifications.map(n => (
-                                                <div key={n.id} className={`flex gap-2.5 p-3 ${!n.read ? 'bg-primary/[0.02]' : ''}`}>
-                                                    <span className={`material-symbols-outlined text-[18px] flex-shrink-0 mt-0.5 ${NOTIF_COLOR[n.type] || 'text-slate-400'}`}>{n.icon}</span>
+                                                <div key={n.id} className="flex gap-2.5 p-3"
+                                                    style={{
+                                                        borderBottom: '1px solid var(--color-border-subtle)',
+                                                        background: !n.read ? 'var(--color-accent-subtle)' : 'transparent'
+                                                    }}>
+                                                    <span className={`material-symbols-outlined text-[18px] flex-shrink-0 mt-0.5 ${NOTIF_COLOR[n.type] || ''}`}
+                                                        style={{ color: NOTIF_COLOR[n.type] ? undefined : 'var(--icon-muted)' }}>{n.icon}</span>
                                                     <div className="min-w-0">
-                                                        <p className="text-xs font-medium text-slate-900 dark:text-white">{n.text}</p>
-                                                        <p className="text-[10px] text-slate-400 truncate mt-0.5">{n.sub}</p>
+                                                        <p className="text-xs font-medium" style={{ color: 'var(--color-text-primary)' }}>{n.text}</p>
+                                                        <p className="text-[10px] truncate mt-0.5" style={{ color: 'var(--color-text-muted)' }}>{n.sub}</p>
                                                     </div>
                                                 </div>
                                             ))}
@@ -398,7 +568,7 @@ function App() {
         localStorage.removeItem('role')
         localStorage.removeItem('last_page')
         setIsAuthenticated(false)
-        toast('Logged out', { icon: <span className="material-symbols-rounded text-lg">waving_hand</span> })
+        toast('Logged out', { icon: <span className="material-symbols-outlined text-lg">waving_hand</span> })
     }
 
     const navigateTo = (p) => { setPage(p); localStorage.setItem('last_page', p) }

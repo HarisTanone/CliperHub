@@ -52,12 +52,12 @@ const SOCIAL_PLATFORMS = [
 ]
 
 const STATUS_BADGE = {
-  completed: 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400',
-  processing: 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400',
-  failed: 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400',
-  pending: 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300',
-  downloading: 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400',
-  analyzing: 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400',
+  completed: 'badge-success',
+  processing: 'badge-warning',
+  failed: 'badge-error',
+  pending: 'badge-neutral',
+  downloading: 'badge-info',
+  analyzing: 'badge-info',
 }
 const STATUS_ICON = {
   completed: 'check_circle', processing: 'pending', failed: 'error',
@@ -66,13 +66,17 @@ const STATUS_ICON = {
 
 function ScoreBar({ score }) {
   const pct = Math.round((score || 0) * 100)
-  const color = pct >= 90 ? 'bg-green-500' : pct >= 75 ? 'bg-yellow-400' : 'bg-slate-400'
   return (
     <div className="flex items-center gap-2">
-      <div className="flex-1 h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
-        <div className={`h-full rounded-full ${color}`} style={{ width: `${pct}%` }} />
+      <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ background: 'var(--color-surface-1)' }}>
+        <div className="h-full rounded-full" style={{
+          width: `${pct}%`,
+          background: pct >= 90 ? 'var(--color-success-text)' : pct >= 75 ? 'var(--color-warning-text)' : 'var(--color-text-muted)'
+        }} />
       </div>
-      <span className={`text-xs font-bold tabular-nums ${pct >= 90 ? 'text-green-500' : pct >= 75 ? 'text-yellow-500' : 'text-slate-400'}`}>
+      <span className="text-xs font-bold tabular-nums" style={{
+        color: pct >= 90 ? 'var(--color-success-text)' : pct >= 75 ? 'var(--color-warning-text)' : 'var(--color-text-muted)'
+      }}>
         {pct}%
       </span>
     </div>
@@ -111,7 +115,8 @@ function VideoModal({ url, onClose }) {
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+        className="fixed inset-0 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+        style={{ background: 'rgba(0,0,0,0.8)' }}
         onClick={onClose}
       >
         <motion.div
@@ -124,8 +129,8 @@ function VideoModal({ url, onClose }) {
           onClick={e => e.stopPropagation()}
         >
           {loading ? (
-            <div className="w-full h-full rounded-2xl bg-black flex items-center justify-center">
-              <div className="w-10 h-10 border-2 border-white border-t-transparent rounded-full animate-spin" />
+            <div className="w-full h-full rounded-2xl flex items-center justify-center" style={{ background: 'var(--color-bg-primary)' }}>
+              <div className="w-10 h-10 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: 'var(--color-text-primary)', borderTopColor: 'transparent' }} />
             </div>
           ) : (
             <video
@@ -134,7 +139,8 @@ function VideoModal({ url, onClose }) {
             />
           )}
           <button onClick={onClose}
-            className="absolute -top-3 -right-3 w-8 h-8 bg-white dark:bg-slate-800 rounded-full flex items-center justify-center shadow-lg text-slate-600 dark:text-slate-300 hover:text-red-500 transition-colors">
+            className="absolute -top-3 -right-3 w-8 h-8 rounded-full flex items-center justify-center shadow-lg transition-colors"
+            style={{ background: 'var(--color-bg-card)', color: 'var(--color-text-secondary)' }}>
             <span className="material-symbols-outlined text-[18px]">close</span>
           </button>
         </motion.div>
@@ -160,7 +166,12 @@ function CopyButton({ text, keywords }) {
 
   return (
     <button onClick={handleCopy}
-      className={`flex-1 inline-flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-medium transition-all ${copied ? 'bg-green-500/20 text-green-500 ring-1 ring-green-500/30' : 'bg-slate-100 dark:bg-[#1a2d3d] text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-[#233648]'}`}>
+      className="flex-1 inline-flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-medium transition-all"
+      style={{
+        background: copied ? 'var(--color-success-bg)' : 'var(--color-surface-1)',
+        color: copied ? 'var(--color-success-text)' : 'var(--color-text-secondary)',
+        border: copied ? '1px solid var(--color-success-border)' : '1px solid transparent'
+      }}>
       <span className="material-symbols-outlined text-[14px]">{copied ? 'check' : 'content_copy'}</span>
       {copied ? 'Copied' : 'Copy'}
     </button>
@@ -177,11 +188,12 @@ function StyledCheckbox({ checked, onChange, className = '' }) {
         onChange={onChange}
         className="sr-only peer"
       />
-      <div className={`w-5 h-5 rounded-md border-2 transition-all duration-200 flex items-center justify-center
-        ${checked
-          ? 'bg-gradient-to-br from-primary to-accent border-transparent shadow-lg shadow-primary/30'
-          : 'border-slate-400 dark:border-slate-500 bg-white/10 backdrop-blur-sm hover:border-primary/50'
-        }`}>
+      <div className="w-5 h-5 rounded-md transition-all duration-200 flex items-center justify-center"
+        style={{
+          background: checked ? 'var(--btn-primary-bg)' : 'rgba(255,255,255,0.1)',
+          border: checked ? 'none' : '2px solid var(--color-border-default)',
+          boxShadow: checked ? 'var(--btn-primary-shadow)' : 'none'
+        }}>
         {checked && (
           <motion.span
             initial={{ scale: 0 }}
@@ -216,11 +228,14 @@ function SocialPostDropdown({ onSelect, disabled }) {
       <button
         onClick={() => !disabled && setOpen(!open)}
         disabled={disabled}
-        className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition-all
-          ${disabled
-            ? 'opacity-50 cursor-not-allowed bg-slate-200 dark:bg-slate-700'
-            : 'bg-gradient-to-r from-violet-500/20 to-pink-500/20 hover:from-violet-500/30 hover:to-pink-500/30 text-violet-600 dark:text-violet-400 border border-violet-300/30 dark:border-violet-500/20'
-          }`}
+        className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition-all"
+        style={{
+          background: disabled ? 'var(--color-surface-1)' : 'var(--color-info-bg)',
+          color: disabled ? 'var(--color-text-muted)' : 'var(--color-info-text)',
+          border: `1px solid ${disabled ? 'var(--color-border-subtle)' : 'var(--color-info-border)'}`,
+          cursor: disabled ? 'not-allowed' : 'pointer',
+          opacity: disabled ? 0.5 : 1
+        }}
       >
         <span className="material-symbols-outlined text-[14px]">share</span>
         Post
@@ -234,18 +249,20 @@ function SocialPostDropdown({ onSelect, disabled }) {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -8, scale: 0.95 }}
             transition={{ duration: 0.15 }}
-            className="absolute right-0 mt-1 w-48 bg-white dark:bg-[#1a2d3d] rounded-xl shadow-xl border border-slate-200 dark:border-[#324d67] overflow-hidden z-50"
+            className="absolute right-0 mt-1 w-48 rounded-xl shadow-xl overflow-hidden z-50"
+            style={{ background: 'var(--color-bg-card)', border: '1px solid var(--color-border-default)' }}
           >
             {SOCIAL_PLATFORMS.map((platform) => (
               <button
                 key={platform.id}
                 onClick={() => { onSelect(platform.id); setOpen(false) }}
-                className="w-full px-3 py-2.5 flex items-center gap-2.5 hover:bg-slate-50 dark:hover:bg-[#233648] transition-colors text-left"
+                className="w-full px-3 py-2.5 flex items-center gap-2.5 transition-colors text-left"
+                style={{ color: 'var(--color-text-primary)' }}
               >
                 <div className={`w-8 h-8 rounded-lg bg-gradient-to-br ${platform.color} flex items-center justify-center text-white`}>
                   {platform.icon}
                 </div>
-                <span className="text-sm font-medium text-slate-700 dark:text-slate-200">{platform.name}</span>
+                <span className="text-sm font-medium">{platform.name}</span>
               </button>
             ))}
           </motion.div>
@@ -300,23 +317,27 @@ function ClipCard({ clip, outputFile, thumbnail, isSelected, onSelectChange }) {
       {playing && videoUrl && <VideoModal url={videoUrl} onClose={() => setPlaying(false)} />}
       <motion.div
         whileHover={{ y: -2 }}
-        className={`bg-white dark:bg-[#152230] rounded-xl border overflow-hidden shadow-sm hover:shadow-lg transition-all flex flex-col
-          ${isSelected ? 'border-primary ring-2 ring-primary/30' : 'border-slate-200 dark:border-[#233648]'}`}
+        className="rounded-xl overflow-hidden shadow-sm hover:shadow-lg transition-all flex flex-col"
+        style={{
+          background: 'var(--color-bg-card)',
+          border: isSelected ? '2px solid var(--color-accent)' : '1px solid var(--color-border-subtle)',
+          boxShadow: isSelected ? 'var(--shadow-glow)' : 'var(--shadow-sm)'
+        }}
       >
         {/* Thumbnail — 9:16 */}
-        <div className="relative w-full bg-gradient-to-br from-slate-800 to-slate-900 cursor-pointer group" style={{ paddingBottom: '177.78%' }} onClick={() => videoUrl && setPlaying(true)}>
+        <div className="relative w-full cursor-pointer group" style={{ paddingBottom: '177.78%', background: 'linear-gradient(to bottom right, var(--color-surface-2), var(--color-surface-1))' }} onClick={() => videoUrl && setPlaying(true)}>
           <div className="absolute inset-0 flex items-center justify-center overflow-hidden">
             {/* Thumbnail display with loading/error states */}
             {thumbLoading ? (
               <div className="w-full h-full flex items-center justify-center">
-                <div className="w-8 h-8 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                <div className="w-8 h-8 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: 'rgba(255,255,255,0.3)', borderTopColor: 'transparent' }} />
               </div>
             ) : thumbBlobUrl && !thumbError ? (
               <img src={thumbBlobUrl} alt={`Clip ${clip.index}`} className="w-full h-full object-cover" />
             ) : (
-              <div className="w-full h-full flex flex-col items-center justify-center gap-2 bg-gradient-to-br from-slate-700 to-slate-800">
-                <span className="material-symbols-outlined text-4xl text-slate-500">movie</span>
-                <span className="text-[10px] text-slate-500">No preview</span>
+              <div className="w-full h-full flex flex-col items-center justify-center gap-2" style={{ background: 'linear-gradient(to bottom right, var(--color-surface-2), var(--color-surface-1))' }}>
+                <span className="material-symbols-outlined text-4xl" style={{ color: 'var(--color-text-muted)' }}>movie</span>
+                <span className="text-[10px]" style={{ color: 'var(--color-text-muted)' }}>No preview</span>
               </div>
             )}
 
@@ -331,13 +352,13 @@ function ClipCard({ clip, outputFile, thumbnail, isSelected, onSelectChange }) {
             )}
 
             {/* Clip badge */}
-            <div className="absolute top-2 left-2 bg-gradient-to-r from-primary to-accent text-white text-[10px] font-bold px-2.5 py-1 rounded-full shadow-lg">
+            <div className="absolute top-2 left-2 text-white text-[10px] font-bold px-2.5 py-1 rounded-full shadow-lg" style={{ background: 'var(--btn-primary-bg)' }}>
               #{clip.index}
             </div>
 
             {/* Duration */}
             {duration && (
-              <div className="absolute top-2 right-10 bg-black/70 backdrop-blur-sm text-white text-[10px] px-2 py-1 rounded-full flex items-center gap-1 shadow-lg">
+              <div className="absolute top-2 right-10 text-white text-[10px] px-2 py-1 rounded-full flex items-center gap-1 shadow-lg" style={{ background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)' }}>
                 <span className="material-symbols-outlined text-[12px]">timer</span>
                 {duration}s
               </div>
@@ -348,7 +369,8 @@ function ClipCard({ clip, outputFile, thumbnail, isSelected, onSelectChange }) {
               <div className="absolute inset-0 flex items-center justify-center">
                 <motion.div
                   whileHover={{ scale: 1.1 }}
-                  className="w-14 h-14 rounded-full bg-white/20 backdrop-blur-md border border-white/30 flex items-center justify-center group-hover:bg-white/30 transition-all shadow-xl"
+                  className="w-14 h-14 rounded-full flex items-center justify-center group-hover:opacity-100 transition-all shadow-xl"
+                  style={{ background: 'rgba(255,255,255,0.2)', backdropFilter: 'blur(8px)', border: '1px solid rgba(255,255,255,0.3)' }}
                 >
                   <span className="material-symbols-outlined text-white text-3xl drop-shadow-lg">play_arrow</span>
                 </motion.div>
@@ -357,13 +379,14 @@ function ClipCard({ clip, outputFile, thumbnail, isSelected, onSelectChange }) {
 
             {/* Score badge at bottom */}
             <div className="absolute bottom-2 left-2 right-2 flex items-center justify-between">
-              <div className="text-white/70 text-[9px] font-mono bg-black/40 px-1.5 py-0.5 rounded backdrop-blur-sm">
+              <div className="text-white/70 text-[9px] font-mono px-1.5 py-0.5 rounded" style={{ background: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(4px)' }}>
                 {startTime?.toFixed(1)}s – {endTime?.toFixed(1)}s
               </div>
-              <div className={`px-2 py-0.5 rounded-full text-[10px] font-bold backdrop-blur-sm shadow-lg
-                ${(clip.score || 0) >= 0.9 ? 'bg-green-500/90 text-white' :
-                  (clip.score || 0) >= 0.75 ? 'bg-yellow-500/90 text-white' :
-                    'bg-slate-500/90 text-white'}`}
+              <div className="px-2 py-0.5 rounded-full text-[10px] font-bold shadow-lg"
+                style={{
+                  background: (clip.score || 0) >= 0.9 ? 'var(--color-success-text)' : (clip.score || 0) >= 0.75 ? 'var(--color-warning-text)' : 'var(--color-text-muted)',
+                  color: 'white'
+                }}
               >
                 {Math.round((clip.score || 0) * 100)}%
               </div>
@@ -375,20 +398,20 @@ function ClipCard({ clip, outputFile, thumbnail, isSelected, onSelectChange }) {
         <div className="p-3 flex flex-col gap-2 flex-1">
           {/* Hook */}
           <div>
-            <p className="text-[9px] font-bold uppercase tracking-widest text-primary/70 mb-0.5">Hook</p>
-            <p className="text-xs font-semibold text-slate-900 dark:text-white leading-snug line-clamp-2">{clip.hook}</p>
+            <p className="text-[9px] font-bold uppercase tracking-widest mb-0.5" style={{ color: 'var(--color-accent)', opacity: 0.7 }}>Hook</p>
+            <p className="text-xs font-semibold leading-snug line-clamp-2" style={{ color: 'var(--color-text-primary)' }}>{clip.hook}</p>
           </div>
 
           {/* Keywords */}
           {clip.keywords?.length > 0 && (
             <div className="flex items-center gap-1 flex-wrap">
               {clip.keywords.slice(0, 3).map((kw, i) => (
-                <span key={i} className="px-1.5 py-0.5 bg-gradient-to-r from-violet-500/10 to-purple-500/10 text-violet-600 dark:text-violet-400 rounded text-[9px] font-semibold border border-violet-200/30 dark:border-violet-500/20">
+                <span key={i} className="px-1.5 py-0.5 rounded text-[9px] font-semibold" style={{ background: 'var(--color-info-bg)', color: 'var(--color-info-text)', border: '1px solid var(--color-info-border)' }}>
                   {kw}
                 </span>
               ))}
               {clip.keywords.length > 3 && (
-                <span className="text-[9px] text-slate-400">+{clip.keywords.length - 3}</span>
+                <span className="text-[9px]" style={{ color: 'var(--color-text-muted)' }}>+{clip.keywords.length - 3}</span>
               )}
             </div>
           )}
@@ -409,7 +432,8 @@ function ClipCard({ clip, outputFile, thumbnail, isSelected, onSelectChange }) {
                   toast.success('Download started')
                 } catch { window.open(videoUrl) }
               }}
-                className="flex-1 inline-flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-medium bg-primary/10 hover:bg-primary/20 text-primary transition-colors">
+                className="flex-1 inline-flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-medium transition-colors"
+                style={{ background: 'var(--color-accent-subtle)', color: 'var(--color-accent)' }}>
                 <span className="material-symbols-outlined text-[14px]">download</span>
                 Save
               </button>
@@ -455,16 +479,16 @@ function JobRow({ job, onDelete, onViewProgress, onApplyStyle, onPostToSocial })
   }
 
   return (
-    <div className="border-b border-slate-200 dark:border-[#233648] last:border-0">
-      <div className="p-5 hover:bg-slate-50 dark:hover:bg-[#192633] transition-colors">
+    <div style={{ borderBottom: '1px solid var(--color-border-subtle)' }} className="last:border-0">
+      <div className="p-5 transition-colors" style={{ background: 'transparent' }}>
         <div className="flex gap-4">
-          <div className="w-28 sm:w-36 aspect-video rounded-xl overflow-hidden bg-slate-200 dark:bg-slate-800 flex-shrink-0 relative shadow-md">
+          <div className="w-28 sm:w-36 aspect-video rounded-xl overflow-hidden flex-shrink-0 relative shadow-md" style={{ background: 'var(--color-surface-1)' }}>
             {videoInfo?.thumbnail_url
               ? <img src={videoInfo.thumbnail_url} alt="thumb" className="w-full h-full object-cover" />
-              : <div className="w-full h-full flex items-center justify-center"><span className="material-symbols-outlined text-3xl text-slate-400">smart_display</span></div>
+              : <div className="w-full h-full flex items-center justify-center"><span className="material-symbols-outlined text-3xl" style={{ color: 'var(--color-text-muted)' }}>smart_display</span></div>
             }
             {isActive && (
-              <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+              <div className="absolute inset-0 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.4)' }}>
                 <span className="material-symbols-outlined text-white text-2xl animate-pulse">pending</span>
               </div>
             )}
@@ -473,10 +497,10 @@ function JobRow({ job, onDelete, onViewProgress, onApplyStyle, onPostToSocial })
           <div className="flex-1 min-w-0">
             <div className="flex items-start justify-between gap-2 mb-1">
               <div className="flex-1 min-w-0">
-                <h4 className="text-sm font-semibold text-slate-900 dark:text-white truncate">
+                <h4 className="text-sm font-semibold truncate" style={{ color: 'var(--color-text-primary)' }}>
                   {videoInfo?.title || job.youtube_url}
                 </h4>
-                {videoInfo?.author_name && <p className="text-xs text-slate-500 truncate">{videoInfo.author_name}</p>}
+                {videoInfo?.author_name && <p className="text-xs truncate" style={{ color: 'var(--color-text-muted)' }}>{videoInfo.author_name}</p>}
               </div>
               <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium flex-shrink-0 ${STATUS_BADGE[job.status] || STATUS_BADGE.pending}`}>
                 <span className="material-symbols-outlined text-[13px]">{STATUS_ICON[job.status] || 'circle'}</span>
@@ -484,9 +508,9 @@ function JobRow({ job, onDelete, onViewProgress, onApplyStyle, onPostToSocial })
               </span>
             </div>
 
-            <p className="text-xs text-slate-400 truncate mb-2">{job.youtube_url}</p>
+            <p className="text-xs truncate mb-2" style={{ color: 'var(--color-text-muted)' }}>{job.youtube_url}</p>
 
-            <div className="flex items-center gap-3 flex-wrap text-xs text-slate-500">
+            <div className="flex items-center gap-3 flex-wrap text-xs" style={{ color: 'var(--color-text-muted)' }}>
               <span className="flex items-center gap-1">
                 <span className="material-symbols-outlined text-[13px]">schedule</span>
                 {new Date(job.created_at || job.requested_at).toLocaleString()}
@@ -498,7 +522,7 @@ function JobRow({ job, onDelete, onViewProgress, onApplyStyle, onPostToSocial })
                 </span>
               )}
               {hasClips && (
-                <span className="flex items-center gap-1 font-medium text-green-600 dark:text-green-400">
+                <span className="flex items-center gap-1 font-medium" style={{ color: 'var(--color-success-text)' }}>
                   <span className="material-symbols-outlined text-[13px]">trending_up</span>
                   avg {Math.round(avgScore * 100)}%
                 </span>
@@ -508,30 +532,35 @@ function JobRow({ job, onDelete, onViewProgress, onApplyStyle, onPostToSocial })
             <div className="flex items-center gap-2 mt-3">
               {isActive && (
                 <button onClick={() => onViewProgress(job)}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-primary/10 hover:bg-primary/20 text-primary rounded-lg text-xs font-medium transition-colors">
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors"
+                  style={{ background: 'var(--color-accent-subtle)', color: 'var(--color-accent)' }}>
                   <span className="material-symbols-outlined text-[15px]">monitoring</span>
                   View Progress
                 </button>
               )}
               {hasClips && (
                 <button onClick={() => setExpanded(e => !e)}
-                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 border rounded-lg text-xs font-medium transition-all
-                    ${expanded
-                      ? 'border-primary bg-primary/10 text-primary'
-                      : 'border-slate-200 dark:border-[#324d67] hover:bg-slate-100 dark:hover:bg-[#1e2e40]'}`}>
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
+                  style={{
+                    border: expanded ? '1px solid var(--color-accent)' : '1px solid var(--color-border-default)',
+                    background: expanded ? 'var(--color-accent-subtle)' : 'transparent',
+                    color: expanded ? 'var(--color-accent)' : 'var(--color-text-secondary)'
+                  }}>
                   <span className="material-symbols-outlined text-[15px]">{expanded ? 'expand_less' : 'expand_more'}</span>
                   {expanded ? 'Hide Clips' : `Show ${job.clips.length} Clips`}
                 </button>
               )}
               {job.status === 'completed' && onApplyStyle && (
                 <button onClick={() => onApplyStyle(job.id)}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-accent/10 hover:bg-accent/20 text-accent rounded-lg text-xs font-medium transition-colors">
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors"
+                  style={{ background: 'var(--color-info-bg)', color: 'var(--color-info-text)' }}>
                   <span className="material-symbols-outlined text-[15px]">palette</span>
                   Re-Style
                 </button>
               )}
               <button onClick={() => onDelete(job.id)}
-                className="inline-flex items-center gap-1 px-2.5 py-1.5 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg text-xs transition-colors ml-auto">
+                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs transition-colors ml-auto"
+                style={{ color: 'var(--color-error-text)' }}>
                 <span className="material-symbols-outlined text-[15px]">delete</span>
               </button>
             </div>
@@ -548,11 +577,11 @@ function JobRow({ job, onDelete, onViewProgress, onApplyStyle, onPostToSocial })
             transition={{ duration: 0.2 }}
             className="overflow-hidden"
           >
-            <div className="px-5 pb-5 bg-slate-50/50 dark:bg-[#111d2b]">
+            <div className="px-5 pb-5" style={{ background: 'var(--color-surface-1)' }}>
               {/* Bulk Actions Bar */}
-              <div className="flex items-center justify-between py-3 border-b border-slate-200/50 dark:border-[#233648] mb-4">
+              <div className="flex items-center justify-between py-3 mb-4" style={{ borderBottom: '1px solid var(--color-border-subtle)' }}>
                 <div className="flex items-center gap-3">
-                  <label className="flex items-center gap-2.5 text-xs text-slate-600 dark:text-slate-400 cursor-pointer select-none">
+                  <label className="flex items-center gap-2.5 text-xs cursor-pointer select-none" style={{ color: 'var(--color-text-secondary)' }}>
                     <StyledCheckbox
                       checked={selectedClips.size === job.clips.length && job.clips.length > 0}
                       onChange={(e) => handleSelectAll(e.target.checked)}
@@ -560,7 +589,7 @@ function JobRow({ job, onDelete, onViewProgress, onApplyStyle, onPostToSocial })
                     <span className="font-medium">Select All</span>
                   </label>
                   {selectedClips.size > 0 && (
-                    <span className="px-2 py-0.5 bg-primary/10 text-primary rounded-full text-xs font-medium">
+                    <span className="px-2 py-0.5 rounded-full text-xs font-medium" style={{ background: 'var(--color-accent-subtle)', color: 'var(--color-accent)' }}>
                       {selectedClips.size} selected
                     </span>
                   )}
@@ -686,7 +715,7 @@ function LibraryPage({ onViewProgress, onApplyStyle }) {
   useEffect(() => { setLibPage(0) }, [search])
 
   return (
-    <div className="flex-1 overflow-y-auto p-6 md:p-8 bg-slate-50/50 dark:bg-transparent">
+    <div className="flex-1 overflow-y-auto p-6 md:p-8" style={{ background: 'var(--color-bg-primary)' }}>
       <div className="max-w-6xl mx-auto space-y-5">
 
         {jobs.length > 0 && (
@@ -697,13 +726,15 @@ function LibraryPage({ onViewProgress, onApplyStyle }) {
                 { label: 'Completed', value: completedCount, icon: 'check_circle', gradient: 'from-emerald-500 to-green-600' },
                 { label: 'Total Clips', value: totalClips, icon: 'movie_filter', gradient: 'from-amber-500 to-orange-600' },
               ].map(s => (
-                <motion.div key={s.label} whileHover={{ y: -2, scale: 1.02 }} className="bg-white dark:bg-[#152230] rounded-2xl border border-slate-200 dark:border-[#233648] p-4 shadow-sm hover:shadow-lg transition-all flex items-center gap-3">
+                <motion.div key={s.label} whileHover={{ y: -2, scale: 1.02 }}
+                  className="rounded-2xl p-4 shadow-sm hover:shadow-lg transition-all flex items-center gap-3"
+                  style={{ background: 'var(--color-bg-card)', border: '1px solid var(--color-border-subtle)' }}>
                   <div className={`w-11 h-11 rounded-xl bg-gradient-to-br ${s.gradient} flex items-center justify-center flex-shrink-0 shadow-lg`}>
                     <span className="material-symbols-outlined text-white text-[22px]">{s.icon}</span>
                   </div>
                   <div>
-                    <p className="text-2xl font-bold text-slate-900 dark:text-white">{s.value}</p>
-                    <p className="text-xs text-slate-500">{s.label}</p>
+                    <p className="text-2xl font-bold" style={{ color: 'var(--color-text-primary)' }}>{s.value}</p>
+                    <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>{s.label}</p>
                   </div>
                 </motion.div>
               ))}
@@ -711,33 +742,35 @@ function LibraryPage({ onViewProgress, onApplyStyle }) {
           </FadeInUp>
         )}
 
-        <div className="bg-white dark:bg-[#152230] rounded-2xl border border-slate-200 dark:border-[#233648] shadow-sm overflow-hidden">
-          <div className="px-5 py-4 border-b border-slate-100 dark:border-[#233648] flex items-center justify-between">
+        <div className="rounded-2xl shadow-sm overflow-hidden" style={{ background: 'var(--color-bg-card)', border: '1px solid var(--color-border-subtle)' }}>
+          <div className="px-5 py-4 flex items-center justify-between" style={{ borderBottom: '1px solid var(--color-border-subtle)' }}>
             <div>
-              <h3 className="font-semibold flex items-center gap-2 text-slate-900 dark:text-white">
-                <span className="material-symbols-outlined text-primary text-[20px]">history</span>
+              <h3 className="font-semibold flex items-center gap-2" style={{ color: 'var(--color-text-primary)' }}>
+                <span className="material-symbols-outlined text-[20px]" style={{ color: 'var(--color-accent)' }}>history</span>
                 Job History
               </h3>
-              <p className="text-xs text-slate-400 mt-0.5">Jobs with output files still on disk</p>
+              <p className="text-xs mt-0.5" style={{ color: 'var(--color-text-muted)' }}>Jobs with output files still on disk</p>
             </div>
             <div className="flex items-center gap-2">
               <div className="relative">
-                <span className="absolute left-2.5 top-1/2 -translate-y-1/2 material-symbols-outlined text-[14px] text-slate-400">search</span>
+                <span className="absolute left-2.5 top-1/2 -translate-y-1/2 material-symbols-outlined text-[14px]" style={{ color: 'var(--color-text-muted)' }}>search</span>
                 <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search URL or hook..."
-                  className="w-48 pl-8 pr-3 py-1.5 text-xs border border-slate-200 dark:border-[#324d67] rounded-xl bg-white dark:bg-[#192633] text-slate-700 dark:text-slate-300 placeholder-slate-400 outline-none focus:border-primary/50 focus:ring-2 focus:ring-primary/20 transition-all" />
+                  className="w-48 pl-8 pr-3 py-1.5 text-xs rounded-xl outline-none transition-all"
+                  style={{ background: 'var(--color-bg-input)', border: '1px solid var(--color-border-default)', color: 'var(--color-text-primary)' }} />
               </div>
               <motion.button
                 whileHover={{ rotate: 180 }}
                 transition={{ duration: 0.3 }}
                 onClick={loadHistory}
-                className="flex items-center justify-center w-8 h-8 text-slate-500 hover:text-primary border border-slate-200 dark:border-[#324d67] hover:border-primary/40 rounded-xl transition-colors">
+                className="flex items-center justify-center w-8 h-8 rounded-xl transition-colors"
+                style={{ color: 'var(--color-text-muted)', border: '1px solid var(--color-border-default)' }}>
                 <span className="material-symbols-outlined text-[18px]">refresh</span>
               </motion.button>
             </div>
           </div>
 
           {loading ? (
-            <div className="divide-y divide-slate-100 dark:divide-[#233648]">
+            <div className="divide-y" style={{ borderColor: 'var(--color-border-subtle)' }}>
               <CardSkeleton />
               <CardSkeleton />
               <CardSkeleton />
@@ -755,24 +788,28 @@ function LibraryPage({ onViewProgress, onApplyStyle }) {
               ))}
               {/* Pagination */}
               {totalLibPages > 1 && (
-                <div className="px-5 py-3 border-t border-slate-100 dark:border-[#233648] flex items-center justify-between">
-                  <p className="text-xs text-slate-400">
+                <div className="px-5 py-3 flex items-center justify-between" style={{ borderTop: '1px solid var(--color-border-subtle)' }}>
+                  <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
                     Showing {libPage * JOBS_PER_PAGE + 1}-{Math.min((libPage + 1) * JOBS_PER_PAGE, filteredJobs.length)} of {filteredJobs.length}
                   </p>
                   <div className="flex items-center gap-1.5">
                     <button onClick={() => setLibPage(0)} disabled={libPage === 0}
-                      className="px-2 py-1 text-xs text-slate-500 hover:text-primary disabled:opacity-30 rounded-lg hover:bg-slate-100 dark:hover:bg-[#1e2e40] transition-colors">First</button>
+                      className="px-2 py-1 text-xs disabled:opacity-30 rounded-lg transition-colors"
+                      style={{ color: 'var(--color-text-muted)' }}>First</button>
                     <button onClick={() => setLibPage(p => p - 1)} disabled={libPage === 0}
-                      className="w-7 h-7 rounded-lg border border-slate-200 dark:border-[#324d67] flex items-center justify-center disabled:opacity-30 hover:border-primary/40 hover:bg-primary/5 transition-all">
-                      <span className="material-symbols-outlined text-[14px] text-slate-500">chevron_left</span>
+                      className="w-7 h-7 rounded-lg flex items-center justify-center disabled:opacity-30 transition-all"
+                      style={{ border: '1px solid var(--color-border-default)' }}>
+                      <span className="material-symbols-outlined text-[14px]" style={{ color: 'var(--color-text-muted)' }}>chevron_left</span>
                     </button>
-                    <span className="text-xs text-slate-600 dark:text-slate-300 font-medium tabular-nums px-2">{libPage + 1} / {totalLibPages}</span>
+                    <span className="text-xs font-medium tabular-nums px-2" style={{ color: 'var(--color-text-secondary)' }}>{libPage + 1} / {totalLibPages}</span>
                     <button onClick={() => setLibPage(p => p + 1)} disabled={libPage >= totalLibPages - 1}
-                      className="w-7 h-7 rounded-lg border border-slate-200 dark:border-[#324d67] flex items-center justify-center disabled:opacity-30 hover:border-primary/40 hover:bg-primary/5 transition-all">
-                      <span className="material-symbols-outlined text-[14px] text-slate-500">chevron_right</span>
+                      className="w-7 h-7 rounded-lg flex items-center justify-center disabled:opacity-30 transition-all"
+                      style={{ border: '1px solid var(--color-border-default)' }}>
+                      <span className="material-symbols-outlined text-[14px]" style={{ color: 'var(--color-text-muted)' }}>chevron_right</span>
                     </button>
                     <button onClick={() => setLibPage(totalLibPages - 1)} disabled={libPage >= totalLibPages - 1}
-                      className="px-2 py-1 text-xs text-slate-500 hover:text-primary disabled:opacity-30 rounded-lg hover:bg-slate-100 dark:hover:bg-[#1e2e40] transition-colors">Last</button>
+                      className="px-2 py-1 text-xs disabled:opacity-30 rounded-lg transition-colors"
+                      style={{ color: 'var(--color-text-muted)' }}>Last</button>
                   </div>
                 </div>
               )}

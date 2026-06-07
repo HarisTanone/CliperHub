@@ -170,6 +170,28 @@ autocliper-automate/__pycache__/
 autocliper-automate/src/**/__pycache__/
 
 # ===========================
+# Screenshots / Images (development)
+# ===========================
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.bmp
+*.ico
+!autocliper-v2-FE/public/**/*.png
+!autocliper-v2-FE/public/**/*.ico
+!autocliper-v2-FE/public/**/*.svg
+!autocliper-v2-FE/src/assets/**/*.png
+!autocliper-v2-FE/src/assets/**/*.svg
+!**/favicon.ico
+
+# ===========================
+# Temporary / Runtime Data
+# ===========================
+tmp/
+autocliper-automate/tmp/
+
+# ===========================
 # Misc / Draft files
 # ===========================
 new_api_features.md

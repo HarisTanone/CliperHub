@@ -75,6 +75,17 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.error(f"Database initialization error: {e}")
     
+    # Check Ollama + Qwen availability for AI fallback
+    try:
+        from ..infrastructure.qwen_local_analyzer import is_ollama_available, QWEN_CONFIG
+        qwen_model = QWEN_CONFIG["model"]
+        if is_ollama_available():
+            logger.info(f"✅ Ollama + {qwen_model} available (AI fallback ready)")
+        else:
+            logger.warning(f"⚠️  Ollama/{qwen_model} not available. Run: QWEN_MODEL={qwen_model} ./scripts/setup_ollama.sh")
+    except Exception as e:
+        logger.warning(f"⚠️  Ollama check failed: {e}")
+    
     # Start background worker
     worker_task = asyncio.create_task(_queue_worker())
     
