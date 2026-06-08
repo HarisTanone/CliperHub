@@ -332,3 +332,60 @@ MIT License — Silakan gunakan dan modifikasi sesuai kebutuhan.
 ---
 
 **Selamat Membuat Konten! 🎬✨**
+
+---
+
+## 🎬 Remotion Integration (v2.1)
+
+Backend menyediakan Remotion template system untuk rendering video menggunakan Remotion (React-based):
+
+### API Endpoints
+
+```
+GET    /api/v1/remotion/caption-templates      # List caption templates
+POST   /api/v1/remotion/caption-templates      # Create
+GET    /api/v1/remotion/caption-templates/{id}  # Get detail
+PUT    /api/v1/remotion/caption-templates/{id}  # Update
+DELETE /api/v1/remotion/caption-templates/{id}  # Delete
+
+GET    /api/v1/remotion/hook-templates          # List hook templates
+POST   /api/v1/remotion/hook-templates          # Create
+GET    /api/v1/remotion/hook-templates/{id}
+PUT    /api/v1/remotion/hook-templates/{id}
+DELETE /api/v1/remotion/hook-templates/{id}
+
+GET    /api/v1/remotion/compositions            # List compositions (preset combos)
+POST   /api/v1/remotion/compositions
+GET    /api/v1/remotion/compositions/{id}
+PUT    /api/v1/remotion/compositions/{id}
+DELETE /api/v1/remotion/compositions/{id}
+
+POST   /api/v1/remotion/render-jobs             # Trigger render
+GET    /api/v1/remotion/render-jobs             # List render jobs
+GET    /api/v1/remotion/render-jobs/stats       # Render stats
+```
+
+### Database Migration
+
+```bash
+mysql -u root -p autocliper < database/migrate_remotion_templates.sql
+```
+
+Ini membuat tabel:
+- `remotion_caption_templates` (15 seed templates)
+- `remotion_hook_templates` (13 seed templates)
+- `remotion_compositions` (8 preset combinations)
+- `remotion_render_jobs` (render job tracking)
+
+### Job Creation (Remotion)
+
+Frontend sekarang mengirim `caption_template_id` dan `hook_template_id` (bukan `caption_style`):
+
+```json
+POST /api/v1/jobs/
+{
+  "urls": "https://youtube.com/watch?v=...",
+  "caption_template_id": 1,
+  "hook_template_id": 3
+}
+```

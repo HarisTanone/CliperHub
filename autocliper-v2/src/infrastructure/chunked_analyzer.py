@@ -47,29 +47,29 @@ logger = logging.getLogger(__name__)
 # ─────────────────────────────────────────────────────────────────────────────
 CHUNK_CONFIG = {
     # --- Chunk sizes (mode-specific) ---
-    "target_words": 4000,           # Standard Mode chunk size
-    "target_words_hybrid": 2000,    # Hybrid Mode chunk size (smaller = better compliance)
-    "min_words": 1800,              # Updated floor for hybrid chunks
+    "target_words": 4000,           # Standard Mode chunk size (Gemini handles large context)
+    "target_words_hybrid": 800,     # Hybrid Mode chunk size (800 words = stable for 12B model)
+    "min_words": 400,               # Updated floor for hybrid chunks
     "max_words": 4500,
     "overlap_words": 200,           # Standard Mode overlap
-    "overlap_words_hybrid": 150,    # Hybrid Mode overlap (proportional to smaller chunks)
+    "overlap_words_hybrid": 80,     # Hybrid Mode overlap (proportional to smaller chunks)
 
     # --- Candidates ---
-    "max_candidates_per_chunk": 10,
+    "max_candidates_per_chunk": 5,      # Fewer per chunk (more chunks compensate)
     "max_concurrent_chunks_gemini": 3,
     "max_concurrent_chunks_qwen": 1,
     "max_candidates_after_aggregation": 40,
     "max_final_clips": 10,
 
     # --- Retry / timing ---
-    "retry_max": 1,
-    "retry_delay_base": 2.0,        # seconds, exponential backoff
+    "retry_max": 0,                 # No retry at executor level (qwen handles its own retries)
+    "retry_delay_base": 1.0,        # seconds, exponential backoff
     "health_check_timeout": 10,     # seconds for Ollama availability check
 
     # --- Validation ---
     "timestamp_tolerance_chunk1": 30,   # seconds — chunk 1 gets extra tolerance
     "timestamp_tolerance_default": 10,  # seconds — all other chunks
-    "min_clip_duration": 25.0,          # seconds — hard filter, drop shorter clips
+    "min_clip_duration": 30.0,          # seconds — hard filter, drop shorter clips
 }
 
 # Score weights for final_score calculation

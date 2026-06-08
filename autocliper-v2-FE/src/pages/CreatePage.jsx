@@ -1,23 +1,133 @@
 import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { toast } from 'react-hot-toast'
-import { api, loadGoogleFonts, flattenHookStyle, getAuthenticatedMediaUrl } from '../utils/api'
+import { api, loadGoogleFonts, getAuthenticatedMediaUrl } from '../utils/api'
+import RemotionPreview from '../components/RemotionPreview'
+import { buildCaptionWordStyle, buildCaptionPillStyle, buildHookWordStyle, buildHookBoxStyle } from '../utils/remotionStyleUtils'
 
 const PREVIEW_BG = "https://lh3.googleusercontent.com/aida-public/AB6AXuBR8v7XkC5vNu8cT77RaDOH4JfdHz-jjqDZnXfNWnC1yftxffImbLrXQnp0Wc7uCVKDdmFIGTKf4i0uR3BneXMYGm4g0sURS6lQWj20A_od6g5NVwaRH39JjwGctm7e8L_ixngiEO7COOxJdLZp0AJg0K2Xay6coqna9CtqsDt92xch-THdSapYp4bQ9Nq_WQmkhDhFv_qS3ft45j18zz402xoje1TvphZHMvgRNUwa2hMhsJoIORa3iCMC9UUNE_TWVNWgtkTEXgRi"
 
 function hookShadow(hs) {
-    if (!hs.shadow_enable) return 'none'
+    if (!hs.shadow_enabled) return 'none'
     return hs.shadow_blur === 0
-        ? `2px 4px 0px rgba(0,0,0,${(hs.shadow_opacity / 255).toFixed(2)})`
-        : `0px 0px ${hs.shadow_blur}px rgba(0,0,0,${(hs.shadow_opacity / 255).toFixed(2)})`
+        ? `2px 4px 0px ${hs.shadow_color || 'rgba(0,0,0,0.7)'}`
+        : `0px 0px ${hs.shadow_blur}px ${hs.shadow_color || 'rgba(0,0,0,0.7)'}`
 }
 
 function hookBoxBg(hs) {
-    if (!hs.box_enable) return 'transparent'
+    if (!hs.box_enabled) return 'transparent'
     const r = parseInt(hs.box_color.slice(1, 3), 16)
     const g = parseInt(hs.box_color.slice(3, 5), 16)
     const b = parseInt(hs.box_color.slice(5, 7), 16)
-    return `rgba(${r},${g},${b},${(hs.box_opacity / 255).toFixed(2)})`
+    return `rgba(${r},${g},${b},${hs.box_opacity || 0.6})`
+}
+
+// ─── Animated Caption Style Card ────────────────────────────────────────────
+function CaptionStyleCard({ style, isActive, onSelect, index }) {
+    const [hlIdx, setHlIdx] = useState(1) // which word is highlighted
+    const words = ['sample', 'caption', 'style']
+
+    useEffect(() => {
+        const interval = setInterval(() => {
+            setHlIdx(prev => (prev + 1) % words.length)
+        }, 900)
+        return () => clearInterval(interval)
+    }, [])
+
+    // Use shared utility for consistent rendering
+    const CARD_SCALE = 0.3 // card is about 30% of 1080
+    const normalCss = buildCaptionWordStyle(style, { isHighlight: false, scale: CARD_SCALE })
+    const highlightCss = buildCaptionWordStyle(style, { isHighlight: true, scale: CARD_SCALE })
+    const pillCss = buildCaptionPillStyle(style, { scale: CARD_SCALE })
+
+    return (
+        <motion.button layout
+            initial={{ opacity: 0, scale: 0.9, y: 8 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.9 }}
+            transition={{ duration: 0.25, delay: index * 0.03 }}
+            onClick={() => onSelect(style)}
+            className="relative rounded-xl overflow-hidden transition-all group"
+            style={{
+                border: isActive ? '2px solid var(--color-accent)' : '1px solid var(--color-border-subtle)',
+                boxShadow: isActive ? 'var(--shadow-glow)' : 'none',
+            }}>
+            <div className="aspect-[5/4] flex items-center justify-center relative overflow-hidden p-3" style={{ background: 'linear-gradient(160deg, rgba(0,0,0,0.92), rgba(15,8,25,0.95))' }}>
+                <div className="text-center relative z-10 flex flex-wrap justify-center gap-x-1.5 items-baseline" style={pillCss}>
+                    {words.map((word, wi) => {
+                        const isHighlighted = wi === hlIdx
+                        return (
+                            <motion.span
+                                key={wi}
+                                animate={{
+                                    scale: isHighlighted && style.highlight_style === 'scale' ? 1.15 : 1,
+                                }}
+                                transition={{ duration: 0.25, ease: 'easeOut' }}
+                                style={isHighlighted ? highlightCss : normalCss}
+                            >
+                                {word}
+                            </motion.span>
+                        )
+                    })}
+                </div>
+                <motion.div className="absolute inset-0 bg-gradient-to-t from-transparent via-white/3 to-white/8 opacity-0 group-hover:opacity-100 transition-opacity" />
+                {isActive && <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: 'spring', stiffness: 400 }} className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full flex items-center justify-center shadow-lg z-10" style={{ background: 'var(--color-accent)' }}><span className="material-symbols-outlined text-white text-[10px]">check</span></motion.div>}
+            </div>
+            <div className="px-2.5 py-1.5 flex items-center justify-between" style={{ background: 'var(--color-surface-1)', borderTop: '1px solid var(--color-border-subtle)' }}>
+                <p className="text-[9px] font-medium truncate" style={{ color: 'var(--color-text-secondary)' }}>{style.name}</p>
+                <p className="text-[8px] truncate ml-1" style={{ color: 'var(--color-text-muted)' }}>{style.font_family}</p>
+            </div>
+        </motion.button>
+    )
+}
+
+// ─── Animated Hook Style Card ───────────────────────────────────────────────
+function HookStyleCard({ hs, isActive, onSelect, index }) {
+    const [pulse, setPulse] = useState(false)
+
+    useEffect(() => {
+        const interval = setInterval(() => setPulse(p => !p), 1200)
+        return () => clearInterval(interval)
+    }, [])
+
+    const CARD_SCALE = 0.3
+    const normalCss = buildHookWordStyle(hs, { isKeyword: false, scale: CARD_SCALE })
+    const keywordCss = buildHookWordStyle(hs, { isKeyword: true, scale: CARD_SCALE })
+    const boxCss = buildHookBoxStyle(hs, { scale: CARD_SCALE })
+
+    return (
+        <motion.button layout
+            initial={{ opacity: 0, scale: 0.9, y: 8 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.9 }}
+            transition={{ duration: 0.25, delay: index * 0.03 }}
+            onClick={() => onSelect(hs)}
+            className="relative rounded-xl overflow-hidden transition-all group"
+            style={{
+                border: isActive ? '2px solid var(--color-accent)' : '1px solid var(--color-border-subtle)',
+                boxShadow: isActive ? 'var(--shadow-glow)' : 'none',
+            }}>
+            <div className="aspect-[5/4] flex items-center justify-center relative overflow-hidden p-2" style={{ background: 'linear-gradient(160deg, rgba(0,0,0,0.92), rgba(12,5,22,0.95))' }}>
+                <div className="text-center relative z-10" style={boxCss}>
+                    <p style={normalCss}>Did you know</p>
+                    <motion.p
+                        animate={{ scale: pulse ? 1.1 : 1 }}
+                        transition={{ type: 'spring', stiffness: 300, damping: 15 }}
+                        style={{ ...keywordCss, display: 'inline-block' }}
+                    >
+                        THIS
+                    </motion.p>
+                    <p style={normalCss}>trick?</p>
+                </div>
+                <motion.div className="absolute inset-0 bg-gradient-to-t from-transparent via-white/3 to-white/6 opacity-0 group-hover:opacity-100 transition-opacity" />
+                {isActive && <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: 'spring', stiffness: 400 }} className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full flex items-center justify-center z-10" style={{ background: 'var(--color-accent)' }}><span className="material-symbols-outlined text-white text-[9px]">check</span></motion.div>}
+            </div>
+            <div className="px-2.5 py-1.5 flex items-center justify-between" style={{ background: 'var(--color-surface-1)', borderTop: '1px solid var(--color-border-subtle)' }}>
+                <p className="text-[9px] font-medium truncate" style={{ color: 'var(--color-text-secondary)' }}>{hs.name}</p>
+                {isActive && <span className="w-1.5 h-1.5 rounded-full" style={{ background: 'var(--color-accent)' }} />}
+            </div>
+        </motion.button>
+    )
 }
 
 function RangeSlider({ label, value, min, max, step = 1, unit = '', onChange }) {
@@ -46,7 +156,7 @@ function ColorDot({ color, onChange, label }) {
 }
 
 
-// --- Carousel for styles ---
+// --- Carousel for styles --- (Pro redesign with animated previews)
 function StyleCarousel({ styles, selectedStyle, onSelect }) {
     const [page, setPage] = useState(0)
     const [search, setSearch] = useState('')
@@ -62,61 +172,49 @@ function StyleCarousel({ styles, selectedStyle, onSelect }) {
     return (
         <div className="space-y-3">
             <div className="flex items-center justify-between">
-                <h3 className="text-sm font-semibold flex items-center gap-2" style={{ color: 'var(--color-text-primary)' }}>
-                    <span className="material-symbols-outlined text-[18px]" style={{ color: 'var(--color-accent)' }}>style</span>
+                <h3 className="text-sm font-bold flex items-center gap-2" style={{ color: 'var(--color-text-primary)' }}>
+                    <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: 'var(--color-accent-subtle)', border: '1px solid var(--color-accent-border)' }}>
+                        <span className="material-symbols-outlined text-[14px]" style={{ color: 'var(--color-accent)' }}>style</span>
+                    </div>
                     Caption Style
-                    <span className="text-[10px] font-normal ml-1" style={{ color: 'var(--color-text-muted)' }}>{filtered.length}/{styles.length}</span>
+                    <span className="text-[10px] font-normal px-2 py-0.5 rounded-full" style={{ background: 'var(--color-surface-1)', color: 'var(--color-text-muted)', border: '1px solid var(--color-border-subtle)' }}>{filtered.length}</span>
                 </h3>
-                <div className="flex items-center gap-2">
-                    <button onClick={() => setPage(p => Math.max(0, p - 1))} disabled={page === 0}
+                <div className="flex items-center gap-1.5">
+                    <motion.button onClick={() => setPage(p => Math.max(0, p - 1))} disabled={page === 0}
                         className="w-7 h-7 rounded-lg flex items-center justify-center disabled:opacity-30 transition-all"
-                        style={{ background: 'var(--color-surface-1)', border: '1px solid var(--color-border-subtle)' }}>
+                        style={{ background: 'var(--color-surface-1)', border: '1px solid var(--color-border-subtle)' }}
+                        whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
                         <span className="material-symbols-outlined text-[14px]" style={{ color: 'var(--color-text-secondary)' }}>chevron_left</span>
-                    </button>
-                    <span className="text-[10px] tabular-nums min-w-[28px] text-center" style={{ color: 'var(--color-text-muted)' }}>{page + 1}/{totalPages}</span>
-                    <button onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))} disabled={page >= totalPages - 1}
+                    </motion.button>
+                    <span className="text-[10px] tabular-nums min-w-[32px] text-center font-medium" style={{ color: 'var(--color-text-muted)' }}>{page + 1}/{totalPages}</span>
+                    <motion.button onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))} disabled={page >= totalPages - 1}
                         className="w-7 h-7 rounded-lg flex items-center justify-center disabled:opacity-30 transition-all"
-                        style={{ background: 'var(--color-surface-1)', border: '1px solid var(--color-border-subtle)' }}>
+                        style={{ background: 'var(--color-surface-1)', border: '1px solid var(--color-border-subtle)' }}
+                        whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
                         <span className="material-symbols-outlined text-[14px]" style={{ color: 'var(--color-text-secondary)' }}>chevron_right</span>
-                    </button>
+                    </motion.button>
                 </div>
             </div>
             <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 material-symbols-outlined text-[16px]" style={{ color: 'var(--color-text-muted)' }}>search</span>
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 material-symbols-outlined text-[14px]" style={{ color: 'var(--color-text-muted)' }}>search</span>
                 <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search caption styles..."
-                    className="w-full pl-9 pr-3 py-2 text-xs rounded-xl outline-none transition-all"
+                    className="w-full pl-9 pr-3 py-2.5 text-xs rounded-xl outline-none transition-all"
                     style={{ background: 'var(--color-bg-input)', border: '1px solid var(--color-border-default)', color: 'var(--color-text-primary)' }} />
                 {search && <button onClick={() => setSearch('')} className="absolute right-2.5 top-1/2 -translate-y-1/2" style={{ color: 'var(--color-text-muted)' }}><span className="material-symbols-outlined text-[14px]">close</span></button>}
             </div>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-3 gap-2.5">
                 <AnimatePresence mode="popLayout">
-                    {visible.map(style => {
-                        const isActive = selectedStyle?.id === style.id
-                        return (
-                            <motion.button key={style.id} layout initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }}
-                                transition={{ duration: 0.2 }} onClick={() => onSelect(style)}
-                                className={`relative rounded-xl overflow-hidden transition-all group ${isActive ? 'ring-2 ring-offset-2' : ''}`}
-                                style={{
-                                    border: isActive ? 'none' : '1px solid var(--color-border-subtle)',
-                                    '--tw-ring-color': 'var(--color-accent)',
-                                    '--tw-ring-offset-color': 'var(--color-bg-primary)'
-                                }}>
-                                <div className="aspect-[5/3] flex items-center justify-center relative" style={{ background: 'linear-gradient(to bottom, var(--color-surface-2), var(--color-surface-1))' }}>
-                                    <span className="relative font-black text-[11px] drop-shadow-lg px-2 text-center leading-tight" style={{ color: style.color, fontFamily: style.font_family }}>{style.name}</span>
-                                    {isActive && <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} className="absolute top-1 right-1 w-4 h-4 rounded-full flex items-center justify-center shadow-lg" style={{ background: 'var(--color-accent)' }}><span className="material-symbols-outlined text-white text-[10px]">check</span></motion.div>}
-                                </div>
-                                <div className="px-2 py-1" style={{ background: 'var(--color-surface-1)' }}><p className="text-[9px] font-medium truncate" style={{ color: 'var(--color-text-secondary)' }}>{style.font_family}</p></div>
-                            </motion.button>
-                        )
-                    })}
+                    {visible.map((style, i) => (
+                        <CaptionStyleCard key={style.id} style={style} isActive={selectedStyle?.id === style.id} onSelect={onSelect} index={i} />
+                    ))}
                 </AnimatePresence>
-                {filtered.length === 0 && <p className="col-span-3 text-center text-xs py-4" style={{ color: 'var(--color-text-muted)' }}>No styles found</p>}
+                {filtered.length === 0 && <p className="col-span-3 text-center text-xs py-6" style={{ color: 'var(--color-text-muted)' }}>No styles found</p>}
             </div>
         </div>
     )
 }
 
-// --- Hook Carousel ---
+// --- Hook Carousel --- (Pro redesign)
 function HookCarousel({ hookStyles, selected, onSelect }) {
     const [page, setPage] = useState(0)
     const [search, setSearch] = useState('')
@@ -130,64 +228,48 @@ function HookCarousel({ hookStyles, selected, onSelect }) {
     return (
         <div className="space-y-3">
             <div className="flex items-center justify-between">
-                <h3 className="text-sm font-semibold flex items-center gap-2" style={{ color: 'var(--color-text-primary)' }}>
-                    <span className="material-symbols-outlined text-[18px]" style={{ color: 'var(--color-accent)' }}>format_quote</span>
+                <h3 className="text-sm font-bold flex items-center gap-2" style={{ color: 'var(--color-text-primary)' }}>
+                    <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: 'var(--color-accent-subtle)', border: '1px solid var(--color-accent-border)' }}>
+                        <span className="material-symbols-outlined text-[14px]" style={{ color: 'var(--color-accent)' }}>format_quote</span>
+                    </div>
                     Hook Overlay
-                    <span className="text-[10px] font-normal ml-1" style={{ color: 'var(--color-text-muted)' }}>{filtered.length}/{hookStyles.length}</span>
+                    <span className="text-[10px] font-normal px-2 py-0.5 rounded-full" style={{ background: 'var(--color-surface-1)', color: 'var(--color-text-muted)', border: '1px solid var(--color-border-subtle)' }}>{filtered.length}</span>
                 </h3>
-                <div className="flex items-center gap-2">
-                    <button onClick={() => onSelect(null)}
-                        className="text-[10px] font-semibold px-2.5 py-1 rounded-lg transition-all"
+                <div className="flex items-center gap-1.5">
+                    <motion.button onClick={() => onSelect(null)}
+                        className="text-[10px] font-semibold px-3 py-1.5 rounded-lg transition-all"
                         style={{
                             background: !selected ? 'var(--color-accent-subtle)' : 'transparent',
                             color: !selected ? 'var(--color-accent)' : 'var(--color-text-muted)',
                             border: `1px solid ${!selected ? 'var(--color-accent-border)' : 'var(--color-border-subtle)'}`
-                        }}>None</button>
-                    <button onClick={() => setPage(p => Math.max(0, p - 1))} disabled={page === 0}
+                        }}
+                        whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}>None</motion.button>
+                    <motion.button onClick={() => setPage(p => Math.max(0, p - 1))} disabled={page === 0}
                         className="w-7 h-7 rounded-lg flex items-center justify-center disabled:opacity-30"
-                        style={{ background: 'var(--color-surface-1)', border: '1px solid var(--color-border-subtle)' }}>
+                        style={{ background: 'var(--color-surface-1)', border: '1px solid var(--color-border-subtle)' }}
+                        whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
                         <span className="material-symbols-outlined text-[14px]" style={{ color: 'var(--color-text-secondary)' }}>chevron_left</span>
-                    </button>
-                    <span className="text-[10px] tabular-nums min-w-[28px] text-center" style={{ color: 'var(--color-text-muted)' }}>{page + 1}/{totalPages}</span>
-                    <button onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))} disabled={page >= totalPages - 1}
+                    </motion.button>
+                    <span className="text-[10px] tabular-nums min-w-[32px] text-center font-medium" style={{ color: 'var(--color-text-muted)' }}>{page + 1}/{totalPages}</span>
+                    <motion.button onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))} disabled={page >= totalPages - 1}
                         className="w-7 h-7 rounded-lg flex items-center justify-center disabled:opacity-30"
-                        style={{ background: 'var(--color-surface-1)', border: '1px solid var(--color-border-subtle)' }}>
+                        style={{ background: 'var(--color-surface-1)', border: '1px solid var(--color-border-subtle)' }}
+                        whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
                         <span className="material-symbols-outlined text-[14px]" style={{ color: 'var(--color-text-secondary)' }}>chevron_right</span>
-                    </button>
+                    </motion.button>
                 </div>
             </div>
             <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 material-symbols-outlined text-[16px]" style={{ color: 'var(--color-text-muted)' }}>search</span>
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 material-symbols-outlined text-[14px]" style={{ color: 'var(--color-text-muted)' }}>search</span>
                 <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search hook styles..."
-                    className="w-full pl-9 pr-3 py-2 text-xs rounded-xl outline-none transition-all"
+                    className="w-full pl-9 pr-3 py-2.5 text-xs rounded-xl outline-none transition-all"
                     style={{ background: 'var(--color-bg-input)', border: '1px solid var(--color-border-default)', color: 'var(--color-text-primary)' }} />
             </div>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-3 gap-2.5">
                 <AnimatePresence mode="popLayout">
-                    {visible.map(hs => {
-                        const isActive = selected?.id === hs.id
-                        const shadow = hookShadow(hs)
-                        const font = hs.fallback_font || 'inherit'
-                        return (
-                            <motion.button key={hs.id} layout initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }}
-                                onClick={() => onSelect(hs)}
-                                className={`relative rounded-xl overflow-hidden transition-all ${isActive ? 'ring-2 ring-offset-2' : ''}`}
-                                style={{
-                                    border: isActive ? 'none' : '1px solid var(--color-border-subtle)',
-                                    '--tw-ring-color': 'var(--color-accent)',
-                                    '--tw-ring-offset-color': 'var(--color-bg-primary)'
-                                }}>
-                                <div className="aspect-video flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.8)' }}>
-                                    <div className="text-center">
-                                        <p style={{ color: hs.keyword_color, fontSize: '11px', fontWeight: 900, textShadow: shadow, fontFamily: font }}>HOOK</p>
-                                        <p style={{ color: hs.text_color, fontSize: '8px', textShadow: shadow, fontFamily: font }}>preview</p>
-                                    </div>
-                                    {isActive && <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} className="absolute top-1 right-1 w-4 h-4 rounded-full flex items-center justify-center" style={{ background: 'var(--color-accent)' }}><span className="material-symbols-outlined text-white text-[9px]">check</span></motion.div>}
-                                </div>
-                                <div className="px-2 py-1" style={{ background: 'var(--color-surface-1)' }}><p className="text-[9px] font-medium truncate" style={{ color: 'var(--color-text-muted)' }}>{hs.name}</p></div>
-                            </motion.button>
-                        )
-                    })}
+                    {visible.map((hs, i) => (
+                        <HookStyleCard key={hs.id} hs={hs} isActive={selected?.id === hs.id} onSelect={onSelect} index={i} />
+                    ))}
                 </AnimatePresence>
             </div>
         </div>
@@ -259,7 +341,7 @@ function CustomizationPanel({ editStyle, setEditStyle }) {
                                 <p className="text-[10px] font-semibold uppercase tracking-wider mb-2.5" style={{ color: 'var(--color-text-muted)' }}>Typography</p>
                                 <div className="grid grid-cols-2 gap-x-4 gap-y-3">
                                     <RangeSlider label="Font Size" value={editStyle.font_size} min={8} max={100} onChange={v => setEditStyle(s => ({ ...s, font_size: v }))} unit="px" />
-                                    <RangeSlider label="Line Spacing" value={editStyle.line_spacing} min={1} max={3} step={0.1} onChange={v => setEditStyle(s => ({ ...s, line_spacing: v }))} />
+                                    <RangeSlider label="Line Height" value={editStyle.line_height || 1.3} min={1} max={3} step={0.1} onChange={v => setEditStyle(s => ({ ...s, line_height: v }))} />
                                 </div>
                             </div>
                             {/* Effects */}
@@ -267,7 +349,7 @@ function CustomizationPanel({ editStyle, setEditStyle }) {
                                 <p className="text-[10px] font-semibold uppercase tracking-wider mb-2.5" style={{ color: 'var(--color-text-muted)' }}>Effects</p>
                                 <div className="grid grid-cols-2 gap-x-4 gap-y-3">
                                     <RangeSlider label="Outline Width" value={editStyle.outline_width} min={0} max={10} onChange={v => setEditStyle(s => ({ ...s, outline_width: v }))} unit="px" />
-                                    <RangeSlider label="Bottom Margin" value={editStyle.caption_bottom_margin} min={0} max={300} onChange={v => setEditStyle(s => ({ ...s, caption_bottom_margin: v }))} unit="px" />
+                                    <RangeSlider label="Bottom Offset" value={editStyle.position_y_offset || 80} min={0} max={300} onChange={v => setEditStyle(s => ({ ...s, position_y_offset: v }))} unit="px" />
                                     <RangeSlider label="Shadow X" value={editStyle.shadow_offset_x || 0} min={0} max={20} onChange={v => setEditStyle(s => ({ ...s, shadow_offset_x: v }))} unit="px" />
                                     <RangeSlider label="Shadow Y" value={editStyle.shadow_offset_y || 0} min={0} max={20} onChange={v => setEditStyle(s => ({ ...s, shadow_offset_y: v }))} unit="px" />
                                 </div>
@@ -364,175 +446,6 @@ function CustomizationPanel({ editStyle, setEditStyle }) {
     )
 }
 
-// --- Phone Preview (Animated - simulates actual video output) ---
-function PhonePreview({ editStyle, selectedHookStyle }) {
-    const [captionLine, setCaptionLine] = useState(0)
-    const [hookVisible, setHookVisible] = useState(true)
-    const [animCycle, setAnimCycle] = useState(0)
-
-    const CAPTION_WORDS = [
-        { normal: ['inget', 'banget'], highlight: 'usahain', after: ['salam'] },
-        { normal: ['yang', 'paling'], highlight: 'penting', after: ['itu'] },
-        { normal: ['harus', 'bisa'], highlight: 'konsisten', after: [] },
-    ]
-
-    // Caption animation cycle
-    useEffect(() => {
-        if (!editStyle) return
-        const interval = setInterval(() => {
-            setCaptionLine(prev => {
-                if (prev >= CAPTION_WORDS.length - 1) {
-                    setTimeout(() => setAnimCycle(c => c + 1), 500)
-                    return 0
-                }
-                return prev + 1
-            })
-        }, 1400)
-        return () => clearInterval(interval)
-    }, [editStyle, animCycle])
-
-    // Hook animation cycle
-    useEffect(() => {
-        if (!selectedHookStyle) return
-        const interval = setInterval(() => {
-            setHookVisible(false)
-            setTimeout(() => setHookVisible(true), 400)
-        }, 4500)
-        return () => clearInterval(interval)
-    }, [selectedHookStyle])
-
-    if (!editStyle) return null
-
-    // Video is 1080x1920, phone preview scales to fit
-    const PHONE_W = 300, PHONE_H = 534
-    const scale = PHONE_W / 1080 // 0.278
-
-    // Read config for advanced styling
-    const config = editStyle.config || {}
-    const bgPill = config.background_pill || {}
-    const hlConfig = config.highlight || {}
-    const textTransform = config.text_transform || 'none'
-
-    // Font size scaled to preview
-    const fontSize = Math.max(13, Math.round((editStyle.font_size || 20) * scale * 3))
-    const outlineW = (editStyle.outline_width || 0) * scale * 2
-    const shadowX = (editStyle.shadow_offset_x || 0) * scale * 2
-    const shadowY = (editStyle.shadow_offset_y || 0) * scale * 2
-    const bottomMargin = Math.max(16, Math.round((editStyle.caption_bottom_margin || 70) * scale))
-
-    // Build background pill style
-    const pillStyle = bgPill.enable ? {
-        background: bgPill.color ? `${bgPill.color}${Math.round((bgPill.opacity || 200) / 255 * 255).toString(16).padStart(2, '0')}` : 'rgba(26,10,46,0.78)',
-        padding: `${(bgPill.padding_y || 8) * scale * 1.5}px ${(bgPill.padding_x || 16) * scale * 1.5}px`,
-        borderRadius: `${(bgPill.border_radius || 12) * scale * 1.5}px`,
-        display: 'inline-block',
-    } : {}
-
-    // Build highlight glow style
-    const getHighlightStyle = () => {
-        const base = {
-            color: editStyle.highlight_color || '#FF69B4',
-            fontFamily: editStyle.font_family || 'Poppins',
-            fontSize: `${fontSize}px`,
-            fontWeight: editStyle.font_weight || 'bold',
-            lineHeight: editStyle.line_spacing || 1.2,
-            display: 'inline',
-        }
-        if (hlConfig.style === 'glow' && hlConfig.glow_color) {
-            base.textShadow = `0 0 ${(hlConfig.glow_radius || 8) * scale * 2}px ${hlConfig.glow_color}, 0 0 ${(hlConfig.glow_radius || 8) * scale * 4}px ${hlConfig.glow_color}40, ${shadowX}px ${shadowY}px 0px ${editStyle.shadow_color || '#000'}`
-        } else {
-            base.textShadow = `${shadowX}px ${shadowY}px 0px ${editStyle.shadow_color || '#000'}`
-        }
-        if (outlineW > 0) base.WebkitTextStroke = `${outlineW}px ${editStyle.outline_color || '#000'}`
-        return base
-    }
-
-    const normalStyle = {
-        color: editStyle.color || '#FFFFFF',
-        fontFamily: editStyle.font_family || 'Poppins',
-        fontSize: `${fontSize}px`,
-        fontWeight: editStyle.font_weight || 'bold',
-        lineHeight: editStyle.line_spacing || 1.2,
-        display: 'inline',
-        textShadow: `${shadowX}px ${shadowY}px 0px ${editStyle.shadow_color || '#000'}`,
-        ...(outlineW > 0 ? { WebkitTextStroke: `${outlineW}px ${editStyle.outline_color || '#000'}` } : {}),
-    }
-
-    const applyTransform = (text) => {
-        if (textTransform === 'uppercase') return text.toUpperCase()
-        if (textTransform === 'lowercase') return text.toLowerCase()
-        return text
-    }
-
-    const currentLine = CAPTION_WORDS[captionLine]
-
-    return (
-        <div className="relative">
-            <div className="absolute -inset-8 bg-gradient-to-b from-primary/10 via-accent/5 to-transparent rounded-full blur-3xl pointer-events-none" />
-            <div className="relative bg-black rounded-[32px] overflow-hidden shadow-2xl shadow-black/50" style={{ width: PHONE_W, height: PHONE_H, border: '2.5px solid rgba(255,255,255,0.1)' }}>
-                {/* Notch */}
-                <div className="absolute top-0 left-1/2 -translate-x-1/2 w-20 h-5 bg-black rounded-b-xl z-10" />
-
-                {/* Video background */}
-                <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: `url('${PREVIEW_BG}')` }} />
-                <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-transparent to-black/50" />
-
-                {/* Animated Hook (top area) */}
-                {selectedHookStyle && (() => {
-                    const hs = selectedHookStyle
-                    const hookScale = scale * 2.2
-                    const shadow = hs.shadow_enable
-                        ? `0px 0px ${(hs.shadow_blur || 10) * scale}px rgba(0,0,0,${((hs.shadow_opacity || 180) / 255).toFixed(2)})`
-                        : 'none'
-                    const font = hs.fallback_font || 'inherit'
-                    const normalSize = Math.round((hs.font_size_normal || 48) * hookScale)
-                    const keywordSize = Math.round((hs.font_size_keyword || 68) * hookScale)
-
-                    return (
-                        <div className="absolute left-0 right-0 flex flex-col items-center px-4 text-center" style={{ top: '22%' }}>
-                            <AnimatePresence>
-                                {hookVisible && (
-                                    <motion.div
-                                        initial={{ opacity: 0, scale: 0.7, y: 20 }}
-                                        animate={{ opacity: 1, scale: 1, y: 0 }}
-                                        exit={{ opacity: 0, scale: 0.8, y: -10 }}
-                                        transition={{ duration: hs.fade_in || 0.4, ease: [0.34, 1.56, 0.64, 1] }}
-                                    >
-                                        <p style={{ color: hs.text_color, fontSize: `${normalSize}px`, textShadow: shadow, lineHeight: 1.2, margin: 0, fontFamily: font }}>Sample</p>
-                                        <p style={{ color: hs.keyword_color, fontSize: `${keywordSize}px`, textShadow: shadow, fontWeight: 900, lineHeight: 1.1, margin: 0, fontFamily: font, borderBottom: hs.keyword_underline_opacity > 0 ? `2px solid ${hs.keyword_underline_color}` : 'none' }}>HOOK</p>
-                                    </motion.div>
-                                )}
-                            </AnimatePresence>
-                        </div>
-                    )
-                })()}
-
-                {/* Animated Caption (bottom area) - matches actual video output */}
-                <div className="absolute left-0 right-0 px-3 text-center" style={{ bottom: bottomMargin }}>
-                    <AnimatePresence mode="wait">
-                        <motion.div
-                            key={`${animCycle}-${captionLine}`}
-                            initial={{ opacity: 0, y: 10, scale: 0.95 }}
-                            animate={{ opacity: 1, y: 0, scale: 1 }}
-                            exit={{ opacity: 0, y: -6, scale: 0.97 }}
-                            transition={{ duration: 0.2, ease: [0.25, 0.46, 0.45, 0.94] }}
-                            style={pillStyle}
-                        >
-                            <span style={normalStyle}>{applyTransform(currentLine.normal.join(' '))} </span>
-                            <span style={getHighlightStyle()}>{applyTransform(currentLine.highlight)}</span>
-                            {currentLine.after.length > 0 && <span style={normalStyle}> {applyTransform(currentLine.after.join(' '))}</span>}
-                        </motion.div>
-                    </AnimatePresence>
-                </div>
-
-                {/* PREVIEW badge */}
-                <div className="absolute top-6 right-3 text-white text-[8px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1" style={{ background: 'var(--color-accent)' }}>
-                    <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />PREVIEW
-                </div>
-            </div>
-        </div>
-    )
-}
 
 
 // --- Review Panel (for analyze mode) ---
@@ -634,24 +547,48 @@ function CreatePage({ onJobStarted }) {
     const [loadingVideo, setLoadingVideo] = useState(false)
     const [styles, setStyles] = useState([])
     const [hookStyles, setHookStyles] = useState([])
+    const [compositions, setCompositions] = useState([])
     const [selectedStyle, setSelectedStyle] = useState(null)
     const [selectedHookStyle, setSelectedHookStyle] = useState(null)
+    const [selectedComp, setSelectedComp] = useState(null)
     const [editStyle, setEditStyle] = useState(null)
     const [submitting, setSubmitting] = useState(false)
     const [analyzing, setAnalyzing] = useState(false)
     const [reviewClips, setReviewClips] = useState(null)
     // For "analyze first" sub-mode within styled mode
     const [analyzeMode, setAnalyzeMode] = useState(false)
+    const [styleTab, setStyleTab] = useState('compositions') // 'compositions' | 'custom'
     const isInitialLoad = useRef(true)
 
     useEffect(() => {
-        Promise.all([api.getStyles(), api.getFonts(), api.getHookStyles()]).then(([stylesData, fontsData, hookData]) => {
+        Promise.all([
+            api.getRemotionCaptionTemplates(),
+            api.getFonts(),
+            api.getRemotionHookTemplates(),
+            api.getRemotionCompositions(),
+        ]).then(([stylesData, fontsData, hookData, compsData]) => {
             if (Array.isArray(stylesData)) {
                 setStyles(stylesData)
-                if (stylesData.length > 0) { setSelectedStyle(stylesData[0]); setEditStyle({ ...stylesData[0] }) }
             }
             if (Array.isArray(fontsData)) loadGoogleFonts(fontsData)
-            if (Array.isArray(hookData)) setHookStyles(hookData.map(flattenHookStyle))
+            if (Array.isArray(hookData)) setHookStyles(hookData)
+            if (Array.isArray(compsData)) {
+                setCompositions(compsData)
+                // Auto-select default composition
+                const defComp = compsData.find(c => c.is_default)
+                if (defComp) {
+                    setSelectedComp(defComp)
+                    // Set caption/hook from composition
+                    if (defComp.caption_template) { setSelectedStyle(defComp.caption_template); setEditStyle({ ...defComp.caption_template }) }
+                    if (defComp.hook_template) setSelectedHookStyle(defComp.hook_template)
+                } else if (compsData.length > 0) {
+                    setSelectedComp(compsData[0])
+                    if (compsData[0].caption_template) { setSelectedStyle(compsData[0].caption_template); setEditStyle({ ...compsData[0].caption_template }) }
+                    if (compsData[0].hook_template) setSelectedHookStyle(compsData[0].hook_template)
+                } else if (Array.isArray(stylesData) && stylesData.length > 0) {
+                    setSelectedStyle(stylesData[0]); setEditStyle({ ...stylesData[0] })
+                }
+            }
         })
     }, [])
 
@@ -659,8 +596,8 @@ function CreatePage({ onJobStarted }) {
         if (!editStyle || !selectedStyle) return
         if (isInitialLoad.current) { isInitialLoad.current = false; return }
         const timer = setTimeout(() => {
-            const { font_family, id, user_id, ...editable } = editStyle
-            api.updateStyle(selectedStyle.id, editable)
+            const { id, user_id, created_at, updated_at, is_active, is_default, sort_order, ...editable } = editStyle
+            api.updateRemotionCaptionTemplate(selectedStyle.id, editable)
         }, 600)
         return () => clearTimeout(timer)
     }, [editStyle, selectedStyle])
@@ -679,9 +616,24 @@ function CreatePage({ onJobStarted }) {
 
     const handleSelectStyle = async (style) => {
         setSelectedStyle(style)
+        setSelectedComp(null) // deselect composition when manually picking
         isInitialLoad.current = true
-        const detail = await api.getStyle(style.id)
+        const detail = await api.getRemotionCaptionTemplate(style.id)
         setEditStyle({ ...detail })
+    }
+
+    const handleSelectComp = (comp) => {
+        setSelectedComp(comp)
+        if (comp.caption_template) {
+            setSelectedStyle(comp.caption_template)
+            isInitialLoad.current = true
+            setEditStyle({ ...comp.caption_template })
+        }
+        if (comp.hook_template) {
+            setSelectedHookStyle(comp.hook_template)
+        } else {
+            setSelectedHookStyle(null)
+        }
     }
 
     // --- STYLED MODE: Quick submit (original flow) ---
@@ -870,10 +822,151 @@ function CreatePage({ onJobStarted }) {
                                     {/* STYLED MODE: Style selection + submit */}
                                     {mode === 'styled' && (
                                         <>
-                                            <div className="rounded-2xl p-5 shadow-sm backdrop-blur-sm space-y-5" style={{ background: 'var(--color-bg-card)', border: '1px solid var(--color-border-subtle)' }}>
-                                                <StyleCarousel styles={styles} selectedStyle={selectedStyle} onSelect={handleSelectStyle} />
-                                                <div style={{ borderTop: '1px solid var(--color-border-subtle)' }} />
-                                                <HookCarousel hookStyles={hookStyles} selected={selectedHookStyle} onSelect={setSelectedHookStyle} />
+                                            <div className="rounded-2xl shadow-sm backdrop-blur-sm overflow-hidden" style={{ background: 'var(--color-bg-card)', border: '1px solid var(--color-border-subtle)' }}>
+                                                {/* Compositions vs Custom tab */}
+                                                <div className="px-5 pt-4 pb-3 flex items-center gap-2" style={{ borderBottom: '1px solid var(--color-border-subtle)' }}>
+                                                    <div className="flex p-0.5 rounded-lg" style={{ background: 'var(--color-surface-1)', border: '1px solid var(--color-border-subtle)' }}>
+                                                        {[
+                                                            { key: 'compositions', label: 'Presets', icon: 'layers' },
+                                                            { key: 'custom', label: 'Custom', icon: 'tune' },
+                                                        ].map(t => (
+                                                            <button key={t.key} onClick={() => setStyleTab(t.key)}
+                                                                className="relative flex items-center gap-1 px-3 py-1.5 rounded-md text-[11px] font-semibold transition-all"
+                                                                style={{ color: styleTab === t.key ? 'var(--btn-primary-text)' : 'var(--color-text-muted)' }}>
+                                                                {styleTab === t.key && (
+                                                                    <motion.div layoutId="style-tab-pill" className="absolute inset-0 rounded-md" style={{ background: 'var(--btn-primary-bg)' }} transition={{ type: 'spring', stiffness: 400, damping: 30 }} />
+                                                                )}
+                                                                <span className="relative material-symbols-outlined text-[13px]">{t.icon}</span>
+                                                                <span className="relative">{t.label}</span>
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                    <span className="text-[10px] ml-auto" style={{ color: 'var(--color-text-muted)' }}>
+                                                        {styleTab === 'compositions' ? `${compositions.length} presets` : `${styles.length} captions · ${hookStyles.length} hooks`}
+                                                    </span>
+                                                </div>
+
+                                                <div className="p-5 space-y-4">
+                                                    <AnimatePresence mode="wait">
+                                                        {styleTab === 'compositions' ? (
+                                                            <motion.div key="comps" initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 10 }} className="space-y-4">
+                                                                {compositions.length === 0 ? (
+                                                                    <p className="text-xs text-center py-4" style={{ color: 'var(--color-text-muted)' }}>No compositions available</p>
+                                                                ) : (
+                                                                    <>
+                                                                        {/* Grid of compositions */}
+                                                                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                                                                            {compositions.map(comp => {
+                                                                                const isActive = selectedComp?.id === comp.id
+                                                                                return (
+                                                                                    <motion.button key={comp.id}
+                                                                                        onClick={() => handleSelectComp(comp)}
+                                                                                        className="text-left rounded-xl transition-all overflow-hidden"
+                                                                                        style={{
+                                                                                            border: isActive ? '2px solid var(--color-accent)' : '1px solid var(--color-border-subtle)',
+                                                                                            background: isActive ? 'var(--color-accent-subtle)' : 'var(--color-surface-1)',
+                                                                                            boxShadow: isActive ? 'var(--shadow-glow)' : 'none',
+                                                                                        }}
+                                                                                        whileHover={{ scale: 1.02 }}
+                                                                                        whileTap={{ scale: 0.98 }}
+                                                                                    >
+                                                                                        {/* Mini combined preview */}
+                                                                                        <div className="h-16 flex items-center justify-center gap-3 px-3" style={{ background: 'linear-gradient(135deg, rgba(0,0,0,0.9), rgba(15,5,25,0.95))' }}>
+                                                                                            {comp.caption_template && (
+                                                                                                <span style={{
+                                                                                                    color: comp.caption_template.highlight_color || '#FFD700',
+                                                                                                    fontFamily: comp.caption_template.font_family || 'Inter',
+                                                                                                    fontSize: '11px',
+                                                                                                    fontWeight: comp.caption_template.font_weight || '700',
+                                                                                                    textShadow: '0 1px 3px rgba(0,0,0,0.8)',
+                                                                                                }}>Aa</span>
+                                                                                            )}
+                                                                                            {comp.hook_template && (
+                                                                                                <span style={{
+                                                                                                    color: comp.hook_template.keyword_color || '#FFF',
+                                                                                                    fontFamily: comp.hook_template.font_family || 'Anton',
+                                                                                                    fontSize: '10px',
+                                                                                                    fontWeight: 900,
+                                                                                                    textShadow: '0 1px 3px rgba(0,0,0,0.8)',
+                                                                                                    textTransform: 'uppercase',
+                                                                                                }}>Hook</span>
+                                                                                            )}
+                                                                                        </div>
+                                                                                        {/* Info */}
+                                                                                        <div className="px-2.5 py-2 relative" style={{ borderTop: '1px solid var(--color-border-subtle)' }}>
+                                                                                            <p className="text-[10px] font-semibold truncate" style={{ color: 'var(--color-text-primary)' }}>{comp.name}</p>
+                                                                                            {comp.is_default && <span className="absolute top-1.5 right-1.5 text-[7px] px-1 py-0.5 rounded font-bold" style={{ background: 'var(--color-accent-subtle)', color: 'var(--color-accent)' }}>DEFAULT</span>}
+                                                                                            {isActive && <motion.span initial={{ scale: 0 }} animate={{ scale: 1 }} className="absolute bottom-1.5 right-1.5 material-symbols-outlined text-[12px]" style={{ color: 'var(--color-accent)' }}>check_circle</motion.span>}
+                                                                                        </div>
+                                                                                    </motion.button>
+                                                                                )
+                                                                            })}
+                                                                        </div>
+
+                                                                        {/* Selected composition: full preview card */}
+                                                                        <AnimatePresence>
+                                                                            {selectedComp && (
+                                                                                <motion.div
+                                                                                    key={selectedComp.id}
+                                                                                    initial={{ opacity: 0, y: 10 }}
+                                                                                    animate={{ opacity: 1, y: 0 }}
+                                                                                    exit={{ opacity: 0, y: 10 }}
+                                                                                    className="rounded-2xl overflow-hidden"
+                                                                                    style={{ border: '1px solid var(--color-accent-border)', boxShadow: 'var(--shadow-md)' }}
+                                                                                >
+                                                                                    {/* Preview header */}
+                                                                                    <div className="px-4 py-2.5 flex items-center gap-2" style={{ background: 'var(--color-surface-1)' }}>
+                                                                                        <span className="material-symbols-outlined text-[14px]" style={{ color: 'var(--color-accent)' }}>visibility</span>
+                                                                                        <span className="text-[11px] font-semibold" style={{ color: 'var(--color-text-primary)' }}>{selectedComp.name} — Preview</span>
+                                                                                    </div>
+                                                                                    {/* Split preview area */}
+                                                                                    <div className="grid grid-cols-2" style={{ background: 'linear-gradient(160deg, rgba(0,0,0,0.93), rgba(15,8,25,0.96))' }}>
+                                                                                        {/* Caption side */}
+                                                                                        <div className="p-5 flex flex-col items-center justify-center min-h-[120px]" style={{ borderRight: '1px solid rgba(255,255,255,0.06)' }}>
+                                                                                            <p className="text-[8px] uppercase tracking-widest mb-3 font-medium" style={{ color: 'rgba(255,255,255,0.35)' }}>Caption Style</p>
+                                                                                            {selectedComp.caption_template ? (
+                                                                                                <div className="text-center" style={buildCaptionPillStyle(selectedComp.caption_template, { scale: 0.32 })}>
+                                                                                                    <div className="flex flex-wrap justify-center gap-x-1">
+                                                                                                        <span style={buildCaptionWordStyle(selectedComp.caption_template, { isHighlight: false, scale: 0.32 })}>sample</span>
+                                                                                                        <span style={buildCaptionWordStyle(selectedComp.caption_template, { isHighlight: true, scale: 0.32 })}>caption</span>
+                                                                                                        <span style={buildCaptionWordStyle(selectedComp.caption_template, { isHighlight: false, scale: 0.32 })}>text</span>
+                                                                                                    </div>
+                                                                                                </div>
+                                                                                            ) : (
+                                                                                                <p className="text-[10px] italic" style={{ color: 'rgba(255,255,255,0.25)' }}>None selected</p>
+                                                                                            )}
+                                                                                            <p className="text-[9px] mt-3" style={{ color: 'rgba(255,255,255,0.4)' }}>{selectedComp.caption_template?.name || '—'}</p>
+                                                                                        </div>
+                                                                                        {/* Hook side */}
+                                                                                        <div className="p-5 flex flex-col items-center justify-center min-h-[120px]">
+                                                                                            <p className="text-[8px] uppercase tracking-widest mb-3 font-medium" style={{ color: 'rgba(255,255,255,0.35)' }}>Hook Overlay</p>
+                                                                                            {selectedComp.hook_template ? (
+                                                                                                <div className="text-center" style={buildHookBoxStyle(selectedComp.hook_template, { scale: 0.3 })}>
+                                                                                                    <p style={buildHookWordStyle(selectedComp.hook_template, { isKeyword: false, scale: 0.3 })}>Did you know</p>
+                                                                                                    <p style={buildHookWordStyle(selectedComp.hook_template, { isKeyword: true, scale: 0.3 })}>THIS</p>
+                                                                                                    <p style={buildHookWordStyle(selectedComp.hook_template, { isKeyword: false, scale: 0.3 })}>trick?</p>
+                                                                                                </div>
+                                                                                            ) : (
+                                                                                                <p className="text-[10px] italic" style={{ color: 'rgba(255,255,255,0.25)' }}>No hook</p>
+                                                                                            )}
+                                                                                            <p className="text-[9px] mt-3" style={{ color: 'rgba(255,255,255,0.4)' }}>{selectedComp.hook_template?.name || '—'}</p>
+                                                                                        </div>
+                                                                                    </div>
+                                                                                </motion.div>
+                                                                            )}
+                                                                        </AnimatePresence>
+                                                                    </>
+                                                                )}
+                                                            </motion.div>
+                                                        ) : (
+                                                            <motion.div key="custom" initial={{ opacity: 0, x: 10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -10 }} className="space-y-5">
+                                                                <StyleCarousel styles={styles} selectedStyle={selectedStyle} onSelect={handleSelectStyle} />
+                                                                <div style={{ borderTop: '1px solid var(--color-border-subtle)' }} />
+                                                                <HookCarousel hookStyles={hookStyles} selected={selectedHookStyle} onSelect={setSelectedHookStyle} />
+                                                            </motion.div>
+                                                        )}
+                                                    </AnimatePresence>
+                                                </div>
                                             </div>
 
                                             <CustomizationPanel editStyle={editStyle} setEditStyle={setEditStyle} />
@@ -934,18 +1027,51 @@ function CreatePage({ onJobStarted }) {
 
                     {/* Right: Preview (only in styled mode) */}
                     {mode === 'styled' && (
-                        <div className="xl:w-[340px] flex-shrink-0 hidden xl:flex flex-col items-center">
-                            <div className="sticky top-8">
-                                <PhonePreview editStyle={editStyle} selectedHookStyle={selectedHookStyle} />
+                        <div className="xl:w-[360px] flex-shrink-0 hidden xl:flex flex-col items-center">
+                            <div className="sticky top-8 space-y-4">
+                                {/* Remotion Animated Preview */}
+                                <div className="rounded-2xl overflow-hidden p-6" style={{ background: 'linear-gradient(160deg, rgba(0,0,0,0.92) 0%, rgba(20,10,30,0.95) 100%)', border: '1px solid var(--color-border-subtle)', boxShadow: 'var(--shadow-lg)' }}>
+                                    <RemotionPreview
+                                        captionStyle={editStyle}
+                                        hookStyle={selectedHookStyle}
+                                        size="md"
+                                        showPlayback={true}
+                                        showBadge={true}
+                                        showParticles={true}
+                                        showGlow={true}
+                                        label="Live Preview"
+                                    />
+                                </div>
+
+                                {/* Style Info Card */}
                                 {editStyle && (
-                                    <div className="mt-4 w-full px-2">
-                                        <div className="flex items-center justify-center gap-2">
-                                            {[editStyle.color, editStyle.highlight_color, editStyle.outline_color, editStyle.shadow_color].map((c, i) => (
-                                                <div key={i} className="w-3 h-3 rounded-full" style={{ backgroundColor: c, border: '1px solid var(--color-border-default)' }} />
-                                            ))}
-                                            <span className="text-[10px] ml-2" style={{ color: 'var(--color-text-muted)' }}>{editStyle.name}</span>
+                                    <motion.div
+                                        initial={{ opacity: 0, y: 8 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        className="rounded-xl p-3.5 space-y-2.5"
+                                        style={{ background: 'var(--color-bg-card)', border: '1px solid var(--color-border-subtle)' }}
+                                    >
+                                        <div className="flex items-center justify-between">
+                                            <p className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: 'var(--color-text-muted)' }}>Active Style</p>
+                                            <span className="w-2 h-2 rounded-full animate-pulse" style={{ background: 'var(--color-success-text)' }} />
                                         </div>
-                                    </div>
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-xs font-semibold" style={{ color: 'var(--color-text-primary)' }}>{editStyle.name}</span>
+                                            <span className="text-[10px]" style={{ color: 'var(--color-text-muted)' }}>·</span>
+                                            <span className="text-[10px]" style={{ color: 'var(--color-text-muted)' }}>{editStyle.font_family}</span>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            {[editStyle.color, editStyle.highlight_color, editStyle.outline_color, editStyle.shadow_color].filter(Boolean).map((c, i) => (
+                                                <div key={i} className="w-4 h-4 rounded-md shadow-sm" style={{ backgroundColor: c, border: '1.5px solid var(--color-border-default)' }} />
+                                            ))}
+                                        </div>
+                                        {selectedHookStyle && (
+                                            <div className="flex items-center gap-2 pt-1" style={{ borderTop: '1px solid var(--color-border-subtle)' }}>
+                                                <span className="material-symbols-outlined text-[12px]" style={{ color: 'var(--color-accent)' }}>format_quote</span>
+                                                <span className="text-[10px] font-medium" style={{ color: 'var(--color-text-secondary)' }}>{selectedHookStyle.name}</span>
+                                            </div>
+                                        )}
+                                    </motion.div>
                                 )}
                             </div>
                         </div>

@@ -169,9 +169,9 @@ export const api = {
   },
 
   // Jobs (batch support — urls can be newline-separated)
-  createJob: (urls, styleId, hookStyleId) => api._req('/api/v1/jobs/', {
+  createJob: (urls, captionTemplateId, hookTemplateId) => api._req('/api/v1/jobs/', {
     method: 'POST',
-    body: JSON.stringify({ urls, caption_style: styleId, ...(hookStyleId ? { hook_style_id: hookStyleId } : {}) }),
+    body: JSON.stringify({ urls, caption_template_id: captionTemplateId, ...(hookTemplateId ? { hook_template_id: hookTemplateId } : {}) }),
   }),
   getJobs: () => api._req('/api/v1/jobs/'),
   getJobQueue: () => api._req('/api/v1/jobs/queue'),
@@ -182,13 +182,13 @@ export const api = {
   deleteJob: (id) => api._req(`/api/v1/jobs/${id}`, { method: 'DELETE' }),
 
   // Two-step clip selection
-  analyzeVideo: (url, captionStyle, hookStyleId) => api._req('/api/v1/jobs/analyze', {
+  analyzeVideo: (url, captionTemplateId, hookTemplateId) => api._req('/api/v1/jobs/analyze', {
     method: 'POST',
-    body: JSON.stringify({ url, caption_style: captionStyle, ...(hookStyleId ? { hook_style_id: hookStyleId } : {}) }),
+    body: JSON.stringify({ url, caption_template_id: captionTemplateId, ...(hookTemplateId ? { hook_template_id: hookTemplateId } : {}) }),
   }),
-  processSelected: (url, captionStyle, hookStyleId, clips) => api._req('/api/v1/jobs/process-selected', {
+  processSelected: (url, captionTemplateId, hookTemplateId, clips) => api._req('/api/v1/jobs/process-selected', {
     method: 'POST',
-    body: JSON.stringify({ url, caption_style: captionStyle, ...(hookStyleId ? { hook_style_id: hookStyleId } : {}), clips }),
+    body: JSON.stringify({ url, caption_template_id: captionTemplateId, ...(hookTemplateId ? { hook_template_id: hookTemplateId } : {}), clips }),
   }),
 
   // Base Processing Pipeline (no styling)
@@ -202,18 +202,18 @@ export const api = {
   getBaseThumbnailUrl: (jobId, clipIndex) => `${BASE}/api/v1/jobs/${jobId}/base-thumbnail/${clipIndex}`,
   
   // Style Rendering Pipeline (apply style to base clips)
-  applyStyle: (jobId, captionStyleId, hookStyleId) => api._req(`/api/v1/jobs/${jobId}/apply-style`, {
+  applyStyle: (jobId, captionTemplateId, hookTemplateId) => api._req(`/api/v1/jobs/${jobId}/apply-style`, {
     method: 'POST',
-    body: JSON.stringify({ caption_style_id: captionStyleId, ...(hookStyleId ? { hook_style_id: hookStyleId } : {}) }),
+    body: JSON.stringify({ caption_template_id: captionTemplateId, ...(hookTemplateId ? { hook_template_id: hookTemplateId } : {}) }),
   }),
 
   // Preview (5-second low-res preview before full processing)
-  generatePreview: (url, clipIndex, startTime, endTime, hook, captionStyle, hookStyleId) => api._req('/api/v1/jobs/preview', {
+  generatePreview: (url, clipIndex, startTime, endTime, hook, captionTemplateId, hookTemplateId) => api._req('/api/v1/jobs/preview', {
     method: 'POST',
     body: JSON.stringify({
       url, clip_index: clipIndex, start_time: startTime, end_time: endTime,
-      hook: hook || '', caption_style: captionStyle,
-      ...(hookStyleId ? { hook_style_id: hookStyleId } : {}),
+      hook: hook || '', caption_template_id: captionTemplateId,
+      ...(hookTemplateId ? { hook_template_id: hookTemplateId } : {}),
     }),
   }),
   getPreviewUrl: (previewId) => `${BASE}/api/v1/jobs/preview/${previewId}`,
@@ -436,6 +436,39 @@ export const api = {
   }),
   cancelSocialUpload: (id) => api._tiktokReq(`/api/v1/social/upload/${id}`, { method: 'DELETE' }),
   retrySocialUpload: (id) => api._tiktokReq(`/api/v1/social/upload/${id}/retry`, { method: 'POST' }),
+
+  // ─── Remotion Templates ─────────────────────────────────────────────────
+  getRemotionCaptionTemplates: (category) => {
+    const params = category ? `?category=${category}` : ""
+    return api._req(`/api/v1/remotion/caption-templates${params}`)
+  },
+  getRemotionCaptionTemplate: (id) => api._req(`/api/v1/remotion/caption-templates/${id}`),
+  createRemotionCaptionTemplate: (d) => api._req("/api/v1/remotion/caption-templates", { method: "POST", body: JSON.stringify(d) }),
+  updateRemotionCaptionTemplate: (id, d) => api._req(`/api/v1/remotion/caption-templates/${id}`, { method: "PUT", body: JSON.stringify(d) }),
+  deleteRemotionCaptionTemplate: (id) => api._req(`/api/v1/remotion/caption-templates/${id}`, { method: "DELETE" }),
+
+  getRemotionHookTemplates: (category) => {
+    const params = category ? `?category=${category}` : ""
+    return api._req(`/api/v1/remotion/hook-templates${params}`)
+  },
+  getRemotionHookTemplate: (id) => api._req(`/api/v1/remotion/hook-templates/${id}`),
+  createRemotionHookTemplate: (d) => api._req("/api/v1/remotion/hook-templates", { method: "POST", body: JSON.stringify(d) }),
+  updateRemotionHookTemplate: (id, d) => api._req(`/api/v1/remotion/hook-templates/${id}`, { method: "PUT", body: JSON.stringify(d) }),
+  deleteRemotionHookTemplate: (id) => api._req(`/api/v1/remotion/hook-templates/${id}`, { method: "DELETE" }),
+
+  getRemotionCompositions: () => api._req("/api/v1/remotion/compositions"),
+  getRemotionComposition: (id) => api._req(`/api/v1/remotion/compositions/${id}`),
+  createRemotionComposition: (d) => api._req("/api/v1/remotion/compositions", { method: "POST", body: JSON.stringify(d) }),
+  updateRemotionComposition: (id, d) => api._req(`/api/v1/remotion/compositions/${id}`, { method: "PUT", body: JSON.stringify(d) }),
+  deleteRemotionComposition: (id) => api._req(`/api/v1/remotion/compositions/${id}`, { method: "DELETE" }),
+
+  getRemotionRenderJobs: (requestLogId) => {
+    const params = requestLogId ? `?request_log_id=${requestLogId}` : ""
+    return api._req(`/api/v1/remotion/render-jobs${params}`)
+  },
+  createRemotionRenderJob: (d) => api._req("/api/v1/remotion/render-jobs", { method: "POST", body: JSON.stringify(d) }),
+  getRemotionRenderJob: (id) => api._req(`/api/v1/remotion/render-jobs/${id}`),
+  getRemotionRenderStats: () => api._req("/api/v1/remotion/render-jobs/stats"),
 };
 
 // Flatten nested hook style config into flat fields for UI use

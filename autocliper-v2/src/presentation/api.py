@@ -18,6 +18,7 @@ from ..infrastructure.repositories import RequestLogRepository
 from ..infrastructure.job_queue import job_queue, QueuedJob
 from ..infrastructure.job_logger import job_logger
 from ..infrastructure.websocket_manager import ws_manager
+from ..infrastructure.remotion_renderer import render_worker
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -89,6 +90,9 @@ async def lifespan(app: FastAPI):
     # Start background worker
     worker_task = asyncio.create_task(_queue_worker())
     
+    # Start Remotion render worker
+    render_worker_task = asyncio.create_task(render_worker.start())
+    
     # Wire WebSocket broadcaster
     loop = asyncio.get_event_loop()
     job_logger.set_ws_broadcaster(ws_manager.broadcast_job_progress, loop)
@@ -120,8 +124,14 @@ async def lifespan(app: FastAPI):
     # Shutdown
     logger.info("Shutting down AutoCliper v2...")
     worker_task.cancel()
+    render_worker.stop()
+    render_worker_task.cancel()
     try:
         await worker_task
+    except asyncio.CancelledError:
+        pass
+    try:
+        await render_worker_task
     except asyncio.CancelledError:
         pass
 

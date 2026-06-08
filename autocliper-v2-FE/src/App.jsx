@@ -6,13 +6,13 @@ import DashboardPage from './pages/DashboardPage'
 import CreatePage from './pages/CreatePage'
 import ProcessingPage from './pages/ProcessingPage'
 import LibraryPage from './pages/LibraryPage'
-import StylesPage from './pages/StylesPage'
 import UsersPage from './pages/UsersPage'
 import SettingsPage from './pages/SettingsPage'
 import QueuePage from './pages/QueuePage'
 import AnalyticsPage from './pages/AnalyticsPage'
 import StyleApplyPage from './pages/StyleApplyPage'
 import TikTokPage from './pages/TikTokPage'
+import RemotionStylesPage from './pages/RemotionStylesPage'
 import AccountsPage from './pages/AccountsPage'
 import HealthBadge from './components/HealthBadge'
 import ThemeToggle from './components/ThemeToggle'
@@ -39,7 +39,7 @@ const navItems = [
     { key: 'library', icon: 'video_library', label: 'Library' },
     { key: 'accounts', icon: 'group', label: 'Account List' },
     { key: 'analytics', icon: 'analytics', label: 'Analytics' },
-    { key: 'styles', icon: 'palette', label: 'Styles' },
+    { key: 'remotion-styles', icon: 'palette', label: 'Styles' },
     { key: 'users', icon: 'group', label: 'Users', adminOnly: true },
     { key: 'settings', icon: 'settings', label: 'Settings' },
 ]
@@ -51,11 +51,11 @@ const pageTitles = {
     library: 'Library',
     accounts: 'Account List',
     analytics: 'Analytics',
-    styles: 'Styles',
     users: 'Users',
     settings: 'Settings',
     processing: 'Processing',
-    'style-apply': 'Apply Style',
+    'style-apply': 'Re-Style',
+    'remotion-styles': 'Styles',
 }
 
 function SearchBar({ onNavigate }) {
@@ -71,7 +71,7 @@ function SearchBar({ onNavigate }) {
         { key: 'library', icon: 'video_library', label: 'Library / History', desc: 'Browse completed clips', gradient: 'from-[var(--burgundy)] to-[var(--crimson-wine)]', keywords: 'history output download clips completed' },
         { key: 'accounts', icon: 'group', label: 'Account List', desc: 'Manage social accounts', gradient: 'from-[var(--crimson-wine)] to-[var(--dark-plum)]', keywords: 'tiktok youtube facebook instagram x upload post schedule accounts social' },
         { key: 'analytics', icon: 'analytics', label: 'Analytics', desc: 'Performance insights', gradient: 'from-[var(--dark-navy)] to-[var(--deep-indigo)]', keywords: 'stats performance score engagement' },
-        { key: 'styles', icon: 'palette', label: 'Styles & Fonts', desc: 'Customize captions', gradient: 'from-[var(--dark-plum)] to-[var(--crimson-wine)]', keywords: 'caption hook font color theme design' },
+        { key: 'remotion-styles', icon: 'palette', label: 'Styles', desc: 'Remotion caption & hook templates', gradient: 'from-[var(--dark-plum)] to-[var(--crimson-wine)]', keywords: 'caption hook font color theme design remotion template composition' },
         { key: 'users', icon: 'manage_accounts', label: 'User Management', desc: 'Admin controls', gradient: 'from-[var(--deep-indigo)] to-[var(--dark-navy)]', keywords: 'admin users accounts roles' },
         { key: 'settings', icon: 'settings', label: 'Settings', desc: 'App configuration', gradient: 'from-[var(--burgundy)] to-[var(--deep-indigo)]', keywords: 'config profile password pipeline storage' },
     ]
@@ -617,7 +617,7 @@ function App() {
                 {page === 'library' && <LibraryPage onViewProgress={handleViewProgress} onApplyStyle={handleApplyStyle} />}
                 {page === 'accounts' && <AccountsPage />}
                 {page === 'analytics' && <AnalyticsPage />}
-                {page === 'styles' && <StylesPage />}
+                {page === 'remotion-styles' && <RemotionStylesPage />}
                 {page === 'users' && <UsersPage />}
                 {page === 'settings' && <SettingsPage />}
                 {page === 'processing' && processingJob && (

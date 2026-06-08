@@ -152,6 +152,24 @@ if [ -d "$V2_DIR" ]; then
     # Create output directory
     mkdir -p tmp/output
 
+    # Run Remotion migration if table doesn't exist yet
+    if [ -f "database/migrate_remotion_templates.sql" ]; then
+        if [ -f ".env" ]; then
+            DB_HOST=$(grep "^DB_HOST" .env 2>/dev/null | cut -d= -f2 || echo "localhost")
+            DB_USER=$(grep "^DB_USER" .env 2>/dev/null | cut -d= -f2 || echo "root")
+            DB_PASS=$(grep "^DB_PASSWORD" .env 2>/dev/null | cut -d= -f2 || echo "")
+            DB_NAME=$(grep "^DB_NAME" .env 2>/dev/null | cut -d= -f2 || echo "autocliper")
+            
+            TABLE_EXISTS=$(mysql -h"$DB_HOST" -u"$DB_USER" -p"$DB_PASS" "$DB_NAME" -e "SHOW TABLES LIKE 'remotion_caption_templates'" 2>/dev/null | grep -c remotion || true)
+            if [ "${TABLE_EXISTS:-0}" -eq 0 ]; then
+                echo "  Running Remotion migration..."
+                mysql -h"$DB_HOST" -u"$DB_USER" -p"$DB_PASS" "$DB_NAME" < database/migrate_remotion_templates.sql 2>/dev/null || echo "  ⚠️  Migration failed — run manually"
+            else
+                echo "  ✅ Remotion tables exist"
+            fi
+        fi
+    fi
+
     # Download Whisper model if not exists
     if [ ! -f "models/ggml-medium.bin" ]; then
         echo "  Downloading Whisper model (ggml-medium.bin ~1.5GB)..."

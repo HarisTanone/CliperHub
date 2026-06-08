@@ -9,6 +9,7 @@ from .jobs import router as jobs_router
 from .styles import router as styles_router
 from .analytics import router as analytics_router
 from .admin import router as admin_router
+from .remotion import router as remotion_router
 
 # Main API router that includes all sub-routers
 api_router = APIRouter()
@@ -19,5 +20,6 @@ api_router.include_router(jobs_router, prefix="/jobs", tags=["Jobs"])
 api_router.include_router(styles_router, tags=["Styles"])
 api_router.include_router(analytics_router, tags=["Analytics"])
 api_router.include_router(admin_router, prefix="/admin", tags=["Admin"])
+api_router.include_router(remotion_router, prefix="/remotion", tags=["Remotion"])
 
 __all__ = ["api_router"]
