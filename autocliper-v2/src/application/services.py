@@ -8,7 +8,7 @@ from typing import List, Dict, Any, Optional
 from datetime import datetime
 
 from ..domain.entities import (
-    JobRequest, RequestLog, ClipData, CaptionStyle, 
+    JobRequest, RequestLog, ClipData, CaptionStyle, HookStyle,
     ProcessingState, ProcessingStatus, VideoInfo, SubtitleSegment
 )
 from ..infrastructure.repositories import CaptionStyleRepository, RequestLogRepository
@@ -276,11 +276,11 @@ class VideoProcessingPipeline:
                     from ..infrastructure.remotion_repository import RemotionHookTemplateRepository
                     remotion_hook = RemotionHookTemplateRepository(session).get_by_id(job_request.hook_style_id)
                     if remotion_hook:
-                        # Convert to compatible format for pipeline
-                        hook_style = type('HookStyle', (), {
-                            'id': remotion_hook.id,
-                            'name': remotion_hook.name,
-                            'config': {
+                        # Convert Remotion template to domain HookStyle entity
+                        hook_style = HookStyle(
+                            id=remotion_hook.id,
+                            name=remotion_hook.name,
+                            config={
                                 'text': {
                                     'color': remotion_hook.color or '#FFFFFF',
                                     'keyword_color': remotion_hook.keyword_color or '#FFD700',
@@ -313,7 +313,7 @@ class VideoProcessingPipeline:
                                     'fade_out': (remotion_hook.animation_out_duration or 400) / 1000,
                                 },
                             },
-                        })()
+                        )
                     else:
                         raise ValueError(f"Hook style {job_request.hook_style_id} not found")
 
@@ -1844,16 +1844,16 @@ class VideoProcessingPipeline:
                     from ..infrastructure.remotion_repository import RemotionHookTemplateRepository
                     remotion_hook = RemotionHookTemplateRepository(session).get_by_id(hook_style_id)
                     if remotion_hook:
-                        hook_style = type('HookStyle', (), {
-                            'id': remotion_hook.id, 'name': remotion_hook.name,
-                            'config': {
+                        hook_style = HookStyle(
+                            id=remotion_hook.id, name=remotion_hook.name,
+                            config={
                                 'text': {'color': remotion_hook.color or '#FFFFFF', 'keyword_color': remotion_hook.keyword_color or '#FFD700', 'font_size_normal': remotion_hook.font_size_normal or 36, 'font_size_keyword': remotion_hook.font_size_keyword or 56, 'fallback_font': remotion_hook.font_family or ''},
                                 'shadow': {'enable': remotion_hook.shadow_enabled if remotion_hook.shadow_enabled is not None else True, 'blur': remotion_hook.shadow_blur or 12, 'color': remotion_hook.shadow_color or '#000000', 'opacity': 180, 'offset_y': remotion_hook.shadow_offset_y or 3},
                                 'keyword': {'underline': {'color': remotion_hook.keyword_underline_color or '#FFD700', 'opacity': 200 if remotion_hook.keyword_underline_enabled else 0, 'thickness': remotion_hook.keyword_underline_thickness or 3}},
                                 'box': {'enable': remotion_hook.box_enabled or False, 'color': remotion_hook.box_color or '#000000', 'opacity': int((remotion_hook.box_opacity or 0) * 255), 'padding': remotion_hook.box_padding or 0},
                                 'animation': {'fade_in': (remotion_hook.animation_in_duration or 400) / 1000, 'fade_out': (remotion_hook.animation_out_duration or 400) / 1000},
                             },
-                        })()
+                        )
                     else:
                         raise ValueError(f"Hook style {hook_style_id} not found")
             
