@@ -731,6 +731,30 @@ class VideoProcessingPipeline:
                     shutil.copy2(clipped_video_path, raw_output_path)
                     logger.info(f"  ✅ Raw clip saved: {raw_output_path}")
                     
+                    # Save metadata EARLY (before rendering) so re-style always has subtitle data
+                    import json as _json
+                    metadata = {
+                        "clip_index": clip_index,
+                        "start_time": clip.start_time,
+                        "end_time": clip.end_time,
+                        "duration": duration,
+                        "hook": clip.hook,
+                        "score": clip.score,
+                        "scores": clip.scores.to_dict() if hasattr(clip, 'scores') and clip.scores else None,
+                        "keywords": clip.keywords if hasattr(clip, 'keywords') else [],
+                        "hashtags": [f"#{kw.lower()}" for kw in (clip.keywords if hasattr(clip, 'keywords') else [])],
+                        "reason": clip.reason if hasattr(clip, 'reason') else "",
+                        "subtitles": subtitles,  # Original subtitles (full word-level data from Whisper)
+                        "base_video": f"clip_{clip_index}_base.mp4",
+                        "final_video": f"clip_{clip_index}_final.mp4",
+                        "raw_video": f"clip_{clip_index}_raw.mp4",
+                        "thumbnail": f"clip_{clip_index}_thumb.jpg",
+                    }
+                    metadata_path = os.path.join(output_dir, f"clip_{clip_index}_metadata.json")
+                    with open(metadata_path, 'w', encoding='utf-8') as mf:
+                        _json.dump(metadata, mf, ensure_ascii=False, indent=2)
+                    logger.info(f"  ✅ Metadata saved (early): {metadata_path}")
+                    
                     # Step 7: Single-pass crop + overlay for FINAL clip
                     logger.info(f"  [7/7] Single-pass rendering (crop + overlay → final)")
                     job_logger.log(f"  [Clip {clip_index}] Rendering final clip (hook + captions)")
@@ -1918,6 +1942,37 @@ class VideoProcessingPipeline:
                 # Use raw source video for best quality re-render
                 raw_path = os.path.join(video_dir, f"clip_{clip_index}_raw.mp4")
                 base_path = os.path.join(video_dir, meta['base_video'])
+                
+                # Re-generate subtitles from Whisper if empty (legacy/crashed jobs)
+                if not subtitles and (os.path.exists(raw_path) or os.path.exists(base_path)):
+                    source_for_whisper = raw_path if os.path.exists(raw_path) else base_path
+                    logger.info(f"  [Clip {clip_index}] Subtitles empty — regenerating from Whisper...")
+                    job_logger.log(f"  [Clip {clip_index}] Regenerating subtitles from audio...")
+                    try:
+                        # Extract audio from source
+                        import subprocess
+                        audio_tmp = os.path.join(video_dir, f"clip_{clip_index}_audio_tmp.wav")
+                        subprocess.run([
+                            'ffmpeg', '-y', '-i', source_for_whisper,
+                            '-vn', '-acodec', 'pcm_s16le', '-ar', '16000', '-ac', '1',
+                            audio_tmp
+                        ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
+                        
+                        subtitles = self.whisper_service.generate_subtitles(audio_tmp)
+                        logger.info(f"  [Clip {clip_index}] ✅ Whisper regenerated: {len(subtitles)} segments")
+                        job_logger.log(f"  [Clip {clip_index}] ✅ Subtitles regenerated: {len(subtitles)} segments")
+                        
+                        # Update metadata file with new subtitles for future re-styles
+                        meta['subtitles'] = subtitles
+                        with open(metadata_path, 'w', encoding='utf-8') as f:
+                            json.dump(meta, f, ensure_ascii=False, indent=2)
+                        
+                        # Clean up temp audio
+                        if os.path.exists(audio_tmp):
+                            os.remove(audio_tmp)
+                    except Exception as whisper_err:
+                        logger.warning(f"  [Clip {clip_index}] ⚠️ Whisper fallback failed: {whisper_err}")
+                        subtitles = []
                 
                 # Calculate hook duration
                 hook_duration = _calculate_hook_duration(hook_text)
