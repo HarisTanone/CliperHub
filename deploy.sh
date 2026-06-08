@@ -156,20 +156,30 @@ if [ -d "$V2_DIR" ]; then
     if [ -f "database/migrate_remotion_templates.sql" ]; then
         if [ -f ".env" ]; then
             # Parse DATABASE_URL format: mysql+pymysql://user:pass@host:port/dbname
-            DB_URL_RAW=$(grep "^DATABASE_URL" .env 2>/dev/null | cut -d= -f2-)
+            DB_URL_RAW=$(grep "^DATABASE_URL" .env 2>/dev/null | sed 's/^DATABASE_URL=//')
             if [ -n "$DB_URL_RAW" ]; then
-                DB_USER_PASS=$(echo "$DB_URL_RAW" | sed -E 's|.*://([^@]+)@.*|\1|')
-                DB_USER_PARSED=$(echo "$DB_USER_PASS" | cut -d: -f1)
-                DB_PASS_PARSED=$(echo "$DB_USER_PASS" | cut -d: -f2-)
-                DB_HOST_PORT=$(echo "$DB_URL_RAW" | sed -E 's|.*@([^/]+)/.*|\1|')
-                DB_HOST_PARSED=$(echo "$DB_HOST_PORT" | cut -d: -f1)
-                DB_PORT_PARSED=$(echo "$DB_HOST_PORT" | cut -d: -f2)
-                DB_NAME_PARSED=$(echo "$DB_URL_RAW" | sed -E 's|.*/([^?]+).*|\1|')
+                # Use Python to parse URL safely (handles special chars in password)
+                TABLE_EXISTS=$(python3 -c "
+import urllib.parse, subprocess, sys
+url = '$DB_URL_RAW'
+parts = urllib.parse.urlparse(url.replace('mysql+pymysql://', 'mysql://'))
+cmd = ['mysql', '-h', parts.hostname or 'localhost', '-P', str(parts.port or 3306), '-u', parts.username or 'root', f'-p{urllib.parse.unquote(parts.password or \"\")}', parts.path.lstrip('/'), '-N', '-e', \"SHOW TABLES LIKE 'remotion_caption_templates'\"]
+r = subprocess.run(cmd, capture_output=True, text=True)
+print('1' if 'remotion' in r.stdout else '0')
+" 2>/dev/null || echo "0")
                 
-                TABLE_EXISTS=$(mysql -h"$DB_HOST_PARSED" -P"${DB_PORT_PARSED:-3306}" -u"$DB_USER_PARSED" -p"$DB_PASS_PARSED" "$DB_NAME_PARSED" -N -e "SHOW TABLES LIKE 'remotion_caption_templates'" 2>/dev/null | grep -c remotion || true)
-                if [ "${TABLE_EXISTS:-0}" -eq 0 ]; then
+                if [ "${TABLE_EXISTS:-0}" = "0" ]; then
                     echo "  Running Remotion migration..."
-                    mysql -h"$DB_HOST_PARSED" -P"${DB_PORT_PARSED:-3306}" -u"$DB_USER_PARSED" -p"$DB_PASS_PARSED" "$DB_NAME_PARSED" < database/migrate_remotion_templates.sql 2>/dev/null && echo "  ✅ Remotion migration complete" || echo "  ⚠️  Migration failed — run manually: mysql -u USER -p DB < database/migrate_remotion_templates.sql"
+                    python3 -c "
+import urllib.parse, subprocess
+url = '$DB_URL_RAW'
+parts = urllib.parse.urlparse(url.replace('mysql+pymysql://', 'mysql://'))
+cmd = ['mysql', '-h', parts.hostname or 'localhost', '-P', str(parts.port or 3306), '-u', parts.username or 'root', f'-p{urllib.parse.unquote(parts.password or \"\")}', parts.path.lstrip('/')]
+with open('database/migrate_remotion_templates.sql') as f:
+    r = subprocess.run(cmd, stdin=f, capture_output=True, text=True)
+    if r.returncode == 0: print('  ✅ Remotion migration complete')
+    else: print(f'  ⚠️  Migration failed: {r.stderr[:100]}')
+" 2>/dev/null || echo "  ⚠️  Migration check failed (non-critical if tables exist)"
                 else
                     echo "  ✅ Remotion tables exist"
                 fi
