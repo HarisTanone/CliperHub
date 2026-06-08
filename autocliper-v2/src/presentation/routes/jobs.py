@@ -235,19 +235,9 @@ async def create_job(
         if not unique_urls:
             raise HTTPException(status_code=400, detail="No valid URLs provided")
 
-        # Validate caption style (support both legacy and Remotion)
+        # Get effective IDs (support both legacy caption_style and new caption_template_id)
         caption_id = request.effective_caption_id
         hook_id = request.effective_hook_id
-        
-        if caption_id:
-            session = database.get_session()
-            try:
-                # Try Remotion template first, then legacy caption style
-                from ..routes.remotion import remotion_repo_class
-                style = CaptionStyleRepository(session).get_by_id(caption_id)
-                # Allow even if not found in old table — might be Remotion template
-            finally:
-                session.close()
         
         # Process each URL
         results = []
