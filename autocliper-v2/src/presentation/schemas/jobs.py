@@ -7,8 +7,18 @@ from typing import Optional, List, Dict, Any
 
 class JobRequestModel(BaseModel):
     urls: str  # Single URL or newline/comma-separated multiple URLs
-    caption_style: int
-    hook_style_id: Optional[int] = None
+    caption_style: Optional[int] = None  # Legacy field (FFmpeg)
+    caption_template_id: Optional[int] = None  # Remotion template
+    hook_style_id: Optional[int] = None  # Legacy field (FFmpeg)
+    hook_template_id: Optional[int] = None  # Remotion template
+
+    @property
+    def effective_caption_id(self) -> Optional[int]:
+        return self.caption_template_id or self.caption_style
+
+    @property
+    def effective_hook_id(self) -> Optional[int]:
+        return self.hook_template_id or self.hook_style_id
 
 
 class BatchJobResponse(BaseModel):
@@ -79,8 +89,18 @@ class JobStatusResponse(BaseModel):
 
 class AnalyzeRequest(BaseModel):
     url: str
-    caption_style: int
+    caption_style: Optional[int] = None
+    caption_template_id: Optional[int] = None
     hook_style_id: Optional[int] = None
+    hook_template_id: Optional[int] = None
+
+    @property
+    def effective_caption_id(self) -> Optional[int]:
+        return self.caption_template_id or self.caption_style
+
+    @property
+    def effective_hook_id(self) -> Optional[int]:
+        return self.hook_template_id or self.hook_style_id
 
 
 class ClipCandidate(BaseModel):
@@ -105,19 +125,39 @@ class ProcessSelectedRequest(BaseModel):
     selected_indices: List[int]
     edited_hooks: Optional[Dict[int, str]] = None
     caption_style: Optional[int] = None
+    caption_template_id: Optional[int] = None
     hook_style_id: Optional[int] = None
+    hook_template_id: Optional[int] = None
+
+    @property
+    def effective_caption_id(self) -> Optional[int]:
+        return self.caption_template_id or self.caption_style
+
+    @property
+    def effective_hook_id(self) -> Optional[int]:
+        return self.hook_template_id or self.hook_style_id
 
 
 # ─── Preview ─────────────────────────────────────────────────────────────────
 
 class PreviewRequest(BaseModel):
     video_path: str
-    caption_style_id: int
+    caption_style_id: Optional[int] = None  # Legacy
+    caption_template_id: Optional[int] = None  # Remotion
     hook_style_id: Optional[int] = None
+    hook_template_id: Optional[int] = None
     clip_index: int = 1
     text_preview: Optional[str] = None
     start_time: float = 0
     duration: float = 5
+
+    @property
+    def effective_caption_id(self) -> Optional[int]:
+        return self.caption_template_id or self.caption_style_id
+
+    @property
+    def effective_hook_id(self) -> Optional[int]:
+        return self.hook_template_id or self.hook_style_id
 
 
 class PreviewResponse(BaseModel):
@@ -140,8 +180,18 @@ class BaseProcessResponse(BaseModel):
 
 
 class ApplyStyleRequest(BaseModel):
-    caption_style_id: int
-    hook_style_id: Optional[int] = None
+    caption_style_id: Optional[int] = None  # Legacy
+    caption_template_id: Optional[int] = None  # Remotion
+    hook_style_id: Optional[int] = None  # Legacy
+    hook_template_id: Optional[int] = None  # Remotion
+
+    @property
+    def effective_caption_id(self) -> Optional[int]:
+        return self.caption_template_id or self.caption_style_id
+
+    @property
+    def effective_hook_id(self) -> Optional[int]:
+        return self.hook_template_id or self.hook_style_id
 
 
 class ApplyStyleResponse(BaseModel):

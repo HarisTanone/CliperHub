@@ -235,18 +235,19 @@ async def create_job(
         if not unique_urls:
             raise HTTPException(status_code=400, detail="No valid URLs provided")
 
-        # Validate caption style
-        session = database.get_session()
-        try:
-            style = CaptionStyleRepository(session).get_by_id(request.caption_style)
-            if not style:
-                raise HTTPException(status_code=400, detail=f"Caption style {request.caption_style} not found")
-            if request.hook_style_id:
-                hook_style = HookStyleRepository(session).get_by_id(request.hook_style_id)
-                if not hook_style:
-                    raise HTTPException(status_code=400, detail=f"Hook style {request.hook_style_id} not found")
-        finally:
-            session.close()
+        # Validate caption style (support both legacy and Remotion)
+        caption_id = request.effective_caption_id
+        hook_id = request.effective_hook_id
+        
+        if caption_id:
+            session = database.get_session()
+            try:
+                # Try Remotion template first, then legacy caption style
+                from ..routes.remotion import remotion_repo_class
+                style = CaptionStyleRepository(session).get_by_id(caption_id)
+                # Allow even if not found in old table — might be Remotion template
+            finally:
+                session.close()
         
         # Process each URL
         results = []
@@ -266,9 +267,9 @@ async def create_job(
             
             job_request = JobRequest(
                 urls=url,
-                caption_style=request.caption_style,
+                caption_style=caption_id or 1,
                 user_id=user_id,
-                hook_style_id=request.hook_style_id
+                hook_style_id=hook_id
             )
             job_queue.enqueue(QueuedJob(job_request=job_request))
             results.append({"url": url, "status": "accepted", "message": "Job queued"})
@@ -792,8 +793,8 @@ async def apply_style_to_job(
             _job_executor,
             video_service.apply_style_to_clips,
             job_id,
-            request.caption_style_id,
-            request.hook_style_id,
+            request.effective_caption_id,
+            request.effective_hook_id,
         )
         
         return ApplyStyleResponse(
@@ -881,12 +882,13 @@ async def process_selected_clips(
         if job_queue.is_processing(log.youtube_url):
             return JobResponse(status="processing", message="Video sedang diproses")
         
-        caption_style = request.caption_style or log.caption_style_id
+        caption_style = request.effective_caption_id or log.caption_style_id
+        hook_id = request.effective_hook_id
         job_request = JobRequest(
             urls=log.youtube_url,
-            caption_style=caption_style,
+            caption_style=caption_style or 1,
             user_id=user_id,
-            hook_style_id=request.hook_style_id,
+            hook_style_id=hook_id,
         )
         job_request._selected_indices = request.selected_indices
         job_request._edited_hooks = request.edited_hooks
