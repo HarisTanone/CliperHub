@@ -205,6 +205,7 @@ class ChunkResult:
     candidates: List[ClipData] = field(default_factory=list)
     error: Optional[str] = None
     retries_used: int = 0
+    used_fallback: bool = False  # True when fallback provider produced the result
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -768,6 +769,7 @@ class ProviderExecutor:
                         success=True,
                         candidates=valid_candidates,
                         retries_used=max_retries,
+                        used_fallback=True,
                     )
                 else:
                     logger.warning(f"  ⚠️ Chunk {chunk.chunk_id}: {fallback_name} also returned 0 valid candidates")
@@ -848,15 +850,25 @@ class ProviderExecutor:
     # ─── Helpers ─────────────────────────────────────────────────────────────
     def _validate_candidates(self, candidates: List[ClipData],
                              chunk: 'TranscriptChunk') -> List[ClipData]:
-        """Validate candidate timestamps are within chunk bounds (5s tolerance)."""
+        """Validate candidate timestamps are within chunk bounds.
+        
+        Chunk 1 gets extra tolerance because models often generate timestamps
+        slightly before the chunk start (e.g., -0.5s for chunk starting at 0s).
+        """
+        # Chunk 1 (starts at 0s) needs more tolerance — models often output
+        # timestamps slightly off at the beginning of the video
+        tolerance = 30 if chunk.chunk_id == 1 else 10
+        
         valid = []
         for c in candidates:
-            if c.start_time >= (chunk.start_time - 5) and c.end_time <= (chunk.end_time + 5):
+            if (c.start_time >= (chunk.start_time - tolerance) and 
+                c.end_time <= (chunk.end_time + tolerance)):
                 valid.append(c)
             else:
                 logger.debug(f"  Discarded out-of-bounds candidate: "
                              f"{c.start_time:.0f}-{c.end_time:.0f}s "
-                             f"(chunk: {chunk.start_time:.0f}-{chunk.end_time:.0f}s)")
+                             f"(chunk: {chunk.start_time:.0f}-{chunk.end_time:.0f}s, "
+                             f"tolerance: {tolerance}s)")
         return valid
     
     def _is_retriable_error(self, error_str: str) -> bool:
@@ -922,13 +934,21 @@ class ChunkedAnalysisPipeline:
         """
         self._progress = progress_callback or (lambda msg: None)
         self.job_id = job_id
-        self.chunk_builder = TranscriptChunkBuilder()
         self.aggregator = CandidateAggregator()
         self.max_final = CHUNK_CONFIG["max_final_clips"]
         
         # Resolve configuration (env vars + availability check)
         self.config = self._resolve_config()
         self.max_concurrent = self.config.max_concurrent_chunks
+        
+        # Adjust chunk size for Qwen primary (shorter chunks = better compliance)
+        if self.config.mode == PipelineMode.HYBRID:
+            self.chunk_builder = TranscriptChunkBuilder(
+                target_words=2000,   # Half size for Qwen — better instruction following
+                overlap_words=150,
+            )
+        else:
+            self.chunk_builder = TranscriptChunkBuilder()
         
         # Initialize executor
         self.executor = ProviderExecutor(
@@ -1214,7 +1234,6 @@ class ChunkedAnalysisPipeline:
     # ─── Summary Builder ─────────────────────────────────────────────────────
     def _build_summary(self, chunk_results: List[ChunkResult]) -> PassExecutionSummary:
         """Build execution summary from chunk results."""
-        max_retries = CHUNK_CONFIG["retry_max"]
         primary_success = 0
         fallback_success = 0
         failed = 0
@@ -1223,7 +1242,7 @@ class ChunkedAnalysisPipeline:
         
         for r in chunk_results:
             if r.success:
-                if r.retries_used >= max_retries:
+                if r.used_fallback:
                     fallback_success += 1
                 else:
                     primary_success += 1
