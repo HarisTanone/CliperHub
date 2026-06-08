@@ -155,17 +155,26 @@ if [ -d "$V2_DIR" ]; then
     # Run Remotion migration if table doesn't exist yet
     if [ -f "database/migrate_remotion_templates.sql" ]; then
         if [ -f ".env" ]; then
-            DB_HOST=$(grep "^DB_HOST" .env 2>/dev/null | cut -d= -f2 || echo "localhost")
-            DB_USER=$(grep "^DB_USER" .env 2>/dev/null | cut -d= -f2 || echo "root")
-            DB_PASS=$(grep "^DB_PASSWORD" .env 2>/dev/null | cut -d= -f2 || echo "")
-            DB_NAME=$(grep "^DB_NAME" .env 2>/dev/null | cut -d= -f2 || echo "autocliper")
-            
-            TABLE_EXISTS=$(mysql -h"$DB_HOST" -u"$DB_USER" -p"$DB_PASS" "$DB_NAME" -e "SHOW TABLES LIKE 'remotion_caption_templates'" 2>/dev/null | grep -c remotion || true)
-            if [ "${TABLE_EXISTS:-0}" -eq 0 ]; then
-                echo "  Running Remotion migration..."
-                mysql -h"$DB_HOST" -u"$DB_USER" -p"$DB_PASS" "$DB_NAME" < database/migrate_remotion_templates.sql 2>/dev/null || echo "  ⚠️  Migration failed — run manually"
+            # Parse DATABASE_URL format: mysql+pymysql://user:pass@host:port/dbname
+            DB_URL_RAW=$(grep "^DATABASE_URL" .env 2>/dev/null | cut -d= -f2-)
+            if [ -n "$DB_URL_RAW" ]; then
+                DB_USER_PASS=$(echo "$DB_URL_RAW" | sed -E 's|.*://([^@]+)@.*|\1|')
+                DB_USER_PARSED=$(echo "$DB_USER_PASS" | cut -d: -f1)
+                DB_PASS_PARSED=$(echo "$DB_USER_PASS" | cut -d: -f2-)
+                DB_HOST_PORT=$(echo "$DB_URL_RAW" | sed -E 's|.*@([^/]+)/.*|\1|')
+                DB_HOST_PARSED=$(echo "$DB_HOST_PORT" | cut -d: -f1)
+                DB_PORT_PARSED=$(echo "$DB_HOST_PORT" | cut -d: -f2)
+                DB_NAME_PARSED=$(echo "$DB_URL_RAW" | sed -E 's|.*/([^?]+).*|\1|')
+                
+                TABLE_EXISTS=$(mysql -h"$DB_HOST_PARSED" -P"${DB_PORT_PARSED:-3306}" -u"$DB_USER_PARSED" -p"$DB_PASS_PARSED" "$DB_NAME_PARSED" -N -e "SHOW TABLES LIKE 'remotion_caption_templates'" 2>/dev/null | grep -c remotion || true)
+                if [ "${TABLE_EXISTS:-0}" -eq 0 ]; then
+                    echo "  Running Remotion migration..."
+                    mysql -h"$DB_HOST_PARSED" -P"${DB_PORT_PARSED:-3306}" -u"$DB_USER_PARSED" -p"$DB_PASS_PARSED" "$DB_NAME_PARSED" < database/migrate_remotion_templates.sql 2>/dev/null && echo "  ✅ Remotion migration complete" || echo "  ⚠️  Migration failed — run manually: mysql -u USER -p DB < database/migrate_remotion_templates.sql"
+                else
+                    echo "  ✅ Remotion tables exist"
+                fi
             else
-                echo "  ✅ Remotion tables exist"
+                echo "  ⚠️  DATABASE_URL not found in .env — skip migration"
             fi
         fi
     fi
