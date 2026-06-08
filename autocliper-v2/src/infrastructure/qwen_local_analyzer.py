@@ -202,6 +202,89 @@ class QwenLocalAnalyzer(IAIAnalyzer):
         logger.warning(f"[QwenLocal] Pass #1 chunk {chunk_id}: All {max_retries} attempts returned 0 candidates")
         return []
     
+    def analyze_candidates_enforce_duration(self, transcript_chunk: str, metadata: Dict[str, Any],
+                                            chunk_id: int, chunk_start_time: float,
+                                            min_duration: float = 30.0) -> List[ClipData]:
+        """Pass #1 retry with aggressive duration-enforcement prompt.
+        
+        Called when normal analyze_candidates returns clips that are too short.
+        Uses a redesigned prompt that heavily emphasizes minimum duration,
+        with explicit rejection examples and extended few-shot anchoring.
+        """
+        max_candidates = QWEN_CONFIG.get("max_candidates_pass1", 5)
+        
+        # Truncate transcript
+        max_chars = 8000
+        if len(transcript_chunk) > max_chars:
+            transcript_chunk = transcript_chunk[:max_chars]
+        
+        # Calculate chunk end time estimate (chunk usually covers ~300-400s)
+        chunk_end_estimate = chunk_start_time + 900
+        
+        user_prompt = f"""TASK: Find {max_candidates} LONG viral moments in this video transcript.
+
+⚠️ CRITICAL DURATION REQUIREMENT ⚠️
+- EVERY clip MUST be AT LEAST {int(min_duration)} seconds long (end_time - start_time >= {int(min_duration)})
+- Target duration: 45-90 seconds per clip
+- If a moment is shorter than {int(min_duration)}s, EXTEND it by including surrounding context
+- Clips shorter than {int(min_duration)}s will be REJECTED and cause system failure
+
+VIDEO: "{metadata.get('title', 'Unknown')}" (total {metadata.get('duration', 0)}s)
+CHUNK: #{chunk_id} (starts at {chunk_start_time:.0f}s)
+
+CORRECT EXAMPLE (duration = 175 - 120 = 55 seconds ✅):
+{{"status":200,"chunk_id":{chunk_id},"candidates":[{{"start_time":{chunk_start_time + 20:.0f},"end_time":{chunk_start_time + 75:.0f},"viral_score":0.85,"curiosity_score":0.7,"emotion_score":0.6,"controversy_score":0.4,"story_score":0.8,"brief_reason":"speaker reveals unexpected fact about topic"}}]}}
+
+WRONG EXAMPLE (REJECTED - only 27 seconds):
+{{"start_time":78.0,"end_time":105.0}} ← REJECTED! 105-78=27s < {int(min_duration)}s
+
+RULES:
+- MINIMUM duration: {int(min_duration)} seconds (HARD REQUIREMENT)
+- MAXIMUM duration: 90 seconds
+- Combine nearby short moments into one longer clip if needed
+- Include the buildup/context BEFORE the viral moment
+- Include the reaction/resolution AFTER the peak moment
+- Timestamps must be ABSOLUTE (from video start)
+- Timestamps within range {chunk_start_time:.0f}s - {chunk_end_estimate:.0f}s
+- Scores: 0.0 to 1.0
+- brief_reason: 5-15 words
+
+DURATION CHECK (do this for each candidate before outputting):
+  ✅ end_time - start_time >= {int(min_duration)} → INCLUDE
+  ❌ end_time - start_time < {int(min_duration)} → EXTEND or REMOVE
+
+TRANSCRIPT:
+---
+{transcript_chunk}
+---
+
+Return ONLY valid JSON. No other text."""
+
+        logger.info(f"[QwenLocal] Pass #1 chunk {chunk_id} — duration-enforced retry (min {min_duration}s)...")
+        start = time.time()
+        
+        try:
+            output = self._chat(
+                system_prompt=SYSTEM_PROMPT_PASS1,
+                user_prompt=user_prompt,
+                max_tokens=QWEN_CONFIG["num_predict_pass1"] + 500,
+                temperature=0.3,  # slightly higher for creative extension
+            )
+            elapsed = time.time() - start
+            logger.info(f"[QwenLocal] Pass #1 chunk {chunk_id} duration-enforced — "
+                       f"response in {elapsed:.1f}s ({len(output)} chars)")
+            
+            candidates = self._parse_pass1_response(output, chunk_id)
+            if candidates:
+                logger.info(f"[QwenLocal] Pass #1 chunk {chunk_id} duration-enforced: "
+                           f"✅ {len(candidates)} candidates")
+                return candidates
+            
+        except Exception as e:
+            logger.error(f"[QwenLocal] Pass #1 chunk {chunk_id} duration-enforced error: {e}")
+        
+        return []
+    
     def rank_candidates(self, candidates: List[ClipData], metadata: Dict[str, Any],
                         transcript_snippets: Dict[int, str]) -> List[ClipData]:
         """Pass #2: Final ranking with hooks and keywords."""

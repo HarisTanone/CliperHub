@@ -759,6 +759,42 @@ class ProviderExecutor:
                 )
                 break
 
+        # ─── Duration enforcement retry (edge chunks) ────────────────────────
+        # Chunk 1 and last chunks often produce short clips because intro/outro
+        # content is "thin". Retry with aggressive duration-enforcement prompt.
+        if (is_local_primary
+            and "0 valid candidates" in last_error
+            and hasattr(primary, 'analyze_candidates_enforce_duration')):
+            logger.info(f"  🔁 Chunk {chunk.chunk_id}: Retrying with duration-enforced prompt "
+                       f"(min {min_duration}s)...")
+            try:
+                candidates = primary.analyze_candidates_enforce_duration(
+                    transcript_chunk  = transcript_text,
+                    metadata          = metadata,
+                    chunk_id          = chunk.chunk_id,
+                    chunk_start_time  = chunk.start_time,
+                    min_duration      = min_duration,
+                )
+
+                valid_candidates = self._validate_candidates(candidates, chunk)
+                valid_candidates = [c for c in valid_candidates
+                                   if (c.end_time - c.start_time) >= min_duration]
+
+                if valid_candidates:
+                    logger.info(f"  ✅ Chunk {chunk.chunk_id}: Duration-enforced retry succeeded "
+                               f"({len(valid_candidates)} candidates)")
+                    return ChunkResult(
+                        chunk_id     = chunk.chunk_id,
+                        success      = True,
+                        candidates   = valid_candidates,
+                        retries_used = max_retries + 1,
+                    )
+                else:
+                    logger.warning(f"  ⚠️ Chunk {chunk.chunk_id}: Duration-enforced retry "
+                                  f"still returned 0 valid candidates")
+            except Exception as e:
+                logger.warning(f"  ⚠️ Chunk {chunk.chunk_id}: Duration-enforced retry failed: {e}")
+
         # ─── Try fallback provider ───────────────────────────────────────────
         if fallback:
             try:
