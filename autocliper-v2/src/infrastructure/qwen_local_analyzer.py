@@ -1,17 +1,17 @@
 """
-Qwen Local Analyzer — Local AI fallback via Ollama (qwen3:4b)
+Local AI Analyzer — Local AI fallback via Ollama (mistral-nemo:12b)
 
 Used as automatic fallback when Gemini API fails (429, 503, quota exceeded).
+Also used as primary for Pass #1 in Hybrid Mode.
 Connects to local Ollama server at http://localhost:11434.
 
 Performance:
-  - Pass #1: ~60s per chunk (vs Gemini ~3s)
-  - Pass #2: ~45s (vs Gemini ~3s)
+  - Pass #1: ~60-120s per chunk (vs Gemini ~3s)
+  - Pass #2: ~45-90s (vs Gemini ~3s)
   - Total for 5 chunks: ~6-8 minutes (vs Gemini ~30s)
   - But: FREE, no quota limits, works offline
 
-Key settings for qwen3:
-  - think: False  → disables reasoning/thinking mode (critical for speed)
+Key settings for mistral-nemo:
   - format: json  → forces JSON-only output
   - temperature: 0.3 → low creativity, high accuracy
 """
@@ -34,19 +34,19 @@ logger = logging.getLogger(__name__)
 # ─────────────────────────────────────────────────────────────────────────────
 QWEN_CONFIG = {
     "base_url": os.getenv("OLLAMA_URL", "http://localhost:11434"),
-    "model": os.getenv("QWEN_MODEL", "qwen2.5:14b"),  # Default: qwen2.5:14b
+    "model": os.getenv("QWEN_MODEL", "mistral-nemo:12b"),  # Default: mistral-nemo:12b
     "temperature": 0.3,
     "num_predict_pass1": 3000,
     "num_predict_pass2": 4000,
     "timeout": 300,              # 5 minutes (configurable via QWEN_TIMEOUT)
-    "think": False,              # disable thinking mode
+    "think": False,              # disable thinking mode (not used by mistral-nemo but kept for compat)
     "max_candidates_pass1": 10,
     "retry_on_parse_fail": 2,
 }
 
 
 class QwenLocalAnalyzer(IAIAnalyzer):
-    """Local Qwen2.5:14b implementation via Ollama for chunked multi-pass analysis.
+    """Local Mistral-Nemo 12B implementation via Ollama for chunked multi-pass analysis.
     
     Acts as fallback when Gemini is unavailable, or as primary for Pass #1 in hybrid mode.
     Produces identical JSON format to GeminiChunkedAnalyzer.
@@ -209,11 +209,12 @@ class QwenLocalAnalyzer(IAIAnalyzer):
     def _build_pass1_prompt(self, metadata: Dict[str, Any], chunk_id: int,
                             chunk_start_time: float, transcript_chunk: str) -> str:
         """Build Pass #1 prompt — adaptive based on model size."""
-        max_candidates = QWEN_CONFIG.get("max_candidates_pass1", 5)
+        max_candidates = QWEN_CONFIG.get("max_candidates_pass1", 10)
         model = QWEN_CONFIG["model"].lower()
         
         # Determine if model is "large" (>= 8B) or "small" (< 8B)
-        is_large_model = any(size in model for size in ['8b', '14b', '32b', '70b', '72b'])
+        # mistral-nemo:12b, qwen2.5:14b+ → large
+        is_large_model = any(size in model for size in ['8b', '12b', '14b', '32b', '70b', '72b', 'nemo'])
         
         if is_large_model:
             # Large model: can handle full transcript + complex instructions
@@ -278,7 +279,7 @@ Transcript:
     # ─── Pass #2 Prompt (optimized for smaller model) ────────────────────────
     def _build_pass2_prompt(self, metadata: Dict[str, Any], candidates: List[ClipData],
                             transcript_snippets: Dict[int, str]) -> str:
-        """Build Pass #2 prompt optimized for qwen3:4b."""
+        """Build Pass #2 prompt optimized for local model."""
         # Build compact candidate list
         candidate_lines = []
         for i, clip in enumerate(candidates):

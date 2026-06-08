@@ -11,7 +11,7 @@
 #   3. MySQL connection check
 #   4. autocliper-v2 setup (backend, port 8000)
 #   5. autocliper-automate setup (social upload, port 8001)
-#   6. Ollama + Qwen2.5:14b (skip if already installed)
+#   6. Ollama + Mistral-Nemo:12b (skip if already installed)
 #   7. Systemd services + restart
 #
 # Designed to be idempotent — safe to run multiple times.
@@ -231,10 +231,10 @@ fi
 # ─── Step 6: Ollama + Qwen Setup ────────────────────────────────────────────
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "  🧠 Step 6: Ollama + Qwen2.5:14b"
+echo "  🧠 Step 6: Ollama + Mistral-Nemo:12b"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
-QWEN_MODEL="${QWEN_MODEL:-qwen2.5:14b}"
+QWEN_MODEL="${QWEN_MODEL:-mistral-nemo:12b}"
 OLLAMA_URL="${OLLAMA_URL:-http://localhost:11434}"
 
 # Install Ollama only if not present
@@ -256,7 +256,7 @@ fi
 if command -v ollama &> /dev/null; then
     AVAILABLE=$(ollama list 2>/dev/null | grep -c "$(echo $QWEN_MODEL | cut -d: -f1)" || true)
     if [ "$AVAILABLE" -eq 0 ]; then
-        echo "  Pulling $QWEN_MODEL (~9GB, be patient)..."
+        echo "  Pulling $QWEN_MODEL (~7GB, be patient)..."
         ollama pull "$QWEN_MODEL" || echo "  ⚠️  Pull failed — run: ollama pull $QWEN_MODEL"
     else
         echo "  ✅ Model $QWEN_MODEL ready"
