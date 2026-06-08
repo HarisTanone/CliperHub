@@ -216,3 +216,10 @@ NOTES.md
 *.backup
 *.tmp
 *.temp
+
+# --- ltm-power ---
+ltm/store/*.jsonl
+ltm/runtime/*
+ltm/reports/*
+ltm/snapshots/*
+# --- /ltm-power ---
