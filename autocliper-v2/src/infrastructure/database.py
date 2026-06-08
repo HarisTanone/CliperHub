@@ -63,8 +63,8 @@ class RequestLogModel(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     youtube_url = Column(String(255), nullable=False)
-    caption_style_id = Column(Integer, ForeignKey("caption_styles.id"), nullable=False)
-    hook_style_id = Column(BigInteger, ForeignKey("hook_styles.id", ondelete="SET NULL"), nullable=True)
+    caption_style_id = Column(Integer, nullable=True)  # Can be from caption_styles OR remotion_caption_templates
+    hook_style_id = Column(BigInteger, nullable=True)  # Can be from hook_styles OR remotion_hook_templates
     caption_response = Column(JSON, nullable=False)
     status = Column(String(50), default="pending")
     output_path = Column(String(500), nullable=True)

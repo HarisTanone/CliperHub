@@ -234,7 +234,7 @@ class VideoProcessingPipeline:
         video_info = None
         
         try:
-            # 1. Get caption style from database
+            # 1. Get caption style from database (try Remotion template first, then legacy)
             logger.info("Step 1: Getting caption style from database")
             self._update_status(ProcessingState.PENDING, "Getting caption style")
             job_logger.log("Getting caption style from database", "fetching_video")
@@ -242,14 +242,80 @@ class VideoProcessingPipeline:
             caption_repo = CaptionStyleRepository(session)
             caption_style = caption_repo.get_by_id(job_request.caption_style)
             if not caption_style:
-                raise ValueError(f"Caption style {job_request.caption_style} not found")
+                # Try Remotion caption template as fallback
+                from ..infrastructure.remotion_repository import RemotionCaptionTemplateRepository
+                remotion_caption = RemotionCaptionTemplateRepository(session).get_by_id(job_request.caption_style)
+                if remotion_caption:
+                    # Convert Remotion template to a compatible dict for the pipeline
+                    caption_style = type('CaptionStyle', (), {
+                        'id': remotion_caption.id,
+                        'name': remotion_caption.name,
+                        'font_family': remotion_caption.font_family,
+                        'font_weight': remotion_caption.font_weight,
+                        'font_size': remotion_caption.font_size,
+                        'color': remotion_caption.color,
+                        'highlight_color': remotion_caption.highlight_color,
+                        'outline_color': remotion_caption.outline_color or '#000000',
+                        'outline_width': remotion_caption.outline_width or 2,
+                        'shadow_color': remotion_caption.shadow_color or '#000000',
+                        'shadow_offset_x': remotion_caption.shadow_offset_x or 0,
+                        'shadow_offset_y': remotion_caption.shadow_offset_y or 2,
+                        'line_spacing': remotion_caption.line_height or 1.3,
+                        'caption_bottom_margin': remotion_caption.position_y_offset or 80,
+                        'config': remotion_caption.config or {},
+                    })()
+                else:
+                    raise ValueError(f"Caption style {job_request.caption_style} not found")
 
-            # Load hook style if provided
+            # Load hook style if provided (try Remotion template first, then legacy)
             hook_style = None
             if job_request.hook_style_id:
                 hook_style = HookStyleRepository(session).get_by_id(job_request.hook_style_id)
                 if not hook_style:
-                    raise ValueError(f"Hook style {job_request.hook_style_id} not found")
+                    # Try Remotion hook template
+                    from ..infrastructure.remotion_repository import RemotionHookTemplateRepository
+                    remotion_hook = RemotionHookTemplateRepository(session).get_by_id(job_request.hook_style_id)
+                    if remotion_hook:
+                        # Convert to compatible format for pipeline
+                        hook_style = type('HookStyle', (), {
+                            'id': remotion_hook.id,
+                            'name': remotion_hook.name,
+                            'config': {
+                                'text': {
+                                    'color': remotion_hook.color or '#FFFFFF',
+                                    'keyword_color': remotion_hook.keyword_color or '#FFD700',
+                                    'font_size_normal': remotion_hook.font_size_normal or 36,
+                                    'font_size_keyword': remotion_hook.font_size_keyword or 56,
+                                    'fallback_font': remotion_hook.font_family or '',
+                                },
+                                'shadow': {
+                                    'enable': remotion_hook.shadow_enabled if remotion_hook.shadow_enabled is not None else True,
+                                    'blur': remotion_hook.shadow_blur or 12,
+                                    'color': remotion_hook.shadow_color or '#000000',
+                                    'opacity': 180,
+                                    'offset_y': remotion_hook.shadow_offset_y or 3,
+                                },
+                                'keyword': {
+                                    'underline': {
+                                        'color': remotion_hook.keyword_underline_color or '#FFD700',
+                                        'opacity': 200 if remotion_hook.keyword_underline_enabled else 0,
+                                        'thickness': remotion_hook.keyword_underline_thickness or 3,
+                                    },
+                                },
+                                'box': {
+                                    'enable': remotion_hook.box_enabled or False,
+                                    'color': remotion_hook.box_color or '#000000',
+                                    'opacity': int((remotion_hook.box_opacity or 0) * 255),
+                                    'padding': remotion_hook.box_padding or 0,
+                                },
+                                'animation': {
+                                    'fade_in': (remotion_hook.animation_in_duration or 400) / 1000,
+                                    'fade_out': (remotion_hook.animation_out_duration or 400) / 1000,
+                                },
+                            },
+                        })()
+                    else:
+                        raise ValueError(f"Hook style {job_request.hook_style_id} not found")
 
             request_log_repo = RequestLogRepository(session)
             
@@ -1746,18 +1812,50 @@ class VideoProcessingPipeline:
             if not video_dir or not os.path.exists(video_dir):
                 raise ValueError(f"Output directory not found for job {job_id}")
             
-            # Load caption style
+            # Load caption style (try legacy first, then Remotion)
             caption_repo = CaptionStyleRepository(session)
             caption_style = caption_repo.get_by_id(caption_style_id)
             if not caption_style:
-                raise ValueError(f"Caption style {caption_style_id} not found")
+                from ..infrastructure.remotion_repository import RemotionCaptionTemplateRepository
+                remotion_caption = RemotionCaptionTemplateRepository(session).get_by_id(caption_style_id)
+                if remotion_caption:
+                    caption_style = type('CaptionStyle', (), {
+                        'id': remotion_caption.id, 'name': remotion_caption.name,
+                        'font_family': remotion_caption.font_family, 'font_weight': remotion_caption.font_weight,
+                        'font_size': remotion_caption.font_size, 'color': remotion_caption.color,
+                        'highlight_color': remotion_caption.highlight_color,
+                        'outline_color': remotion_caption.outline_color or '#000000',
+                        'outline_width': remotion_caption.outline_width or 2,
+                        'shadow_color': remotion_caption.shadow_color or '#000000',
+                        'shadow_offset_x': remotion_caption.shadow_offset_x or 0,
+                        'shadow_offset_y': remotion_caption.shadow_offset_y or 2,
+                        'line_spacing': remotion_caption.line_height or 1.3,
+                        'caption_bottom_margin': remotion_caption.position_y_offset or 80,
+                        'config': remotion_caption.config or {},
+                    })()
+                else:
+                    raise ValueError(f"Caption style {caption_style_id} not found")
             
-            # Load hook style
+            # Load hook style (try legacy first, then Remotion)
             hook_style = None
             if hook_style_id:
                 hook_style = HookStyleRepository(session).get_by_id(hook_style_id)
                 if not hook_style:
-                    raise ValueError(f"Hook style {hook_style_id} not found")
+                    from ..infrastructure.remotion_repository import RemotionHookTemplateRepository
+                    remotion_hook = RemotionHookTemplateRepository(session).get_by_id(hook_style_id)
+                    if remotion_hook:
+                        hook_style = type('HookStyle', (), {
+                            'id': remotion_hook.id, 'name': remotion_hook.name,
+                            'config': {
+                                'text': {'color': remotion_hook.color or '#FFFFFF', 'keyword_color': remotion_hook.keyword_color or '#FFD700', 'font_size_normal': remotion_hook.font_size_normal or 36, 'font_size_keyword': remotion_hook.font_size_keyword or 56, 'fallback_font': remotion_hook.font_family or ''},
+                                'shadow': {'enable': remotion_hook.shadow_enabled if remotion_hook.shadow_enabled is not None else True, 'blur': remotion_hook.shadow_blur or 12, 'color': remotion_hook.shadow_color or '#000000', 'opacity': 180, 'offset_y': remotion_hook.shadow_offset_y or 3},
+                                'keyword': {'underline': {'color': remotion_hook.keyword_underline_color or '#FFD700', 'opacity': 200 if remotion_hook.keyword_underline_enabled else 0, 'thickness': remotion_hook.keyword_underline_thickness or 3}},
+                                'box': {'enable': remotion_hook.box_enabled or False, 'color': remotion_hook.box_color or '#000000', 'opacity': int((remotion_hook.box_opacity or 0) * 255), 'padding': remotion_hook.box_padding or 0},
+                                'animation': {'fade_in': (remotion_hook.animation_in_duration or 400) / 1000, 'fade_out': (remotion_hook.animation_out_duration or 400) / 1000},
+                            },
+                        })()
+                    else:
+                        raise ValueError(f"Hook style {hook_style_id} not found")
             
             # Find all clip metadata files
             metadata_files = sorted([
