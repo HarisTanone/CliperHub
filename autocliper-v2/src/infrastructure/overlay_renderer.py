@@ -135,7 +135,15 @@ class HookRenderer:
 
     def _style_to_dict(self, hook_style: HookStyle) -> dict:
         """Convert HookStyle entity to internal style dict — all values from JSON config."""
-        cfg = hook_style.get_config()
+        # Defensive: support both get_config() method and direct config dict access
+        if hasattr(hook_style, 'get_config'):
+            cfg = hook_style.get_config()
+        elif hasattr(hook_style, 'config') and isinstance(hook_style.config, dict):
+            # Fallback: construct config with defaults manually
+            cfg = self._merge_hook_defaults(hook_style.config)
+        else:
+            # Last resort: use all defaults
+            cfg = self._merge_hook_defaults({})
         text = cfg["text"]
         shadow = cfg["shadow"]
         underline = cfg["keyword"]["underline"]
@@ -204,6 +212,58 @@ class HookRenderer:
             "position_x": position["x"],
             "position_y": position["y"],
         }
+
+    def _merge_hook_defaults(self, user_config: dict) -> dict:
+        """Merge user config with hook style defaults (same logic as HookStyle.get_config)."""
+        defaults = {
+            "text": {
+                "fontfile": "", "fallback_font": "Anton",
+                "font_size_normal": 36, "font_size_keyword": 56,
+                "color": "#FFFFFF", "keyword_color": "#FFFFFF",
+                "line_spacing": 10, "word_spacing": 12,
+                "padding_horizontal": 80, "text_transform": "uppercase",
+                "letter_spacing": 0,
+            },
+            "shadow": {
+                "enable": True, "color": "#000000", "opacity": 200,
+                "blur": 12, "alpha_multiplier": 0.3, "offset_y": 3,
+            },
+            "glow": {
+                "enable": False, "color": "#FFFFFF", "opacity": 120,
+                "radius": 8, "keyword_only": True,
+            },
+            "outline": {
+                "enable": False, "color": "#000000", "width": 2,
+                "keyword_only": False,
+            },
+            "keyword": {
+                "underline": {"color": "#FFD700", "opacity": 200, "thickness": 3, "offset_y": 6},
+                "background": {"enable": False, "color": "#000000", "opacity": 150,
+                               "padding_x": 8, "padding_y": 4, "border_radius": 6},
+                "scale": 1.0,
+            },
+            "box": {
+                "enable": False, "color": "#000000", "opacity": 0,
+                "padding": 0, "border_radius": 0, "border_color": None, "border_width": 0,
+            },
+            "animation": {"fade_in": 0.3, "fade_out": 0.3, "type": "fade"},
+            "position": {"y_ratio": 0.15, "max_width_ratio": 0.85},
+        }
+        # Deep merge user_config into defaults
+        result = {}
+        for key, default_val in defaults.items():
+            user_val = user_config.get(key, {})
+            if isinstance(default_val, dict) and isinstance(user_val, dict):
+                merged = {**default_val}
+                for k2, v2 in user_val.items():
+                    if isinstance(v2, dict) and isinstance(merged.get(k2), dict):
+                        merged[k2] = {**merged[k2], **v2}
+                    else:
+                        merged[k2] = v2
+                result[key] = merged
+            else:
+                result[key] = user_val if user_val else default_val
+        return result
 
     def _hex_to_rgb(self, hex_color: str):
         h = hex_color.lstrip('#')

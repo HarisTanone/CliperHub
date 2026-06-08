@@ -402,7 +402,13 @@ class PremiumHookRenderer:
             return frame
 
         height, width = frame.shape[:2]
-        cfg = hook_style.get_config() if hook_style else self._default_config()
+        # Defensive: support both get_config() method and direct config dict access
+        if hook_style and hasattr(hook_style, 'get_config'):
+            cfg = hook_style.get_config()
+        elif hook_style and hasattr(hook_style, 'config') and isinstance(hook_style.config, dict):
+            cfg = self._merge_config_with_defaults(hook_style.config)
+        else:
+            cfg = self._default_config()
         text_cfg = cfg["text"]
         shadow_cfg = cfg["shadow"]
         glow_cfg = cfg.get("glow", {})
@@ -663,6 +669,24 @@ class PremiumHookRenderer:
     def _default_config(self):
         from ..domain.entities import HookStyle
         return HookStyle(id=0, name="default").get_config()
+
+    def _merge_config_with_defaults(self, user_config: dict) -> dict:
+        """Merge user config dict with defaults when get_config() is unavailable."""
+        defaults = self._default_config()
+        result = {}
+        for key, default_val in defaults.items():
+            user_val = user_config.get(key, {})
+            if isinstance(default_val, dict) and isinstance(user_val, dict):
+                merged = {**default_val}
+                for k2, v2 in user_val.items():
+                    if isinstance(v2, dict) and isinstance(merged.get(k2), dict):
+                        merged[k2] = {**merged[k2], **v2}
+                    else:
+                        merged[k2] = v2
+                result[key] = merged
+            else:
+                result[key] = user_val if user_val else default_val
+        return result
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
