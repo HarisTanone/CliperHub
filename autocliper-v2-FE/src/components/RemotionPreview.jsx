@@ -37,7 +37,7 @@ function AnimatedCaption({ style, cycle }) {
     if (!style) return null
 
     const PHONE_W = 280
-    const scale = PHONE_W / 1080 * 3 // scale factor for preview
+    const scale = PHONE_W / 360 // match backend render_scale (width / 360)
 
     const normalWordStyle = buildCaptionWordStyle(style, { isHighlight: false, scale })
     const highlightWordStyle = buildCaptionWordStyle(style, { isHighlight: true, scale })
@@ -105,7 +105,7 @@ function AnimatedHook({ hookStyle }) {
 
     const hs = hookStyle
     const PHONE_W = 280
-    const scale = PHONE_W / 1080 * 2.2
+    const scale = PHONE_W / 360 // match backend render_scale (width / 360)
 
     const normalWordStyle = buildHookWordStyle(hs, { isKeyword: false, scale })
     const keywordWordStyle = buildHookWordStyle(hs, { isKeyword: true, scale })

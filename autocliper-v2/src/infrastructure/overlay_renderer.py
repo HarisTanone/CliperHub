@@ -320,9 +320,13 @@ class HookRenderer:
         fontfile = style["fontfile"]
         fallback_font = style["fallback_font"]
         
-        # Adaptive font size: scale down if text is too long for the frame
-        base_size_normal = int(style["font_size_normal"])
-        base_size_keyword = int(style["font_size_keyword"])
+        # Adaptive font size: scale to video resolution + scale down if text too long
+        # DB values (font_size_normal/keyword) are Remotion reference values designed
+        # for ~360px preview. Scale up to actual video resolution (1080px).
+        # Factor: target_width / reference_width = 1080 / 360 = 3.0
+        render_scale = width / 360.0
+        base_size_normal = int(style["font_size_normal"] * render_scale)
+        base_size_keyword = int(style["font_size_keyword"] * render_scale)
         font_scale = self._calculate_font_scale(hook_text, width, style)
 
         def _get_word_font(is_important: bool) -> ImageFont.FreeTypeFont:
@@ -564,8 +568,9 @@ class HookRenderer:
         padding = style["padding_horizontal"]
         available_width = frame_width - padding * 2
         
-        # Estimate total text width at full size
-        avg_char_width = int(style["font_size_normal"]) * 0.6  # rough estimate
+        # Estimate total text width at full size (using render-scaled values)
+        render_scale = frame_width / 360.0
+        avg_char_width = int(style["font_size_normal"] * render_scale) * 0.6
         total_chars = sum(len(w) for w in words) + word_count - 1  # spaces
         estimated_width = total_chars * avg_char_width
         

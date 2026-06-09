@@ -446,8 +446,11 @@ class PremiumHookRenderer:
         # ── Font setup ────────────────────────────────────────────────────
         fontfile = text_cfg.get("fontfile", "")
         fallback = text_cfg.get("fallback_font", "Anton")
-        size_normal = int(text_cfg.get("font_size_normal", 48))
-        size_keyword = int(text_cfg.get("font_size_keyword", 72))
+        # DB font sizes are Remotion reference values (~360px preview width)
+        # Scale to actual render resolution
+        render_scale = width / 360.0
+        size_normal = int(text_cfg.get("font_size_normal", 48) * render_scale)
+        size_keyword = int(text_cfg.get("font_size_keyword", 72) * render_scale)
         keyword_scale = keyword_cfg.get("scale", 1.0)
 
         def get_font(is_keyword: bool) -> ImageFont.FreeTypeFont:
