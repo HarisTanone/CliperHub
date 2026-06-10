@@ -1,6 +1,11 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { buildCaptionWordStyle, buildCaptionPillStyle, buildHookWordStyle, buildHookBoxStyle } from '../utils/remotionStyleUtils'
+import {
+    buildCaptionWordStyle, buildCaptionPillStyle, buildHookWordStyle, buildHookBoxStyle,
+    resolveConfig, buildLineStyle, getLineEnterVariant, buildBadgeStyle,
+    buildGradientOverlayStyle, computeSafeArea, computePosition, resolveEasing,
+    buildHighlightEffect,
+} from '../utils/remotionStyleUtils'
 
 // ═══════════════════════════════════════════════════════════════
 // REMOTION PREVIEW — Animated Phone Preview Component
@@ -69,25 +74,151 @@ function AnimatedCaption({ style, cycle }) {
                     transition={{ duration: 0.25, ease: [0.25, 0.46, 0.45, 0.94] }}
                     style={pillStyle}
                 >
-                    <span style={normalWordStyle}>{line.normal.join(' ')} </span>
-                    <motion.span
-                        style={highlightWordStyle}
-                        animate={(style.highlight_style === 'glow') ? { opacity: [1, 0.85, 1] } : {}}
-                        transition={{ duration: 1.5, repeat: Infinity, ease: 'easeInOut' }}
-                    >
-                        {line.highlight}
-                    </motion.span>
-                    {line.after.length > 0 && <span style={normalWordStyle}> {line.after.join(' ')}</span>}
+                    <span style={{ ...normalWordStyle, transition: 'color 80ms ease' }}>{line.normal.join(' ')} </span>
+                    {(() => {
+                        const hlEffect = buildHighlightEffect(style.highlight_style || 'glow', true, style)
+                        return (
+                            <motion.span
+                                key={`hl-${cycle}-${lineIdx}-${wordAnim}`}
+                                style={{ ...highlightWordStyle, ...hlEffect.style }}
+                                animate={hlEffect.animate}
+                                transition={hlEffect.transition}
+                            >
+                                {line.highlight}
+                            </motion.span>
+                        )
+                    })()}
+                    {line.after.length > 0 && <span style={{ ...normalWordStyle, transition: 'color 80ms ease' }}> {line.after.join(' ')}</span>}
                 </motion.div>
             </AnimatePresence>
         </div>
     )
 }
 
-// ─── Animated Hook Overlay ─────────────────────────────────────────────────
+// ─── Animated Hook Overlay (Composition Model — Task 2) ────────────────────
+// Supports: multi-line text, badge, stagger animations, particles, flash,
+// gradient overlays, divider, emoji row, safe area positioning, layer ordering.
+
+function AnimatedBadge({ config, scale = 1 }) {
+    if (!config?.enable) return null
+    const animCfg = config.animation || { type: 'fade', delay: 0.15, duration: 0.4 }
+    const variants = {
+        slide_left: { initial: { opacity: 0, x: -24 }, animate: { opacity: 1, x: 0 } },
+        slide_right: { initial: { opacity: 0, x: 24 }, animate: { opacity: 1, x: 0 } },
+        fade: { initial: { opacity: 0 }, animate: { opacity: 1 } },
+        pop: { initial: { opacity: 0, scale: 0.5 }, animate: { opacity: 1, scale: 1 } },
+        scale_rotate: { initial: { opacity: 0, scale: 0.4, rotate: -8 }, animate: { opacity: 1, scale: 1, rotate: 0 } },
+    }
+    const v = variants[animCfg.type] || variants.fade
+    return (
+        <motion.div
+            initial={v.initial}
+            animate={v.animate}
+            transition={{ delay: animCfg.delay ?? 0.15, duration: animCfg.duration ?? 0.4, ease: 'easeOut' }}
+            style={buildBadgeStyle(config, scale)}
+        >
+            <span style={{
+                fontFamily: config.font_family || 'Montserrat, sans-serif',
+                fontSize: `${(config.font_size || 10) * scale}px`,
+                fontWeight: 900,
+                letterSpacing: `${(config.letter_spacing || 2) * scale}px`,
+                textTransform: 'uppercase',
+                color: '#fff',
+            }}>
+                {(config.text || '').slice(0, 30)}
+            </span>
+        </motion.div>
+    )
+}
+
+function AnimatedDivider({ config }) {
+    if (!config?.enable) return null
+    const colors = (config.colors || ['#f472b6', '#c084fc', 'transparent']).slice(0, 5)
+    return (
+        <motion.div
+            initial={{ width: 0, opacity: 0 }}
+            animate={{ width: config.width || 180, opacity: 1 }}
+            transition={{ delay: config.delay || 1.1, duration: 0.7, ease: 'easeOut' }}
+            style={{ height: 2, background: `linear-gradient(90deg, ${colors.join(', ')})`, borderRadius: 2, marginTop: 8 }}
+        />
+    )
+}
+
+function AnimatedEmojiRow({ config }) {
+    if (!config?.enable) return null
+    const emojis = (config.emojis || []).slice(0, 10)
+    if (emojis.length === 0) return null
+    return (
+        <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: config.delay || 1.25, duration: 0.4 }}
+            style={{ display: 'flex', gap: 6, marginTop: 8 }}
+        >
+            {emojis.map((emoji, i) => (
+                <motion.span
+                    key={i}
+                    animate={{ y: [0, -5, 0] }}
+                    transition={{ duration: 1.6, repeat: Infinity, ease: 'easeInOut', delay: i * 0.18 }}
+                    style={{ fontSize: 18 }}
+                >
+                    {emoji}
+                </motion.span>
+            ))}
+        </motion.div>
+    )
+}
+
+function ParticleSystem({ config, scale = 1 }) {
+    if (!config?.enable) return null
+    const count = Math.min(config.count || 8, 12)
+    const colors = config.colors || ['#f472b6', '#c084fc', '#818cf8', '#fde68a']
+    const [minSize, maxSize] = config.size_range || [3, 5]
+
+    const particles = useMemo(() =>
+        Array.from({ length: count }, (_, i) => ({
+            x: Math.random() * 90 + 5,
+            size: minSize + Math.random() * (maxSize - minSize),
+            color: colors[i % colors.length],
+            duration: 3.3 + Math.random() * 2.2,
+            delay: Math.random() * 3,
+        })),
+        [count, colors.length, minSize, maxSize])
+
+    return (
+        <div className="absolute inset-0 overflow-hidden pointer-events-none z-[3]">
+            {particles.map((p, i) => (
+                <motion.div
+                    key={i}
+                    className="absolute rounded-full"
+                    style={{ width: p.size * scale, height: p.size * scale, background: p.color, left: `${p.x}%`, bottom: 0 }}
+                    initial={{ y: 0, scale: 0, opacity: 0 }}
+                    animate={{ y: -440, scale: 1.3, opacity: [0, 0.9, 0.4, 0] }}
+                    transition={{ duration: p.duration, delay: p.delay, repeat: Infinity, ease: 'linear' }}
+                />
+            ))}
+        </div>
+    )
+}
+
+function FlashOverlay({ config, trigger }) {
+    if (!config?.enable) return null
+    return (
+        <motion.div
+            key={trigger}
+            className="absolute inset-0 pointer-events-none z-[8]"
+            style={{ background: config.color || 'rgba(192,132,252,0.3)' }}
+            initial={{ opacity: 1 }}
+            animate={{ opacity: 0 }}
+            transition={{ delay: config.delay || 0.25, duration: config.duration || 0.55, ease: 'easeOut' }}
+        />
+    )
+}
+
 function AnimatedHook({ hookStyle }) {
     const [visible, setVisible] = useState(true)
     const [lineIdx, setLineIdx] = useState(0)
+    const [cycle, setCycle] = useState(0)
 
     useEffect(() => {
         if (!hookStyle) return
@@ -96,8 +227,9 @@ function AnimatedHook({ hookStyle }) {
             setTimeout(() => {
                 setLineIdx(prev => (prev + 1) % HOOK_LINES.length)
                 setVisible(true)
+                setCycle(c => c + 1)
             }, 400)
-        }, 3500)
+        }, 4500)
         return () => clearInterval(interval)
     }, [hookStyle])
 
@@ -105,40 +237,130 @@ function AnimatedHook({ hookStyle }) {
 
     const hs = hookStyle
     const PHONE_W = 280
-    const scale = PHONE_W / 360 // match backend render_scale (width / 360)
+    const scale = PHONE_W / 360
 
-    const normalWordStyle = buildHookWordStyle(hs, { isKeyword: false, scale })
-    const keywordWordStyle = buildHookWordStyle(hs, { isKeyword: true, scale })
-    const boxStyle = buildHookBoxStyle(hs, { scale })
+    // Resolve config with defaults
+    const config = resolveConfig(hs.config)
+    const lines = config.text?.lines || []
+    const hasCompositionLines = lines.length > 0
 
-    const line = HOOK_LINES[lineIdx]
+    // Safe area & positioning
+    const PHONE_H = Math.round(PHONE_W * (16 / 9))
+    const safeArea = computeSafeArea(PHONE_W, PHONE_H, config.safe_area)
+    const position = computePosition(config.position, safeArea)
 
-    return (
-        <div className="absolute left-0 right-0 flex flex-col items-center px-3 text-center z-10" style={{ top: '20%' }}>
-            <AnimatePresence>
-                {visible && (
-                    <motion.div
-                        initial={{ opacity: 0, scale: 0.7, y: 20 }}
-                        animate={{ opacity: 1, scale: 1, y: 0 }}
-                        exit={{ opacity: 0, scale: 0.8, y: -10 }}
-                        transition={{ duration: hs.fade_in || 0.4, ease: [0.34, 1.56, 0.64, 1] }}
-                        style={boxStyle}
-                    >
-                        <p style={normalWordStyle}>{line.before}</p>
-                        <motion.p
-                            style={keywordWordStyle}
-                            animate={{ scale: [1, 1.05, 1] }}
-                            transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+    // If no composition lines, fall back to legacy two-tier rendering
+    if (!hasCompositionLines) {
+        const normalWordStyle = buildHookWordStyle(hs, { isKeyword: false, scale })
+        const keywordWordStyle = buildHookWordStyle(hs, { isKeyword: true, scale })
+        const boxStyle = buildHookBoxStyle(hs, { scale })
+        const line = HOOK_LINES[lineIdx]
+
+        return (
+            <div className="absolute left-0 right-0 flex flex-col items-center px-3 text-center z-[4]" style={{ top: '20%' }}>
+                <AnimatePresence>
+                    {visible && (
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.7, y: 20 }}
+                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.8, y: -10 }}
+                            transition={{ duration: hs.fade_in || 0.4, ease: [0.34, 1.56, 0.64, 1] }}
+                            style={boxStyle}
                         >
-                            {line.keyword}
-                        </motion.p>
-                        {line.after && (
-                            <p style={normalWordStyle}>{line.after}</p>
-                        )}
-                    </motion.div>
-                )}
-            </AnimatePresence>
-        </div>
+                            <p style={normalWordStyle}>{line.before}</p>
+                            <motion.p
+                                style={keywordWordStyle}
+                                animate={{ scale: [1, 1.05, 1] }}
+                                transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+                            >
+                                {line.keyword}
+                            </motion.p>
+                            {line.after && <p style={normalWordStyle}>{line.after}</p>}
+                        </motion.div>
+                    )}
+                </AnimatePresence>
+            </div>
+        )
+    }
+
+    // ─── Composition Mode (multi-line with badge, decorations, effects) ───
+    return (
+        <>
+            {/* Layer 2: Gradient Overlays */}
+            {config.overlay?.gradient_top?.enable && (
+                <div style={buildGradientOverlayStyle(config.overlay.gradient_top, 'top')} className="z-[2]" />
+            )}
+            {config.overlay?.gradient_bottom?.enable && (
+                <div style={buildGradientOverlayStyle(config.overlay.gradient_bottom, 'bottom')} className="z-[2]" />
+            )}
+
+            {/* Layer 3: Particles */}
+            <ParticleSystem config={config.effects?.particles} scale={scale} />
+
+            {/* Layer 8: Flash */}
+            <FlashOverlay config={config.effects?.flash} trigger={cycle} />
+
+            {/* Layers 4-6: Hook Content (safe area constrained) */}
+            <div
+                className="absolute z-[4] flex flex-col"
+                style={{
+                    top: position.top != null ? `${position.top}px` : undefined,
+                    left: `${safeArea.left}px`,
+                    width: `${safeArea.width}px`,
+                    transform: position.transform || undefined,
+                }}
+            >
+                <AnimatePresence>
+                    {visible && (
+                        <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            transition={{ duration: 0.2 }}
+                        >
+                            {/* Layer 5: Badge */}
+                            <AnimatedBadge config={config.badge} scale={scale} />
+
+                            {/* Layer 4: Per-line stagger text */}
+                            {lines.slice(0, 6).map((line, i) => {
+                                const variant = getLineEnterVariant(hs, i)
+                                return (
+                                    <motion.div key={`${cycle}-${i}`} style={{ position: 'relative' }}>
+                                        <motion.p
+                                            style={buildLineStyle(hs, i, scale)}
+                                            initial={variant.initial}
+                                            animate={variant.animate}
+                                            transition={variant.transition}
+                                        >
+                                            {line.text || ''}
+                                        </motion.p>
+                                        {/* Idle animation (shake/pulse) */}
+                                        {variant.idle === 'shake' && (
+                                            <motion.div
+                                                className="absolute inset-0"
+                                                animate={{ x: [0, -3, 3, -2, 2, 0] }}
+                                                transition={{ delay: variant.idleDelay, duration: 0.45, repeat: Infinity, repeatDelay: 2.5 }}
+                                            />
+                                        )}
+                                        {variant.idle === 'pulse' && (
+                                            <motion.div
+                                                className="absolute inset-0"
+                                                animate={{ scale: [1, 1.03, 1] }}
+                                                transition={{ delay: variant.idleDelay, duration: 1.2, repeat: Infinity }}
+                                            />
+                                        )}
+                                    </motion.div>
+                                )
+                            })}
+
+                            {/* Layer 6: Decorations */}
+                            <AnimatedDivider config={config.decorations?.divider} />
+                            <AnimatedEmojiRow config={config.decorations?.emoji_row} />
+                        </motion.div>
+                    )}
+                </AnimatePresence>
+            </div>
+        </>
     )
 }
 
@@ -208,6 +430,7 @@ export default function RemotionPreview({
     backgroundImage,
     thumbnailUrl,
     size = 'md', // 'sm' | 'md' | 'lg'
+    resolution = '9:16', // aspect ratio string
     showPlayback = true,
     showBadge = true,
     showParticles = true,
@@ -223,13 +446,28 @@ export default function RemotionPreview({
         return () => clearInterval(interval)
     }, [])
 
-    const sizes = {
-        sm: { w: 200, h: 356, radius: 24, notchW: 14, notchH: 4 },
-        md: { w: 280, h: 498, radius: 30, notchW: 18, notchH: 5 },
-        lg: { w: 340, h: 604, radius: 34, notchW: 22, notchH: 6 },
+    // Base widths per size tier
+    const baseWidths = { sm: 200, md: 280, lg: 340 }
+    const baseW = baseWidths[size] || baseWidths.md
+
+    // Parse aspect ratio to compute height dynamically
+    const [ratioW, ratioH] = (resolution || '9:16').split(':').map(Number)
+    const aspectRatio = (ratioW && ratioH) ? ratioW / ratioH : 9 / 16
+    const computedH = Math.round(baseW / aspectRatio)
+
+    // Clamp height so landscape doesn't get too short visually
+    const minH = Math.round(baseW * 0.5)
+    const maxH = Math.round(baseW * 2.0)
+    const finalH = Math.max(minH, Math.min(maxH, computedH))
+
+    const s = {
+        w: baseW,
+        h: finalH,
+        radius: size === 'sm' ? 24 : size === 'lg' ? 34 : 30,
+        notchW: size === 'sm' ? 14 : size === 'lg' ? 22 : 18,
+        notchH: size === 'sm' ? 4 : size === 'lg' ? 6 : 5,
     }
 
-    const s = sizes[size] || sizes.md
     const bgSrc = thumbnailUrl || backgroundImage || 'https://lh3.googleusercontent.com/aida-public/AB6AXuBR8v7XkC5vNu8cT77RaDOH4JfdHz-jjqDZnXfNWnC1yftxffImbLrXQnp0Wc7uCVKDdmFIGTKf4i0uR3BneXMYGm4g0sURS6lQWj20A_od6g5NVwaRH39JjwGctm7e8L_ixngiEO7COOxJdLZp0AJg0K2Xay6coqna9CtqsDt92xch-THdSapYp4bQ9Nq_WQmkhDhFv_qS3ft45j18zz402xoje1TvphZHMvgRNUwa2hMhsJoIORa3iCMC9UUNE_TWVNWgtkTEXgRi'
 
     return (

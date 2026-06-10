@@ -57,7 +57,7 @@ htmlcov/
 .ruff_cache/
 
 # ===========================
-# Node.js (autocliper-v2-FE)
+# Node.js (autocliper-v2-FE + Remotion)
 # ===========================
 node_modules/
 dist/
@@ -68,6 +68,16 @@ dist-ssr/
 .cache/
 .parcel-cache/
 .turbo/
+
+# ===========================
+# Remotion (autocliper-v2/remotion)
+# ===========================
+autocliper-v2/remotion/build/
+autocliper-v2/remotion/node_modules/
+autocliper-v2/remotion/cache/fonts/*.ttf
+autocliper-v2/remotion/cache/assets/*
+!autocliper-v2/remotion/cache/fonts/.gitkeep
+!autocliper-v2/remotion/cache/assets/.gitkeep
 
 # ===========================
 # Logs

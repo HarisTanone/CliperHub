@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { toast } from 'react-hot-toast'
 import { api, loadGoogleFonts, getAuthenticatedMediaUrl } from '../utils/api'
 import RemotionPreview from '../components/RemotionPreview'
+import ResolutionSelector from '../components/ResolutionSelector'
 
 // ═══════════════════════════════════════════════════════════════
 // STYLE APPLY PAGE (Re-Style) — Premium UI with Live Preview
@@ -24,6 +25,7 @@ function StyleApplyPage({ jobId, onBack, onDone }) {
     const [searchHook, setSearchHook] = useState('')
     const [previewMode, setPreviewMode] = useState('remotion')
     const [activeTab, setActiveTab] = useState('caption') // 'caption' | 'hook'
+    const [resolution, setResolution] = useState('9:16')
 
     const STYLES_PER_PAGE = 6
     const HOOKS_PER_PAGE = 6
@@ -64,7 +66,7 @@ function StyleApplyPage({ jobId, onBack, onDone }) {
         if (!selectedStyle) { toast.error('Select a caption style'); return }
         setApplying(true)
         try {
-            const data = await api.applyStyle(jobId, selectedStyle.id, selectedHookStyle?.id || null)
+            const data = await api.applyStyle(jobId, selectedStyle.id, selectedHookStyle?.id || null, resolution)
             if (data.detail) { toast.error(data.detail); return }
             toast.success(`Style applied to ${data.clips_rendered || data.clips_to_style} clips!`)
             if (onDone) onDone()
@@ -332,6 +334,12 @@ function StyleApplyPage({ jobId, onBack, onDone }) {
                             </div>
                         </div>
 
+                        {/* Resolution Selector */}
+                        <div className="flex items-center gap-2 mb-3">
+                            <span className="text-[11px] font-medium" style={{ color: 'var(--color-text-muted)' }}>Output:</span>
+                            <ResolutionSelector value={resolution} onChange={setResolution} />
+                        </div>
+
                         {/* Apply Button */}
                         <motion.button
                             onClick={handleApplyStyle}
@@ -415,6 +423,7 @@ function StyleApplyPage({ jobId, onBack, onDone }) {
                                             captionStyle={selectedStyle}
                                             hookStyle={selectedHookStyle}
                                             thumbnailUrl={thumbnailUrls[currentClip?.index]}
+                                            resolution={resolution}
                                             size="md"
                                             showPlayback={true}
                                             showBadge={true}

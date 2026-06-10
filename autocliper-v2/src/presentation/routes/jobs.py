@@ -18,7 +18,7 @@ from ..schemas.jobs import (
     JobHistoryResponse, ClipInfo, AnalyzeRequest, AnalyzeResponse,
     ClipCandidate, ProcessSelectedRequest, PreviewRequest, PreviewResponse,
     BaseProcessRequest, BaseProcessResponse, ApplyStyleRequest, ApplyStyleResponse,
-    BaseClipInfo, BaseJobDetailResponse
+    BaseClipInfo, BaseJobDetailResponse, VIDEO_RESOLUTIONS
 )
 from ..dependencies import get_current_user, require_admin, safe_file_path
 from ...infrastructure.database import database
@@ -27,7 +27,7 @@ from ...infrastructure.repositories import (
 )
 from ...infrastructure.job_queue import job_queue, QueuedJob
 from ...infrastructure.job_logger import job_logger
-from ...domain.entities import JobRequest, ProcessingState
+from ...domain.entities import JobRequest, ProcessingState, VideoResolution
 from ...application.services import VideoProcessingPipeline
 
 logger = logging.getLogger(__name__)
@@ -36,6 +36,29 @@ router = APIRouter()
 OUTPUT_DIR = os.getenv("OUTPUT_DIR", "./tmp/output")
 _job_executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="video_worker")
 video_service = VideoProcessingPipeline()
+
+
+# ─── Resolution endpoint ─────────────────────────────────────────────────────
+
+@router.get("/resolutions")
+async def get_available_resolutions():
+    """Get all available video output resolutions."""
+    portrait = []
+    landscape = []
+    for member in VideoResolution:
+        info = member.to_dict()
+        if member.is_portrait:
+            portrait.append(info)
+        else:
+            landscape.append(info)
+    return {
+        "success": True,
+        "data": {
+            "portrait": portrait,
+            "landscape": landscape,
+            "default": "9:16",
+        }
+    }
 
 
 def _generate_thumbnail_if_missing(video_path: str, thumb_path: str) -> bool:
@@ -259,7 +282,8 @@ async def create_job(
                 urls=url,
                 caption_style=caption_id or 1,
                 user_id=user_id,
-                hook_style_id=hook_id
+                hook_style_id=hook_id,
+                resolution=request.resolution or "9:16"
             )
             job_queue.enqueue(QueuedJob(job_request=job_request))
             results.append({"url": url, "status": "accepted", "message": "Job queued"})
@@ -526,6 +550,7 @@ async def base_process_video(
             user_id=user_id,
             hook_style_id=None,
             base_only=True,
+            resolution=request.resolution or "9:16",
         )
         
         job_queue.enqueue(QueuedJob(job_request=job_request))
@@ -785,6 +810,7 @@ async def apply_style_to_job(
             job_id,
             request.effective_caption_id,
             request.effective_hook_id,
+            request.resolution or "9:16",
         )
         
         return ApplyStyleResponse(
@@ -879,6 +905,7 @@ async def process_selected_clips(
             caption_style=caption_style or 1,
             user_id=user_id,
             hook_style_id=hook_id,
+            resolution=request.resolution or "9:16",
         )
         job_request._selected_indices = request.selected_indices
         job_request._edited_hooks = request.edited_hooks

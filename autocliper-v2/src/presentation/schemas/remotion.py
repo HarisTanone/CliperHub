@@ -58,6 +58,8 @@ class CaptionTemplateResponse(BaseModel):
     highlight_transition: str = "instant"
     highlight_transition_duration: int = 100
 
+    display_mode: str = "phrase"  # word_by_word, phrase, sentence
+
     config: Optional[Any] = None
 
     user_id: Optional[int] = None
@@ -108,6 +110,8 @@ class CaptionTemplateCreate(BaseModel):
     animation_in_duration: Optional[int] = 200
     highlight_transition: Optional[str] = "instant"
 
+    display_mode: Optional[str] = "phrase"  # word_by_word, phrase, sentence
+
     config: Optional[Any] = None
 
 
@@ -134,6 +138,7 @@ class CaptionTemplateUpdate(BaseModel):
     position_y_offset: Optional[int] = None
     animation_in: Optional[str] = None
     animation_out: Optional[str] = None
+    display_mode: Optional[str] = None  # word_by_word, phrase, sentence
     config: Optional[Any] = None
     is_active: Optional[bool] = None
 

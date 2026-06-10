@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { toast } from 'react-hot-toast'
 import { api, loadGoogleFonts, getAuthenticatedMediaUrl } from '../utils/api'
 import RemotionPreview from '../components/RemotionPreview'
+import ResolutionSelector from '../components/ResolutionSelector'
 import { buildCaptionWordStyle, buildCaptionPillStyle, buildHookWordStyle, buildHookBoxStyle } from '../utils/remotionStyleUtils'
 
 const PREVIEW_BG = "https://lh3.googleusercontent.com/aida-public/AB6AXuBR8v7XkC5vNu8cT77RaDOH4JfdHz-jjqDZnXfNWnC1yftxffImbLrXQnp0Wc7uCVKDdmFIGTKf4i0uR3BneXMYGm4g0sURS6lQWj20A_od6g5NVwaRH39JjwGctm7e8L_ixngiEO7COOxJdLZp0AJg0K2Xay6coqna9CtqsDt92xch-THdSapYp4bQ9Nq_WQmkhDhFv_qS3ft45j18zz402xoje1TvphZHMvgRNUwa2hMhsJoIORa3iCMC9UUNE_TWVNWgtkTEXgRi"
@@ -326,6 +327,28 @@ function CustomizationPanel({ editStyle, setEditStyle }) {
                                     ))}
                                 </div>
                             </div>
+                            {/* Display Mode — how words appear */}
+                            <div>
+                                <p className="text-[10px] font-semibold uppercase tracking-wider mb-2.5" style={{ color: 'var(--color-text-muted)' }}>Word Display</p>
+                                <div className="flex gap-2">
+                                    {[
+                                        { key: 'word_by_word', label: 'Word by Word', icon: 'text_fields' },
+                                        { key: 'phrase', label: 'Phrase', icon: 'short_text' },
+                                        { key: 'sentence', label: 'Full Sentence', icon: 'notes' },
+                                    ].map(m => (
+                                        <button key={m.key} onClick={() => setEditStyle(s => ({ ...s, display_mode: m.key }))}
+                                            className="flex-1 py-2 rounded-lg text-[10px] font-semibold border transition-all flex flex-col items-center gap-1"
+                                            style={{
+                                                background: (editStyle.display_mode || 'phrase') === m.key ? 'var(--btn-primary-bg)' : 'transparent',
+                                                color: (editStyle.display_mode || 'phrase') === m.key ? 'var(--btn-primary-text)' : 'var(--color-text-secondary)',
+                                                borderColor: (editStyle.display_mode || 'phrase') === m.key ? 'var(--btn-primary-bg)' : 'var(--color-border-default)'
+                                            }}>
+                                            <span className="material-symbols-outlined text-[14px]">{m.icon}</span>
+                                            {m.label}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
                             {/* Colors */}
                             <div>
                                 <p className="text-[10px] font-semibold uppercase tracking-wider mb-2.5" style={{ color: 'var(--color-text-muted)' }}>Colors</p>
@@ -558,6 +581,7 @@ function CreatePage({ onJobStarted }) {
     // For "analyze first" sub-mode within styled mode
     const [analyzeMode, setAnalyzeMode] = useState(false)
     const [styleTab, setStyleTab] = useState('compositions') // 'compositions' | 'custom'
+    const [resolution, setResolution] = useState('9:16')
     const isInitialLoad = useRef(true)
 
     useEffect(() => {
@@ -641,7 +665,7 @@ function CreatePage({ onJobStarted }) {
         if (!url || !selectedStyle) return
         setSubmitting(true)
         try {
-            const data = await api.createJob(url, selectedStyle.id, selectedHookStyle?.id || null)
+            const data = await api.createJob(url, selectedStyle.id, selectedHookStyle?.id || null, resolution)
             if (data.detail) { toast.error(data.detail); return }
             if (data.accepted > 0) {
                 toast.success(data.total_urls > 1 ? `${data.accepted} of ${data.total_urls} jobs submitted` : 'Job submitted')
@@ -659,7 +683,7 @@ function CreatePage({ onJobStarted }) {
         if (!url || !selectedStyle) return
         setAnalyzing(true)
         try {
-            const data = await api.analyzeVideo(url, selectedStyle.id, selectedHookStyle?.id || null)
+            const data = await api.analyzeVideo(url, selectedStyle.id, selectedHookStyle?.id || null, resolution)
             if (data.detail) { toast.error(data.detail); return }
             if (data.clips) { setReviewClips(data.clips); toast.success(`Found ${data.clips.length} clips`) }
         } catch { toast.error('Analysis failed') }
@@ -669,7 +693,7 @@ function CreatePage({ onJobStarted }) {
     const handleProcessSelected = async (clips) => {
         setSubmitting(true)
         try {
-            const data = await api.processSelected(url, selectedStyle.id, selectedHookStyle?.id || null, clips)
+            const data = await api.processSelected(url, selectedStyle.id, selectedHookStyle?.id || null, clips, resolution)
             if (data.detail) { toast.error(data.detail); return }
             toast.success('Processing started')
             if (onJobStarted) onJobStarted({ jobId: null, videoInfo, url })
@@ -683,7 +707,7 @@ function CreatePage({ onJobStarted }) {
         if (!url) return
         setSubmitting(true)
         try {
-            const data = await api.baseProcess(url)
+            const data = await api.baseProcess(url, resolution)
             if (data.detail) { toast.error(data.detail); return }
             if (data.status === 'accepted') {
                 toast.success('Base processing started — style later!')
@@ -740,11 +764,14 @@ function CreatePage({ onJobStarted }) {
                                 <motion.div key="form" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-5">
                                     {/* URL Input */}
                                     <div className="rounded-2xl p-5 shadow-sm backdrop-blur-sm" style={{ background: 'var(--color-bg-card)', border: '1px solid var(--color-border-subtle)' }}>
-                                        <h3 className="text-sm font-semibold flex items-center gap-2 mb-3" style={{ color: 'var(--color-text-primary)' }}>
-                                            <span className="material-symbols-outlined text-[18px]" style={{ color: 'var(--color-accent)' }}>smart_display</span>
-                                            Source Video
-                                            {mode === 'base' && <span className="text-[10px] font-normal ml-1 px-2 py-0.5 rounded-full" style={{ background: 'var(--color-success-bg)', color: 'var(--color-success-text)' }}>No style needed</span>}
-                                        </h3>
+                                        <div className="flex items-center justify-between mb-3">
+                                            <h3 className="text-sm font-semibold flex items-center gap-2" style={{ color: 'var(--color-text-primary)' }}>
+                                                <span className="material-symbols-outlined text-[18px]" style={{ color: 'var(--color-accent)' }}>smart_display</span>
+                                                Source Video
+                                                {mode === 'base' && <span className="text-[10px] font-normal ml-1 px-2 py-0.5 rounded-full" style={{ background: 'var(--color-success-bg)', color: 'var(--color-success-text)' }}>No style needed</span>}
+                                            </h3>
+                                            <ResolutionSelector value={resolution} onChange={setResolution} />
+                                        </div>
                                         <div className="relative">
                                             <div className="absolute top-3 left-0 pl-3.5 flex items-start pointer-events-none">
                                                 <span className="material-symbols-outlined text-[16px]" style={{ color: 'var(--color-text-muted)' }}>link</span>
@@ -1034,6 +1061,7 @@ function CreatePage({ onJobStarted }) {
                                     <RemotionPreview
                                         captionStyle={editStyle}
                                         hookStyle={selectedHookStyle}
+                                        resolution={resolution}
                                         size="md"
                                         showPlayback={true}
                                         showBadge={true}

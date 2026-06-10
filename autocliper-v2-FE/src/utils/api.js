@@ -169,9 +169,9 @@ export const api = {
   },
 
   // Jobs (batch support — urls can be newline-separated)
-  createJob: (urls, captionTemplateId, hookTemplateId) => api._req('/api/v1/jobs/', {
+  createJob: (urls, captionTemplateId, hookTemplateId, resolution = '9:16') => api._req('/api/v1/jobs/', {
     method: 'POST',
-    body: JSON.stringify({ urls, caption_template_id: captionTemplateId, ...(hookTemplateId ? { hook_template_id: hookTemplateId } : {}) }),
+    body: JSON.stringify({ urls, caption_template_id: captionTemplateId, ...(hookTemplateId ? { hook_template_id: hookTemplateId } : {}), resolution }),
   }),
   getJobs: () => api._req('/api/v1/jobs/'),
   getJobQueue: () => api._req('/api/v1/jobs/queue'),
@@ -181,20 +181,23 @@ export const api = {
   getJob: (id) => api._req(`/api/v1/jobs/${id}`),
   deleteJob: (id) => api._req(`/api/v1/jobs/${id}`, { method: 'DELETE' }),
 
+  // Video Resolutions
+  getResolutions: () => api._req('/api/v1/jobs/resolutions'),
+
   // Two-step clip selection
-  analyzeVideo: (url, captionTemplateId, hookTemplateId) => api._req('/api/v1/jobs/analyze', {
+  analyzeVideo: (url, captionTemplateId, hookTemplateId, resolution = '9:16') => api._req('/api/v1/jobs/analyze', {
     method: 'POST',
-    body: JSON.stringify({ url, caption_template_id: captionTemplateId, ...(hookTemplateId ? { hook_template_id: hookTemplateId } : {}) }),
+    body: JSON.stringify({ url, caption_template_id: captionTemplateId, ...(hookTemplateId ? { hook_template_id: hookTemplateId } : {}), resolution }),
   }),
-  processSelected: (url, captionTemplateId, hookTemplateId, clips) => api._req('/api/v1/jobs/process-selected', {
+  processSelected: (url, captionTemplateId, hookTemplateId, clips, resolution = '9:16') => api._req('/api/v1/jobs/process-selected', {
     method: 'POST',
-    body: JSON.stringify({ url, caption_template_id: captionTemplateId, ...(hookTemplateId ? { hook_template_id: hookTemplateId } : {}), clips }),
+    body: JSON.stringify({ url, caption_template_id: captionTemplateId, ...(hookTemplateId ? { hook_template_id: hookTemplateId } : {}), clips, resolution }),
   }),
 
   // Base Processing Pipeline (no styling)
-  baseProcess: (url) => api._req('/api/v1/jobs/base-process', {
+  baseProcess: (url, resolution = '9:16') => api._req('/api/v1/jobs/base-process', {
     method: 'POST',
-    body: JSON.stringify({ url }),
+    body: JSON.stringify({ url, resolution }),
   }),
   getBaseClips: (jobId) => api._req(`/api/v1/jobs/${jobId}/base-clips`),
   getBaseClipUrl: (jobId, clipIndex) => `${BASE}/api/v1/jobs/${jobId}/base-clip/${clipIndex}`,
@@ -202,9 +205,9 @@ export const api = {
   getBaseThumbnailUrl: (jobId, clipIndex) => `${BASE}/api/v1/jobs/${jobId}/base-thumbnail/${clipIndex}`,
   
   // Style Rendering Pipeline (apply style to base clips)
-  applyStyle: (jobId, captionTemplateId, hookTemplateId) => api._req(`/api/v1/jobs/${jobId}/apply-style`, {
+  applyStyle: (jobId, captionTemplateId, hookTemplateId, resolution = '9:16') => api._req(`/api/v1/jobs/${jobId}/apply-style`, {
     method: 'POST',
-    body: JSON.stringify({ caption_template_id: captionTemplateId, ...(hookTemplateId ? { hook_template_id: hookTemplateId } : {}) }),
+    body: JSON.stringify({ caption_template_id: captionTemplateId, ...(hookTemplateId ? { hook_template_id: hookTemplateId } : {}), resolution }),
   }),
 
   // Preview (5-second low-res preview before full processing)

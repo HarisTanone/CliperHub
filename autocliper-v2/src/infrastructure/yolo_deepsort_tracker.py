@@ -1095,10 +1095,17 @@ class YoloCenteredVideoCropper:
 
     def track_only(self, video_path: str,
                    start_time: float = None,
-                   end_time: float = None) -> Dict:
+                   end_time: float = None,
+                   output_resolution: tuple = None) -> Dict:
         """
         Track persons only — return per-frame data WITHOUT rendering video.
         Used by single-pass overlay renderer to do crop + overlay in 1 encode.
+        
+        Args:
+            video_path: Path to video file
+            start_time: Start time in seconds
+            end_time: End time in seconds
+            output_resolution: Tuple (width, height) for output. Default (1080, 1920)
         
         Returns:
             Dict with 'positions', 'fps', 'width', 'height', and crop dimensions
@@ -1117,8 +1124,11 @@ class YoloCenteredVideoCropper:
         orig_h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
         cap.release()
 
-        # Output dimensions
-        out_w, out_h = 1080, 1920
+        # Output dimensions — configurable via parameter
+        if output_resolution:
+            out_w, out_h = output_resolution
+        else:
+            out_w, out_h = 1080, 1920
         half_h = out_h // 2
         target_ratio = out_w / out_h
         grid_ratio = out_w / half_h
@@ -1191,7 +1201,8 @@ class YoloCenteredVideoCropper:
                              face_positions: List[Dict] = None,
                              output_path: str = None,
                              start_time: float = None,
-                             end_time: float = None) -> str:
+                             end_time: float = None,
+                             output_resolution: tuple = None) -> str:
         """
         Full pipeline: Track → Layout → Crop → Blend → Render → Audio.
         """
@@ -1213,8 +1224,11 @@ class YoloCenteredVideoCropper:
         if sf > 0:
             cap.set(cv2.CAP_PROP_POS_FRAMES, sf)
 
-        # Output dimensions
-        out_w, out_h = 1080, 1920
+        # Output dimensions — configurable via parameter
+        if output_resolution:
+            out_w, out_h = output_resolution
+        else:
+            out_w, out_h = 1080, 1920
         half_h = out_h // 2
         target_ratio = out_w / out_h
         grid_ratio = out_w / half_h

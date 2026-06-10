@@ -9,7 +9,8 @@ from datetime import datetime
 
 from ..domain.entities import (
     JobRequest, RequestLog, ClipData, CaptionStyle, HookStyle,
-    ProcessingState, ProcessingStatus, VideoInfo, SubtitleSegment
+    ProcessingState, ProcessingStatus, VideoInfo, SubtitleSegment,
+    VideoResolution
 )
 from ..infrastructure.repositories import CaptionStyleRepository, RequestLogRepository
 from ..infrastructure.external_services import GeminiService, YouTubeDownloader, DownloadQualityError
@@ -188,6 +189,40 @@ def _generate_smart_thumbnail(video_path: str, output_path: str) -> bool:
         return False
 
 
+def _make_caption_style_from_remotion(remotion_caption):
+    """Create a CaptionStyle-compatible object from a Remotion caption template.
+    
+    Includes get_extended_config() so the rendering pipeline can read display_mode
+    and other extended settings.
+    """
+    config = {**(remotion_caption.config or {}), 'display_mode': getattr(remotion_caption, 'display_mode', 'phrase') or 'phrase'}
+    
+    class _CompatCaptionStyle:
+        def __init__(self):
+            self.id = remotion_caption.id
+            self.name = remotion_caption.name
+            self.font_family = remotion_caption.font_family
+            self.font_weight = remotion_caption.font_weight
+            self.font_size = remotion_caption.font_size
+            self.color = remotion_caption.color
+            self.highlight_color = remotion_caption.highlight_color
+            self.outline_color = remotion_caption.outline_color or '#000000'
+            self.outline_width = remotion_caption.outline_width or 2
+            self.shadow_color = remotion_caption.shadow_color or '#000000'
+            self.shadow_offset_x = getattr(remotion_caption, 'shadow_offset_x', 0) or 0
+            self.shadow_offset_y = remotion_caption.shadow_offset_y or 2
+            self.line_spacing = remotion_caption.line_height or 1.3
+            self.caption_bottom_margin = remotion_caption.position_y_offset or 80
+            self.config = config
+        
+        def get_extended_config(self):
+            from ..domain.entities import CaptionStyle as _CS
+            dummy = _CS(id=0, name="tmp", config=self.config)
+            return dummy.get_extended_config()
+    
+    return _CompatCaptionStyle()
+
+
 class VideoProcessingPipeline:
     """Main video processing pipeline with modular architecture"""
     
@@ -246,24 +281,8 @@ class VideoProcessingPipeline:
                 from ..infrastructure.remotion_repository import RemotionCaptionTemplateRepository
                 remotion_caption = RemotionCaptionTemplateRepository(session).get_by_id(job_request.caption_style)
                 if remotion_caption:
-                    # Convert Remotion template to a compatible dict for the pipeline
-                    caption_style = type('CaptionStyle', (), {
-                        'id': remotion_caption.id,
-                        'name': remotion_caption.name,
-                        'font_family': remotion_caption.font_family,
-                        'font_weight': remotion_caption.font_weight,
-                        'font_size': remotion_caption.font_size,
-                        'color': remotion_caption.color,
-                        'highlight_color': remotion_caption.highlight_color,
-                        'outline_color': remotion_caption.outline_color or '#000000',
-                        'outline_width': remotion_caption.outline_width or 2,
-                        'shadow_color': remotion_caption.shadow_color or '#000000',
-                        'shadow_offset_x': remotion_caption.shadow_offset_x or 0,
-                        'shadow_offset_y': remotion_caption.shadow_offset_y or 2,
-                        'line_spacing': remotion_caption.line_height or 1.3,
-                        'caption_bottom_margin': remotion_caption.position_y_offset or 80,
-                        'config': remotion_caption.config or {},
-                    })()
+                    # Convert Remotion template to a compatible CaptionStyle object
+                    caption_style = _make_caption_style_from_remotion(remotion_caption)
                 else:
                     raise ValueError(f"Caption style {job_request.caption_style} not found")
 
@@ -433,6 +452,11 @@ class VideoProcessingPipeline:
             job_logger.log(f"Starting clip generation — {len(clips)} clips to process", "generating_clips")
             job_logger.set_total_clips(len(clips))
             
+            # Resolve output resolution from job request
+            video_resolution = VideoResolution.from_string(job_request.resolution)
+            output_resolution = (video_resolution.width, video_resolution.height)
+            logger.info(f"  📐 Output resolution: {video_resolution.width}×{video_resolution.height} ({video_resolution.aspect_ratio})")
+            
             processed_clips = []
             
             if PIPELINE_CONFIG.get("parallel_clips") and len(clips) > 1:
@@ -452,7 +476,8 @@ class VideoProcessingPipeline:
                             hook_style=hook_style,
                             output_dir=video_dir,
                             clip_index=i + 1,
-                            all_clips=clips
+                            all_clips=clips,
+                            output_resolution=output_resolution
                         )
                         return {"success": True, "index": clip.index, "output_path": output_path,
                                 "hook": clip.hook, "duration": clip.end_time - clip.start_time, "clip_num": i + 1}
@@ -502,7 +527,8 @@ class VideoProcessingPipeline:
                             hook_style=hook_style,
                             output_dir=video_dir,
                             clip_index=i + 1,
-                            all_clips=clips
+                            all_clips=clips,
+                            output_resolution=output_resolution
                         )
                         processed_clips.append({
                             "index": clip.index,
@@ -621,7 +647,7 @@ class VideoProcessingPipeline:
     def _process_single_clip(self, video_path: str, clip: ClipData,
                              caption_style: CaptionStyle, output_dir: str,
                              clip_index: int, all_clips: List[ClipData],
-                             hook_style=None) -> str:
+                             hook_style=None, output_resolution: tuple = None) -> str:
         # Create temp directory for this clip
         temp_dir = os.path.join(output_dir, f"temp_clip_{clip_index}")
         os.makedirs(temp_dir, exist_ok=True)
@@ -713,7 +739,8 @@ class VideoProcessingPipeline:
                     tracking_data = self.video_cropper.track_only(
                         video_path=clipped_video_path,
                         start_time=0,
-                        end_time=duration
+                        end_time=duration,
+                        output_resolution=output_resolution
                     )
                     logger.info(f"  ✅ Tracking completed: {len(tracking_data['positions'])} frames")
                     job_logger.log(f"  [Clip {clip_index}] ✅ Tracking: {len(tracking_data['positions'])} frames")
@@ -1214,13 +1241,18 @@ class VideoProcessingPipeline:
             job_queue.set_processing(job_request.urls, request_log.id)
             job_logger.set_request_id(request_log.id)
             
-            # 7. Process each clip — BASE ONLY (crop 9:16, no overlays)
+            # 7. Process each clip — BASE ONLY (crop to target resolution, no overlays)
             # Uses PARALLEL processing for speed since clips are independent
             logger.info("Step 7: Processing base clips (crop only, no styling) — PARALLEL")
             self._update_status(ProcessingState.PROCESSING, "Processing base clips",
                               total_clips=len(clips))
             job_logger.log(f"Starting base clip generation — {len(clips)} clips (parallel)", "generating_clips")
             job_logger.set_total_clips(len(clips))
+            
+            # Resolve output resolution
+            video_resolution = VideoResolution.from_string(job_request.resolution)
+            output_resolution = (video_resolution.width, video_resolution.height)
+            logger.info(f"  📐 Output resolution: {video_resolution.width}×{video_resolution.height} ({video_resolution.aspect_ratio})")
             
             processed_clips = []
             
@@ -1238,6 +1270,7 @@ class VideoProcessingPipeline:
                             clip=clip,
                             output_dir=video_dir,
                             clip_index=i + 1,
+                            output_resolution=output_resolution,
                         )
                         return {"success": True, "index": clip.index, "output_path": output_path,
                                 "hook": clip.hook, "duration": clip.end_time - clip.start_time,
@@ -1283,6 +1316,7 @@ class VideoProcessingPipeline:
                             clip=clip,
                             output_dir=video_dir,
                             clip_index=i + 1,
+                            output_resolution=output_resolution,
                         )
                         processed_clips.append({
                             "index": clip.index,
@@ -1463,8 +1497,9 @@ class VideoProcessingPipeline:
         return generated_files
     
     def _process_single_clip_base(self, video_path: str, clip: ClipData,
-                                   output_dir: str, clip_index: int) -> str:
-        """Process a single clip — BASE ONLY (crop 9:16, no overlays).
+                                   output_dir: str, clip_index: int,
+                                   output_resolution: tuple = None) -> str:
+        """Process a single clip — BASE ONLY (crop to target aspect ratio, no overlays).
         
         Saves: base clip video + metadata JSON for later style rendering.
         """
@@ -1511,7 +1546,8 @@ class VideoProcessingPipeline:
                     tracking_data = self.video_cropper_fast.track_only(
                         video_path=clipped_video_path,
                         start_time=0,
-                        end_time=duration
+                        end_time=duration,
+                        output_resolution=output_resolution
                     )
                     # Crop only — no overlays
                     self._render_base_crop(clipped_video_path, tracking_data, base_path)
@@ -1808,7 +1844,8 @@ class VideoProcessingPipeline:
             raise RuntimeError(f"Center crop failed: {result.stderr}")
     
     def apply_style_to_clips(self, job_id: int, caption_style_id: int,
-                              hook_style_id: Optional[int] = None) -> Dict[str, Any]:
+                              hook_style_id: Optional[int] = None,
+                              resolution: str = "9:16") -> Dict[str, Any]:
         """
         Style Rendering Pipeline — Apply styling to existing base clips.
         
@@ -1843,20 +1880,7 @@ class VideoProcessingPipeline:
                 from ..infrastructure.remotion_repository import RemotionCaptionTemplateRepository
                 remotion_caption = RemotionCaptionTemplateRepository(session).get_by_id(caption_style_id)
                 if remotion_caption:
-                    caption_style = type('CaptionStyle', (), {
-                        'id': remotion_caption.id, 'name': remotion_caption.name,
-                        'font_family': remotion_caption.font_family, 'font_weight': remotion_caption.font_weight,
-                        'font_size': remotion_caption.font_size, 'color': remotion_caption.color,
-                        'highlight_color': remotion_caption.highlight_color,
-                        'outline_color': remotion_caption.outline_color or '#000000',
-                        'outline_width': remotion_caption.outline_width or 2,
-                        'shadow_color': remotion_caption.shadow_color or '#000000',
-                        'shadow_offset_x': remotion_caption.shadow_offset_x or 0,
-                        'shadow_offset_y': remotion_caption.shadow_offset_y or 2,
-                        'line_spacing': remotion_caption.line_height or 1.3,
-                        'caption_bottom_margin': remotion_caption.position_y_offset or 80,
-                        'config': remotion_caption.config or {},
-                    })()
+                    caption_style = _make_caption_style_from_remotion(remotion_caption)
                 else:
                     raise ValueError(f"Caption style {caption_style_id} not found")
             
@@ -1926,8 +1950,20 @@ class VideoProcessingPipeline:
                     meta = json.load(f)
                     all_clips_data.append(meta)
             
-            # Update keywords for hook renderer
-            self.overlay_renderer.hook_renderer.update_keywords(all_clips_data)
+            # ─── Remotion Render Pipeline ─────────────────────────────────────
+            # Create render jobs that the RemotionRenderWorker will pick up.
+            # This replaces the old PIL/OpenCV frame-by-frame rendering.
+            from ..infrastructure.remotion_repository import (
+                RemotionRenderJobRepository,
+                RemotionCaptionTemplateRepository,
+                RemotionHookTemplateRepository,
+            )
+            
+            render_job_repo = RemotionRenderJobRepository(session)
+            
+            # Resolve Remotion template IDs
+            remotion_caption_id = caption_style_id
+            remotion_hook_id = hook_style_id
             
             for idx, mf in enumerate(metadata_files):
                 metadata_path = os.path.join(video_dir, mf)
@@ -1935,136 +1971,81 @@ class VideoProcessingPipeline:
                     meta = json.load(f)
                 clip_index = meta['clip_index']
                 hook_text = meta['hook']
-                subtitles = meta['subtitles']
+                subtitles = meta.get('subtitles', [])
                 duration = meta['duration']
-                keywords = meta.get('keywords', [])
                 
-                # Use raw source video for best quality re-render
+                # Determine source video (raw or base)
                 raw_path = os.path.join(video_dir, f"clip_{clip_index}_raw.mp4")
-                base_path = os.path.join(video_dir, meta['base_video'])
+                base_path = os.path.join(video_dir, meta.get('base_video', f"clip_{clip_index}_base.mp4"))
                 
-                # Re-generate subtitles from Whisper if empty (legacy/crashed jobs)
-                if not subtitles and (os.path.exists(raw_path) or os.path.exists(base_path)):
-                    source_for_whisper = raw_path if os.path.exists(raw_path) else base_path
+                if os.path.exists(base_path):
+                    input_video = base_path
+                elif os.path.exists(raw_path):
+                    input_video = raw_path
+                else:
+                    logger.warning(f"  [Clip {clip_index}] No source video found, skipping")
+                    continue
+                
+                # Re-generate subtitles from Whisper if empty
+                if not subtitles and os.path.exists(input_video):
                     logger.info(f"  [Clip {clip_index}] Subtitles empty — regenerating from Whisper...")
                     job_logger.log(f"  [Clip {clip_index}] Regenerating subtitles from audio...")
                     try:
-                        # Extract audio from source
-                        import subprocess
+                        import subprocess as sp
                         audio_tmp = os.path.join(video_dir, f"clip_{clip_index}_audio_tmp.wav")
-                        subprocess.run([
-                            'ffmpeg', '-y', '-i', source_for_whisper,
+                        sp.run([
+                            'ffmpeg', '-y', '-i', input_video,
                             '-vn', '-acodec', 'pcm_s16le', '-ar', '16000', '-ac', '1',
                             audio_tmp
-                        ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
+                        ], stdout=sp.DEVNULL, stderr=sp.DEVNULL, check=True)
                         
                         subtitles = self.whisper_service.generate_subtitles(audio_tmp)
-                        logger.info(f"  [Clip {clip_index}] ✅ Whisper regenerated: {len(subtitles)} segments")
-                        job_logger.log(f"  [Clip {clip_index}] ✅ Subtitles regenerated: {len(subtitles)} segments")
-                        
-                        # Update metadata file with new subtitles for future re-styles
                         meta['subtitles'] = subtitles
                         with open(metadata_path, 'w', encoding='utf-8') as f:
                             json.dump(meta, f, ensure_ascii=False, indent=2)
                         
-                        # Clean up temp audio
                         if os.path.exists(audio_tmp):
                             os.remove(audio_tmp)
                     except Exception as whisper_err:
                         logger.warning(f"  [Clip {clip_index}] ⚠️ Whisper fallback failed: {whisper_err}")
                         subtitles = []
                 
-                # Calculate hook duration
-                hook_duration = _calculate_hook_duration(hook_text)
+                # Create Remotion render job
+                render_job_data = {
+                    "request_log_id": job_id,
+                    "clip_index": clip_index,
+                    "caption_template_id": remotion_caption_id,
+                    "hook_template_id": remotion_hook_id,
+                    "input_video_path": input_video,
+                    "metadata_path": metadata_path,
+                    "hook_text": hook_text,
+                    "subtitle_data": subtitles,
+                }
                 
-                # Adjust subtitles (skip those during hook)
-                adjusted_subtitles = []
-                for sub in subtitles:
-                    if sub["end"] <= hook_duration:
-                        continue
-                    adjusted_words = [
-                        w for w in sub.get("words", [])
-                        if w["end"] > hook_duration
-                    ]
-                    adjusted_subtitles.append({
-                        "start": sub["start"],
-                        "end": sub["end"],
-                        "text": sub["text"],
-                        "words": adjusted_words
-                    })
+                render_job = render_job_repo.create(render_job_data)
                 
-                # Output path for styled clip
-                final_path = os.path.join(video_dir, f"clip_{clip_index}_final.mp4")
+                rendered_clips.append({
+                    "index": clip_index,
+                    "render_job_id": render_job.id,
+                    "output_path": os.path.join(video_dir, f"clip_{clip_index}_remotion.mp4"),
+                    "hook": hook_text,
+                    "duration": duration,
+                    "status": "pending",
+                })
                 
-                # Remove old styled version if exists
-                if os.path.exists(final_path):
-                    os.remove(final_path)
-                
-                job_logger.log(f"  [Clip {clip_index}] Applying style...", "applying_captions")
-                
-                try:
-                    if _HAS_YOLO and os.path.exists(raw_path):
-                        # Re-render from raw source with tracking + overlays
-                        tracking_data = self.video_cropper.track_only(
-                            video_path=raw_path,
-                            start_time=0,
-                            end_time=duration
-                        )
-                        
-                        self.overlay_renderer.render_full_overlay_on_source(
-                            video_path=raw_path,
-                            tracking_data=tracking_data,
-                            hook_text=hook_text,
-                            subtitles=adjusted_subtitles,
-                            style=caption_style,
-                            hook_duration=hook_duration,
-                            output_path=final_path,
-                            request_log_data={'caption_response': all_clips_data},
-                            hook_style=hook_style
-                        )
-                    elif os.path.exists(base_path):
-                        # Render overlays on base cropped video
-                        self.overlay_renderer.render_full_overlay(
-                            video_path=base_path,
-                            hook_text=hook_text,
-                            subtitles=adjusted_subtitles,
-                            style=caption_style,
-                            hook_duration=hook_duration,
-                            output_path=final_path,
-                            request_log_data={'caption_response': all_clips_data},
-                            hook_style=hook_style
-                        )
-                    else:
-                        raise FileNotFoundError(f"No source video found for clip {clip_index}")
-                    
-                    # Audio normalization
-                    if _normalize_audio(final_path):
-                        logger.info(f"  🔊 Audio normalized for clip {clip_index}")
-                    
-                    rendered_clips.append({
-                        "index": clip_index,
-                        "output_path": final_path,
-                        "hook": hook_text,
-                        "duration": duration,
-                    })
-                    
-                    job_logger.set_clips_completed(idx + 1)
-                    job_logger.log(f"  [Clip {clip_index}] ✅ Style applied")
-                    logger.info(f"✅ Style render clip {clip_index} completed")
-                    
-                except Exception as e:
-                    logger.error(f"❌ Style render clip {clip_index} failed: {e}")
-                    job_logger.log(f"  [Clip {clip_index}] ❌ Style render failed: {e}")
-                    import traceback
-                    logger.error(traceback.format_exc())
+                job_logger.log(f"  [Clip {clip_index}] ✅ Render job #{render_job.id} queued")
+                logger.info(f"  [Clip {clip_index}] Render job #{render_job.id} created (pending)")
+            
+            # Update keywords in hook renderer for legacy fallback
+            self.overlay_renderer.hook_renderer.update_keywords(all_clips_data)
             
             # Update request log with new style info
             request_log.caption_style_id = caption_style_id
             request_log.hook_style_id = hook_style_id
             request_log_repo.update(request_log)
             
-            job_logger.log(f"Style render complete — {len(rendered_clips)} clips styled", "applying_captions")
-            job_logger.mark_completed()
+            job_logger.log(f"Remotion render queued — {len(rendered_clips)} clips pending", "applying_captions")
+            job_logger.log(f"Worker will process render jobs automatically (poll interval: 5s)")
             
             return {
                 "status": "success",
@@ -2073,6 +2054,7 @@ class VideoProcessingPipeline:
                 "clips": rendered_clips,
                 "caption_style_id": caption_style_id,
                 "hook_style_id": hook_style_id,
+                "render_mode": "remotion",
             }
             
         except Exception as e:

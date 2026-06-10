@@ -5,12 +5,28 @@ from pydantic import BaseModel
 from typing import Optional, List, Dict, Any
 
 
+# ─── Available Video Resolutions ──────────────────────────────────────────────
+
+VIDEO_RESOLUTIONS = {
+    # Portrait (Vertikal)
+    "9:16": {"width": 1080, "height": 1920, "label": "9:16 — Standar TikTok/Reels"},
+    "4:5": {"width": 1080, "height": 1350, "label": "4:5 — Instagram Feed"},
+    "3:4": {"width": 1080, "height": 1440, "label": "3:4 — Mobile friendly"},
+    "2:3": {"width": 1080, "height": 1620, "label": "2:3 — Alternatif vertikal"},
+    # Landscape (Horizontal)
+    "16:9": {"width": 1920, "height": 1080, "label": "16:9 — Standar YouTube"},
+    "21:9": {"width": 2560, "height": 1080, "label": "21:9 — Cinematic ultra-wide"},
+    "18:9": {"width": 2160, "height": 1080, "label": "18:9 — Smartphone widescreen"},
+}
+
+
 class JobRequestModel(BaseModel):
     urls: str  # Single URL or newline/comma-separated multiple URLs
     caption_style: Optional[int] = None  # Legacy field (FFmpeg)
     caption_template_id: Optional[int] = None  # Remotion template
     hook_style_id: Optional[int] = None  # Legacy field (FFmpeg)
     hook_template_id: Optional[int] = None  # Remotion template
+    resolution: Optional[str] = "9:16"  # Aspect ratio: 9:16, 4:5, 16:9, etc.
 
     @property
     def effective_caption_id(self) -> Optional[int]:
@@ -93,6 +109,7 @@ class AnalyzeRequest(BaseModel):
     caption_template_id: Optional[int] = None
     hook_style_id: Optional[int] = None
     hook_template_id: Optional[int] = None
+    resolution: Optional[str] = "9:16"
 
     @property
     def effective_caption_id(self) -> Optional[int]:
@@ -128,6 +145,7 @@ class ProcessSelectedRequest(BaseModel):
     caption_template_id: Optional[int] = None
     hook_style_id: Optional[int] = None
     hook_template_id: Optional[int] = None
+    resolution: Optional[str] = "9:16"
 
     @property
     def effective_caption_id(self) -> Optional[int]:
@@ -171,6 +189,7 @@ class PreviewResponse(BaseModel):
 class BaseProcessRequest(BaseModel):
     url: str
     skip_clips: Optional[List[int]] = None
+    resolution: Optional[str] = "9:16"
 
 
 class BaseProcessResponse(BaseModel):
@@ -184,6 +203,7 @@ class ApplyStyleRequest(BaseModel):
     caption_template_id: Optional[int] = None  # Remotion
     hook_style_id: Optional[int] = None  # Legacy
     hook_template_id: Optional[int] = None  # Remotion
+    resolution: Optional[str] = "9:16"
 
     @property
     def effective_caption_id(self) -> Optional[int]:

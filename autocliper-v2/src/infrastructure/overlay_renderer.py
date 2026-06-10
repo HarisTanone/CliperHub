@@ -632,8 +632,9 @@ class SubtitleRenderer:
         draw = ImageDraw.Draw(overlay)
         
         # Get font - scale font size for video resolution
-        # Base font size from DB is for reference, scale for actual video size
-        scaled_font_size = max(24, int(style.font_size * (width / 400)))  # Scale based on width
+        # DB font sizes are Remotion reference values (~360px preview width)
+        # Scale to actual render resolution (same reference as hook renderer)
+        scaled_font_size = max(24, int(style.font_size * (width / 360)))  # Scale based on width
         font = self.text_renderer.get_font(
             style.font_family, 
             scaled_font_size, 
@@ -1058,9 +1059,22 @@ class OverlayRenderer(IOverlayRenderer):
             self.hook_renderer.update_keywords(request_log_data['caption_response'])
             self.premium_hook.update_keywords(request_log_data['caption_response'])
         
-        # Group subtitles into 4-word chunks with dynamic pause detection
-        chunked_subtitles = self._group_words_to_chunks(subtitles, words_per_chunk=4)
-        print(f"[Subtitle] Grouped {len(subtitles)} segments into {len(chunked_subtitles)} dynamic chunks (target 4 words/chunk)")
+        # Determine display mode from caption style config
+        ext_cfg = style.get_extended_config() if hasattr(style, 'get_extended_config') else {}
+        display_mode = ext_cfg.get("display_mode", "phrase")
+        
+        # Group subtitles based on display_mode
+        if display_mode == "word_by_word":
+            chunked_subtitles = self._group_words_to_chunks(subtitles, words_per_chunk=1)
+            print(f"[Subtitle] Word-by-word mode: {len(chunked_subtitles)} chunks (1 word each)")
+        elif display_mode == "sentence":
+            # No chunking — use original subtitle segments as-is
+            chunked_subtitles = subtitles
+            print(f"[Subtitle] Sentence mode: {len(chunked_subtitles)} full segments")
+        else:
+            # Default "phrase" mode — 4 words per chunk with pause detection
+            chunked_subtitles = self._group_words_to_chunks(subtitles, words_per_chunk=4)
+            print(f"[Subtitle] Phrase mode: {len(chunked_subtitles)} chunks (target 4 words/chunk)")
         
         cap = cv2.VideoCapture(video_path)
         if not cap.isOpened():
@@ -1234,9 +1248,20 @@ class OverlayRenderer(IOverlayRenderer):
             self.hook_renderer.update_keywords(request_log_data['caption_response'])
             self.premium_hook.update_keywords(request_log_data['caption_response'])
         
-        # Group subtitles into 4-word chunks with dynamic pause detection
-        chunked_subtitles = self._group_words_to_chunks(subtitles, words_per_chunk=4)
-        print(f"[SinglePass] Grouped {len(subtitles)} segments into {len(chunked_subtitles)} dynamic chunks (target 4 words/chunk)")
+        # Determine display mode from caption style config
+        ext_cfg = style.get_extended_config() if hasattr(style, 'get_extended_config') else {}
+        display_mode = ext_cfg.get("display_mode", "phrase")
+        
+        # Group subtitles based on display_mode
+        if display_mode == "word_by_word":
+            chunked_subtitles = self._group_words_to_chunks(subtitles, words_per_chunk=1)
+            print(f"[SinglePass] Word-by-word mode: {len(chunked_subtitles)} chunks")
+        elif display_mode == "sentence":
+            chunked_subtitles = subtitles
+            print(f"[SinglePass] Sentence mode: {len(chunked_subtitles)} full segments")
+        else:
+            chunked_subtitles = self._group_words_to_chunks(subtitles, words_per_chunk=4)
+            print(f"[SinglePass] Phrase mode: {len(chunked_subtitles)} chunks (target 4 words/chunk)")
         
         # Extract tracking dimensions
         fps = tracking_data['fps']

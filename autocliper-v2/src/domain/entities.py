@@ -15,6 +15,99 @@ class ProcessingState(Enum):
     FAILED = "failed"
 
 
+class VideoResolution(Enum):
+    """Supported output video resolutions.
+    
+    Format: (width, height, aspect_ratio_label, description)
+    """
+    # Portrait (Vertikal)
+    PORTRAIT_9_16 = (1080, 1920, "9:16", "Standar TikTok/Reels")
+    PORTRAIT_4_5 = (1080, 1350, "4:5", "Instagram Feed")
+    PORTRAIT_3_4 = (1080, 1440, "3:4", "Mobile friendly")
+    PORTRAIT_2_3 = (1080, 1620, "2:3", "Alternatif vertikal")
+    
+    # Landscape (Horizontal)
+    LANDSCAPE_16_9 = (1920, 1080, "16:9", "Standar YouTube")
+    LANDSCAPE_21_9 = (2560, 1080, "21:9", "Cinematic ultra-wide")
+    LANDSCAPE_18_9 = (2160, 1080, "18:9", "Smartphone widescreen")
+
+    @property
+    def width(self) -> int:
+        return self.value[0]
+
+    @property
+    def height(self) -> int:
+        return self.value[1]
+
+    @property
+    def aspect_ratio(self) -> str:
+        return self.value[2]
+
+    @property
+    def description(self) -> str:
+        return self.value[3]
+
+    @property
+    def is_portrait(self) -> bool:
+        return self.height > self.width
+
+    @property
+    def target_ratio(self) -> float:
+        """Width / Height ratio used for crop calculations."""
+        return self.width / self.height
+
+    @classmethod
+    def from_string(cls, value: str) -> "VideoResolution":
+        """Parse resolution from string like '9:16', '1080x1920', or enum name.
+        
+        Supports:
+            - Aspect ratio: '9:16', '4:5', '16:9', etc.
+            - Dimensions: '1080x1920', '1920x1080', etc.
+            - Enum name: 'PORTRAIT_9_16', 'LANDSCAPE_16_9', etc.
+        """
+        if not value:
+            return cls.PORTRAIT_9_16
+        
+        value = value.strip().upper()
+        
+        # Try enum name directly
+        try:
+            return cls[value]
+        except KeyError:
+            pass
+        
+        # Try by aspect ratio label (e.g. "9:16")
+        value_lower = value.lower()
+        for member in cls:
+            if member.aspect_ratio == value_lower or member.aspect_ratio == value:
+                return member
+        
+        # Try by dimensions "WIDTHxHEIGHT"
+        if 'X' in value:
+            parts = value.split('X')
+            if len(parts) == 2:
+                try:
+                    w, h = int(parts[0]), int(parts[1])
+                    for member in cls:
+                        if member.width == w and member.height == h:
+                            return member
+                except ValueError:
+                    pass
+        
+        # Default fallback
+        return cls.PORTRAIT_9_16
+
+    def to_dict(self) -> dict:
+        return {
+            "name": self.name,
+            "width": self.width,
+            "height": self.height,
+            "aspect_ratio": self.aspect_ratio,
+            "description": self.description,
+            "is_portrait": self.is_portrait,
+        }
+
+
 @dataclass
 class Font:
     id: int
@@ -168,6 +261,11 @@ class CaptionStyle:
                 "border_radius": 12,
                 "per_line": True,  # True = pill per line, False = one big pill
             },
+            # How words appear on screen
+            # "word_by_word" = 1 word at a time (karaoke)
+            # "phrase" = 3-4 words chunked (default, current behavior)
+            # "sentence" = full subtitle segment at once
+            "display_mode": "phrase",
         }
         cfg = self.config or {}
         
@@ -292,6 +390,7 @@ class JobRequest:
     user_id: Optional[int] = None
     hook_style_id: Optional[int] = None
     base_only: bool = False
+    resolution: str = "9:16"  # Default TikTok portrait
 
 
 @dataclass

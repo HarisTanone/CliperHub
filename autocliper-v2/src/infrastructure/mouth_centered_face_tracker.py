@@ -814,10 +814,11 @@ class MouthCenteredVideoCropper:
     
     def crop_to_aspect_ratio(self, video_path: str, face_positions: List[Dict] = None,
                             output_path: str = None, start_time: float = None,
-                            end_time: float = None) -> str:
+                            end_time: float = None,
+                            output_resolution: tuple = None) -> str:
         """
         Frame-by-frame crop pipeline:
-        Video → Frame → Detect Face → Crop 9:16 (single or 2-grid) → HD Output
+        Video → Frame → Detect Face → Crop (configurable aspect ratio) → HD Output
         """
         # Step 1: Track faces if not provided
         if face_positions is None:
@@ -849,10 +850,12 @@ class MouthCenteredVideoCropper:
         if start_frame > 0:
             cap.set(cv2.CAP_PROP_POS_FRAMES, start_frame)
         
-        # Target 9:16 Full HD
-        out_w = 1080
-        out_h = 1920
-        half_h = out_h // 2  # 960 — each grid cell height
+        # Output dimensions — configurable via parameter
+        if output_resolution:
+            out_w, out_h = output_resolution
+        else:
+            out_w, out_h = 1080, 1920
+        half_h = out_h // 2  # each grid cell height
         target_ratio = out_w / out_h  # 0.5625
         grid_ratio = out_w / half_h    # 1.125 — aspect ratio of each grid cell
         

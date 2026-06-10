@@ -129,6 +129,8 @@ class RemotionRenderWorker:
             success = await self._render_via_remotion(
                 job, caption_template, hook_template, output_path
             )
+        else:
+            logger.warning("REMOTION_BUNDLE_DIR not set or directory missing, falling back to FFmpeg drawtext")
         
         if not success:
             success = await self._render_via_ffmpeg(
@@ -174,6 +176,8 @@ class RemotionRenderWorker:
         Requires bundle to be built first.
         """
         try:
+            start_time = time.time()
+
             # Build input props
             props = self._build_remotion_props(job, caption_template, hook_template)
             props_json = json.dumps(props)
@@ -199,6 +203,8 @@ class RemotionRenderWorker:
             ))
 
             if result.returncode == 0:
+                render_seconds = round(time.time() - start_time, 1)
+                print(f"Render completed in {render_seconds}s")
                 return True
             else:
                 logger.error(f"  Remotion stderr: {result.stderr[:500]}")
@@ -220,6 +226,7 @@ class RemotionRenderWorker:
         Simpler than Remotion but covers basic needs.
         """
         try:
+            start_time = time.time()
             input_path = job.input_video_path
             if not os.path.exists(input_path):
                 logger.error(f"  Input video not found: {input_path}")
@@ -310,6 +317,8 @@ class RemotionRenderWorker:
             ))
 
             if result.returncode == 0:
+                render_seconds = round(time.time() - start_time, 1)
+                print(f"Render completed in {render_seconds}s")
                 return True
             else:
                 logger.error(f"  FFmpeg error: {result.stderr[:300]}")
@@ -319,8 +328,45 @@ class RemotionRenderWorker:
             logger.error(f"  FFmpeg render error: {e}")
             return False
 
+    def _build_legacy_hook_config(self, hook_template) -> Dict[str, Any]:
+        """Build minimal config from top-level DB fields for backwards compatibility.
+
+        When a hook template has no `config` or an empty `config`, this method
+        constructs a schema_version 1 config from the legacy top-level fields.
+        The Remotion project's resolveConfig() will then fill in all defaults
+        with `enable: false` for features not present (badge, decorations,
+        effects, overlay, position, font_registry, safe_area).
+        """
+        return {
+            "schema_version": 1,
+            "text": {
+                "lines": [],  # Empty = legacy two-tier rendering
+                "font_size_normal": hook_template.font_size_normal,
+                "font_size_keyword": hook_template.font_size_keyword,
+                "color": hook_template.color,
+                "keyword_color": hook_template.keyword_color,
+                "fontfile": hook_template.font_family or "",
+                "fallback_font": "Anton",
+                "line_spacing": 10,
+                "word_spacing": 12,
+                "padding_horizontal": 80,
+                "text_transform": "uppercase",
+                "letter_spacing": 0,
+            },
+            "animation": {
+                "type": hook_template.animation_type or "fade",
+                "per_line": [],
+            },
+        }
+
     def _build_remotion_props(self, job, caption_template, hook_template) -> Dict[str, Any]:
-        """Build the inputProps dict for Remotion render."""
+        """Build the inputProps dict for Remotion render.
+
+        NOTE: No SQL migration needed. All new overlay features (badge, decorations,
+        effects, overlay, position, font_registry, safe_area) are stored in the
+        existing JSON `config` column. When config is null/empty, the Remotion
+        project's resolveConfig() fills defaults with all features disabled.
+        """
         props: Dict[str, Any] = {
             "videoSrc": job.input_video_path,
             "hookText": job.hook_text or "",
@@ -328,19 +374,30 @@ class RemotionRenderWorker:
         }
 
         if caption_template:
+            # For captionStyle: pass config as-is if present, otherwise empty dict
+            # so Remotion resolveConfig() fills all defaults with features disabled
+            caption_config = caption_template.config if caption_template.config else {}
+
             props["captionStyle"] = {
                 "fontFamily": caption_template.font_family,
                 "fontWeight": caption_template.font_weight,
                 "fontSize": caption_template.font_size,
                 "color": caption_template.color,
                 "highlightColor": caption_template.highlight_color,
+                "highlightBgColor": caption_template.bg_color if getattr(caption_template, 'bg_per_word', False) else None,
                 "highlightStyle": caption_template.highlight_style,
+                "highlightTransition": caption_template.highlight_transition,
                 "outlineEnabled": bool(caption_template.outline_enabled),
                 "outlineColor": caption_template.outline_color,
                 "outlineWidth": caption_template.outline_width,
                 "shadowEnabled": bool(caption_template.shadow_enabled),
                 "shadowColor": caption_template.shadow_color,
                 "shadowBlur": caption_template.shadow_blur,
+                "shadow": self._compose_shadow(
+                    caption_template.shadow_enabled,
+                    caption_template.shadow_color,
+                    caption_template.shadow_blur,
+                ),
                 "bgEnabled": bool(caption_template.bg_enabled),
                 "bgColor": caption_template.bg_color,
                 "bgOpacity": caption_template.bg_opacity,
@@ -350,14 +407,18 @@ class RemotionRenderWorker:
                 "maxWordsPerLine": caption_template.max_words_per_line,
                 "animationIn": caption_template.animation_in,
                 "animationInDuration": caption_template.animation_in_duration,
-                "highlightTransition": caption_template.highlight_transition,
-                "config": caption_template.config,
+                "config": caption_config,
             }
 
         if hook_template:
+            # For hookStyle: build legacy config from top-level fields when
+            # config is null/empty, ensuring existing templates render as before
+            hook_config = hook_template.config if hook_template.config else self._build_legacy_hook_config(hook_template)
+
             props["hookStyle"] = {
                 "fontFamily": hook_template.font_family,
                 "fontWeight": hook_template.font_weight,
+                "fontSize": hook_template.font_size_normal,
                 "fontSizeNormal": hook_template.font_size_normal,
                 "fontSizeKeyword": hook_template.font_size_keyword,
                 "color": hook_template.color,
@@ -365,17 +426,45 @@ class RemotionRenderWorker:
                 "shadowEnabled": bool(hook_template.shadow_enabled),
                 "shadowColor": hook_template.shadow_color,
                 "shadowBlur": hook_template.shadow_blur,
+                "shadow": self._compose_shadow(
+                    hook_template.shadow_enabled,
+                    hook_template.shadow_color,
+                    hook_template.shadow_blur,
+                ),
                 "glowEnabled": bool(hook_template.glow_enabled),
                 "glowColor": hook_template.glow_color,
                 "glowRadius": hook_template.glow_radius,
+                "glow": self._compose_glow(
+                    hook_template.glow_enabled,
+                    hook_template.glow_color,
+                    hook_template.glow_radius,
+                ),
                 "animationType": hook_template.animation_type,
                 "animationInDuration": hook_template.animation_in_duration,
                 "displayDurationSeconds": hook_template.display_duration_seconds,
                 "delayBeforeSeconds": hook_template.delay_before_seconds,
-                "config": hook_template.config,
+                "config": hook_config,
             }
 
         return props
+
+    @staticmethod
+    def _compose_shadow(enabled, color, blur) -> Optional[str]:
+        """Compose shadow fields into a CSS-compatible text-shadow string."""
+        if not enabled:
+            return None
+        shadow_color = color or "rgba(0,0,0,0.8)"
+        shadow_blur = blur or 4
+        return f"2px 2px {shadow_blur}px {shadow_color}"
+
+    @staticmethod
+    def _compose_glow(enabled, color, radius) -> Optional[str]:
+        """Compose glow fields into a CSS-compatible text-shadow glow string."""
+        if not enabled:
+            return None
+        glow_color = color or "rgba(255,255,255,0.8)"
+        glow_radius = radius or 8
+        return f"0 0 {glow_radius}px {glow_color}"
 
 
 # Singleton instance

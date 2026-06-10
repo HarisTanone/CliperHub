@@ -70,6 +70,9 @@ class RemotionCaptionTemplateModel(Base):
     highlight_transition = Column(String(30), default="instant")
     highlight_transition_duration = Column(Integer, default=100)
 
+    # Display mode: word_by_word, phrase, sentence
+    display_mode = Column(String(20), nullable=False, default="phrase")
+
     # Extended
     config = Column(JSON, default=None)
 
