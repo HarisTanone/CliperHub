@@ -12,7 +12,8 @@ import QueuePage from './pages/QueuePage'
 import AnalyticsPage from './pages/AnalyticsPage'
 import StyleApplyPage from './pages/StyleApplyPage'
 import TikTokPage from './pages/TikTokPage'
-import RemotionStylesPage from './pages/RemotionStylesPage'
+import KeyframeStylesPage from './pages/KeyframeStylesPage'
+import ReStylePage from './pages/ReStylePage'
 import AccountsPage from './pages/AccountsPage'
 import HealthBadge from './components/HealthBadge'
 import ThemeToggle from './components/ThemeToggle'
@@ -37,9 +38,10 @@ const navItems = [
     { key: 'create', icon: 'add_circle', label: 'Create' },
     { key: 'queue', icon: 'queue', label: 'Queue' },
     { key: 'library', icon: 'video_library', label: 'Library' },
+    { key: 'restyle', icon: 'style', label: 'Re-Style' },
     { key: 'accounts', icon: 'group', label: 'Account List' },
     { key: 'analytics', icon: 'analytics', label: 'Analytics' },
-    { key: 'remotion-styles', icon: 'palette', label: 'Styles' },
+    { key: 'styles', icon: 'palette', label: 'Styles' },
     { key: 'users', icon: 'group', label: 'Users', adminOnly: true },
     { key: 'settings', icon: 'settings', label: 'Settings' },
 ]
@@ -55,7 +57,8 @@ const pageTitles = {
     settings: 'Settings',
     processing: 'Processing',
     'style-apply': 'Re-Style',
-    'remotion-styles': 'Styles',
+    'restyle': 'Re-Style (Keyframe)',
+    'styles': 'Styles',
 }
 
 function SearchBar({ onNavigate }) {
@@ -71,7 +74,7 @@ function SearchBar({ onNavigate }) {
         { key: 'library', icon: 'video_library', label: 'Library / History', desc: 'Browse completed clips', gradient: 'from-[var(--burgundy)] to-[var(--crimson-wine)]', keywords: 'history output download clips completed' },
         { key: 'accounts', icon: 'group', label: 'Account List', desc: 'Manage social accounts', gradient: 'from-[var(--crimson-wine)] to-[var(--dark-plum)]', keywords: 'tiktok youtube facebook instagram x upload post schedule accounts social' },
         { key: 'analytics', icon: 'analytics', label: 'Analytics', desc: 'Performance insights', gradient: 'from-[var(--dark-navy)] to-[var(--deep-indigo)]', keywords: 'stats performance score engagement' },
-        { key: 'remotion-styles', icon: 'palette', label: 'Styles', desc: 'Remotion caption & hook templates', gradient: 'from-[var(--dark-plum)] to-[var(--crimson-wine)]', keywords: 'caption hook font color theme design remotion template composition' },
+        { key: 'styles', icon: 'palette', label: 'Styles', desc: 'Keyframe caption & hook templates', gradient: 'from-[var(--dark-plum)] to-[var(--crimson-wine)]', keywords: 'caption hook font color theme design keyframe template composition style' },
         { key: 'users', icon: 'manage_accounts', label: 'User Management', desc: 'Admin controls', gradient: 'from-[var(--deep-indigo)] to-[var(--dark-navy)]', keywords: 'admin users accounts roles' },
         { key: 'settings', icon: 'settings', label: 'Settings', desc: 'App configuration', gradient: 'from-[var(--burgundy)] to-[var(--deep-indigo)]', keywords: 'config profile password pipeline storage' },
     ]
@@ -617,7 +620,7 @@ function App() {
                 {page === 'library' && <LibraryPage onViewProgress={handleViewProgress} onApplyStyle={handleApplyStyle} />}
                 {page === 'accounts' && <AccountsPage />}
                 {page === 'analytics' && <AnalyticsPage />}
-                {page === 'remotion-styles' && <RemotionStylesPage />}
+                {page === 'styles' && <KeyframeStylesPage />}
                 {page === 'users' && <UsersPage />}
                 {page === 'settings' && <SettingsPage />}
                 {page === 'processing' && processingJob && (
@@ -629,6 +632,9 @@ function App() {
                     <StyleApplyPage jobId={styleApplyJobId}
                         onBack={() => { setStyleApplyJobId(null); navigateTo(prevPage) }}
                         onDone={() => { setStyleApplyJobId(null); navigateTo('library') }} />
+                )}
+                {page === 'restyle' && (
+                    <ReStylePage />
                 )}
             </Layout>
         </>

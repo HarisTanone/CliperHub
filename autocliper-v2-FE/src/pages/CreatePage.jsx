@@ -2,9 +2,175 @@ import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { toast } from 'react-hot-toast'
 import { api, loadGoogleFonts, getAuthenticatedMediaUrl } from '../utils/api'
-import RemotionPreview from '../components/RemotionPreview'
+import KeyframePreview from '../components/KeyframePreview'
 import ResolutionSelector from '../components/ResolutionSelector'
-import { buildCaptionWordStyle, buildCaptionPillStyle, buildHookWordStyle, buildHookBoxStyle } from '../utils/remotionStyleUtils'
+
+// ─── Legacy Style Card Utilities (inlined from removed remotionStyleUtils.js) ──
+function buildCaptionWordStyle(template, { isHighlight = false, scale = 1 } = {}) {
+    if (!template) return {}
+    const fontSize = Math.max(10, Math.round((template.font_size || 48) * scale))
+    const outlineW = (template.outline_width || 0) * scale
+    const shadowX = (template.shadow_offset_x || 0) * scale
+    const shadowY = (template.shadow_offset_y || 0) * scale
+    const shadowBlur = (template.shadow_blur || 4) * scale
+    const baseShadow = template.shadow_enabled !== false
+        ? `${shadowX}px ${shadowY}px ${shadowBlur}px ${template.shadow_color || '#000000'}`
+        : '0 1px 3px rgba(0,0,0,0.8)'
+    const base = {
+        color: isHighlight ? (template.highlight_color || '#FFD700') : (template.color || '#FFFFFF'),
+        fontFamily: template.font_family || 'Inter',
+        fontSize: `${fontSize}px`,
+        fontWeight: template.font_weight || '700',
+        lineHeight: template.line_height || 1.3,
+        display: 'inline-block',
+        textShadow: baseShadow,
+        textTransform: template.text_transform || 'none',
+    }
+    if (template.outline_enabled && outlineW > 0.5) {
+        base.WebkitTextStroke = `${outlineW}px ${template.outline_color || '#000000'}`
+    }
+    if (isHighlight) {
+        const hlStyle = template.highlight_style || 'color'
+        if (hlStyle === 'glow') {
+            const glowColor = template.highlight_color || '#FFD700'
+            base.textShadow = `0 0 ${6 * scale}px ${glowColor}, 0 0 ${14 * scale}px ${glowColor}60, ${baseShadow}`
+        }
+        if (hlStyle === 'scale') base.transform = 'scale(1.12)'
+        if (hlStyle === 'background') {
+            base.backgroundColor = `${template.highlight_color || '#FFD700'}30`
+            base.padding = `${1 * scale}px ${4 * scale}px`
+            base.borderRadius = `${4 * scale}px`
+        }
+    }
+    return base
+}
+
+function buildCaptionPillStyle(template, { scale = 1 } = {}) {
+    if (!template || !template.bg_enabled) return {}
+    const bgColor = template.bg_color || '#000000'
+    const bgOpacity = template.bg_opacity ?? 0.7
+    const bgPadX = (template.bg_padding_x || 12) * scale
+    const bgPadY = (template.bg_padding_y || 6) * scale
+    const bgRadius = (template.bg_border_radius || 8) * scale
+    const alpha = Math.round(bgOpacity * 255).toString(16).padStart(2, '0')
+    return { background: `${bgColor}${alpha}`, padding: `${bgPadY}px ${bgPadX}px`, borderRadius: `${bgRadius}px`, display: 'inline-block' }
+}
+
+function buildHookWordStyle(template, { isKeyword = false, scale = 1 } = {}) {
+    if (!template) return {}
+    const fontSize = isKeyword
+        ? Math.round((template.font_size_keyword || 56) * scale)
+        : Math.round((template.font_size_normal || 36) * scale)
+    const shadow = template.shadow_enabled !== false
+        ? `0 ${(template.shadow_offset_y || 3) * scale}px ${(template.shadow_blur || 12) * scale}px ${template.shadow_color || '#000000'}`
+        : '0 1px 3px rgba(0,0,0,0.8)'
+    const base = {
+        color: isKeyword ? (template.keyword_color || '#FFFFFF') : (template.color || '#FFFFFF'),
+        fontFamily: template.font_family || 'Anton',
+        fontSize: `${fontSize}px`,
+        fontWeight: isKeyword ? '900' : (template.font_weight || '400'),
+        textShadow: shadow,
+        textTransform: template.text_transform || 'uppercase',
+        lineHeight: 1.2,
+        margin: 0,
+    }
+    if (isKeyword && template.glow_enabled) {
+        const gc = template.glow_color || template.keyword_color || '#FFFFFF'
+        const gr = (template.glow_radius || 8) * scale
+        base.textShadow = `0 0 ${gr}px ${gc}, 0 0 ${gr * 2}px ${gc}50, ${shadow}`
+    }
+    return base
+}
+
+function buildHookBoxStyle(template, { scale = 1 } = {}) {
+    if (!template || !template.box_enabled) return {}
+    const color = template.box_color || '#000000'
+    const opacity = template.box_opacity ?? 0.6
+    const alpha = Math.round(opacity * 255).toString(16).padStart(2, '0')
+    return {
+        background: `${color}${alpha}`,
+        padding: `${(template.box_padding || 20) * scale}px`,
+        borderRadius: `${(template.box_border_radius || 12) * scale}px`,
+        ...(template.box_border_width > 0 ? { border: `${template.box_border_width * scale}px solid ${template.box_border_color || 'transparent'}` } : {}),
+    }
+}
+
+// ─── Keyframe config → flat style mappers (for CaptionStyleCard / HookStyleCard) ──
+function flattenCaptionConfig(template) {
+    if (!template) return null
+    const cfg = template.config || {}
+    const font = cfg.font || {}
+    const colors = cfg.colors || {}
+    const highlight = cfg.highlight || {}
+    const outline = cfg.outline || {}
+    const shadow = cfg.shadow || {}
+    const bg = cfg.background || {}
+    return {
+        id: template.id,
+        name: template.name,
+        font_family: font.family || 'Arial',
+        font_weight: font.weight || 'bold',
+        font_size: font.size || 48,
+        text_transform: font.text_transform || 'none',
+        line_height: font.line_height || 1.3,
+        color: colors.primary || '#FFFFFF',
+        highlight_color: highlight.color || '#FFD700',
+        highlight_style: highlight.style || 'color',
+        outline_enabled: outline.enabled ?? false,
+        outline_color: outline.color || '#000000',
+        outline_width: outline.width || 0,
+        shadow_enabled: shadow.enabled ?? true,
+        shadow_color: shadow.color || '#000000',
+        shadow_blur: shadow.blur || 4,
+        shadow_offset_x: shadow.offset_x || 0,
+        shadow_offset_y: shadow.offset_y || 2,
+        bg_enabled: bg.enabled ?? false,
+        bg_color: bg.color || '#000000',
+        bg_opacity: bg.opacity ?? 0.5,
+        bg_padding_x: bg.padding_x || 12,
+        bg_padding_y: bg.padding_y || 6,
+        bg_border_radius: bg.border_radius || 6,
+        // Preserve original template data for submission
+        _template: template,
+    }
+}
+
+function flattenHookConfig(template) {
+    if (!template) return null
+    const cfg = template.config || {}
+    const text = cfg.text || {}
+    const defaultFont = text.default_font || {}
+    const lines = text.lines || []
+    const box = cfg.box || {}
+    const firstLine = lines[0] || {}
+    return {
+        id: template.id,
+        name: template.name,
+        font_family: defaultFont.family || firstLine.font_family || 'Impact',
+        font_size_normal: defaultFont.size || 48,
+        font_size_keyword: firstLine.font_size || 60,
+        font_weight: defaultFont.weight || 'bold',
+        color: defaultFont.color || '#FFFFFF',
+        keyword_color: firstLine.color || '#FFD700',
+        text_transform: firstLine.text_transform || 'uppercase',
+        shadow_enabled: true,
+        shadow_color: '#000000',
+        shadow_blur: 8,
+        shadow_offset_y: 3,
+        glow_enabled: false,
+        glow_color: '#FFFFFF',
+        glow_radius: 8,
+        box_enabled: box.enabled ?? false,
+        box_color: box.color || '#000000',
+        box_opacity: box.opacity ?? 0.6,
+        box_padding: box.padding || 20,
+        box_border_radius: box.border_radius || 0,
+        box_border_width: box.border_width || 0,
+        box_border_color: box.border_color || 'transparent',
+        // Preserve original template data for submission
+        _template: template,
+    }
+}
 
 const PREVIEW_BG = "https://lh3.googleusercontent.com/aida-public/AB6AXuBR8v7XkC5vNu8cT77RaDOH4JfdHz-jjqDZnXfNWnC1yftxffImbLrXQnp0Wc7uCVKDdmFIGTKf4i0uR3BneXMYGm4g0sURS6lQWj20A_od6g5NVwaRH39JjwGctm7e8L_ixngiEO7COOxJdLZp0AJg0K2Xay6coqna9CtqsDt92xch-THdSapYp4bQ9Nq_WQmkhDhFv_qS3ft45j18zz402xoje1TvphZHMvgRNUwa2hMhsJoIORa3iCMC9UUNE_TWVNWgtkTEXgRi"
 
@@ -471,6 +637,345 @@ function CustomizationPanel({ editStyle, setEditStyle }) {
 
 
 
+// ─── Keyframe Style Composition Card ────────────────────────────────────────
+function KeyframeCompositionCard({ composition, isActive, onSelect, index, captionTemplates, hookTemplates }) {
+    const [hovered, setHovered] = useState(false)
+
+    const captionTpl = captionTemplates?.find(c => c.id === composition.caption_template_id)
+    const hookTpl = hookTemplates?.find(h => h.id === composition.hook_template_id)
+
+    return (
+        <motion.button layout
+            initial={{ opacity: 0, scale: 0.95, y: 8 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            transition={{ duration: 0.25, delay: index * 0.04 }}
+            onClick={() => onSelect(composition)}
+            onMouseEnter={() => setHovered(true)}
+            onMouseLeave={() => setHovered(false)}
+            className="relative rounded-xl overflow-hidden transition-all group text-left"
+            style={{
+                border: isActive ? '2px solid var(--color-accent)' : '1px solid var(--color-border-subtle)',
+                boxShadow: isActive ? 'var(--shadow-glow)' : 'none',
+                background: 'var(--color-surface-1)',
+            }}>
+            {/* Preview area */}
+            <div className="aspect-[4/3] relative overflow-hidden" style={{ background: 'linear-gradient(160deg, rgba(0,0,0,0.92), rgba(15,8,25,0.95))' }}>
+                {/* Static preview text */}
+                {!hovered && (
+                    <div className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 p-3">
+                        {captionTpl && (
+                            <span className="text-[10px] font-bold" style={{
+                                color: captionTpl.config?.colors?.primary || '#FFF',
+                                fontFamily: captionTpl.config?.font?.family || 'Inter',
+                                textShadow: '0 1px 3px rgba(0,0,0,0.8)',
+                            }}>Caption</span>
+                        )}
+                        {hookTpl && (
+                            <span className="text-[9px] font-bold uppercase" style={{
+                                color: hookTpl.config?.text?.default_font?.color || '#FFD700',
+                                fontFamily: hookTpl.config?.text?.default_font?.family || 'Anton',
+                                textShadow: '0 1px 3px rgba(0,0,0,0.8)',
+                            }}>Hook</span>
+                        )}
+                        {!captionTpl && !hookTpl && (
+                            <span className="text-[10px]" style={{ color: 'rgba(255,255,255,0.4)' }}>Preview</span>
+                        )}
+                    </div>
+                )}
+                {/* KeyframePreview on hover */}
+                <AnimatePresence>
+                    {hovered && hookTpl && (
+                        <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            transition={{ duration: 0.2 }}
+                            className="absolute inset-0 flex items-center justify-center"
+                            style={{ transform: 'scale(0.42)', transformOrigin: 'center center' }}
+                        >
+                            <KeyframePreview template={hookTpl} type="hook" text={"Sample Hook\nText Here"} />
+                        </motion.div>
+                    )}
+                    {hovered && !hookTpl && captionTpl && (
+                        <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            transition={{ duration: 0.2 }}
+                            className="absolute inset-0 flex items-center justify-center"
+                            style={{ transform: 'scale(0.42)', transformOrigin: 'center center' }}
+                        >
+                            <KeyframePreview template={captionTpl} type="caption" words={['This', 'is', 'a', 'test']} />
+                        </motion.div>
+                    )}
+                </AnimatePresence>
+                {/* Active check badge */}
+                {isActive && (
+                    <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: 'spring', stiffness: 400 }}
+                        className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full flex items-center justify-center shadow-lg z-10"
+                        style={{ background: 'var(--color-accent)' }}>
+                        <span className="material-symbols-outlined text-white text-[10px]">check</span>
+                    </motion.div>
+                )}
+                {/* Category badge */}
+                {composition.category && composition.category !== 'general' && (
+                    <div className="absolute top-1.5 left-1.5 px-1.5 py-0.5 rounded text-[7px] font-bold uppercase z-10"
+                        style={{ background: 'var(--color-accent-subtle)', color: 'var(--color-accent)', border: '1px solid var(--color-accent-border)' }}>
+                        {composition.category}
+                    </div>
+                )}
+            </div>
+            {/* Info footer */}
+            <div className="px-2.5 py-2 flex items-center justify-between" style={{ borderTop: '1px solid var(--color-border-subtle)' }}>
+                <div className="min-w-0 flex-1">
+                    <p className="text-[10px] font-semibold truncate" style={{ color: 'var(--color-text-primary)' }}>{composition.name}</p>
+                    {composition.is_default && (
+                        <span className="text-[7px] px-1 py-0.5 rounded font-bold" style={{ background: 'var(--color-accent-subtle)', color: 'var(--color-accent)' }}>DEFAULT</span>
+                    )}
+                </div>
+                {isActive && <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: 'var(--color-accent)' }} />}
+            </div>
+        </motion.button>
+    )
+}
+
+// ─── Keyframe Style Section (compositions + advanced mode) ──────────────────
+function KeyframeStyleSection({ compositions, captionTemplates, hookTemplates, selectedComp, selectedCaptionTpl, selectedHookTpl, onSelectComp, onSelectCaptionTpl, onSelectHookTpl, advancedMode, onToggleAdvanced }) {
+    const [compSearch, setCompSearch] = useState('')
+    const [captionSearch, setCaptionSearch] = useState('')
+    const [hookSearch, setHookSearch] = useState('')
+    const [compPage, setCompPage] = useState(0)
+    const [captionPage, setCaptionPage] = useState(0)
+    const [hookPage, setHookPage] = useState(0)
+
+    const PER_PAGE = 6
+    const filteredComps = compSearch.trim() ? compositions.filter(c => c.name.toLowerCase().includes(compSearch.toLowerCase())) : compositions
+    const compTotalPages = Math.ceil(filteredComps.length / PER_PAGE) || 1
+    const visibleComps = filteredComps.slice(compPage * PER_PAGE, (compPage + 1) * PER_PAGE)
+
+    const filteredCaptions = captionSearch.trim() ? captionTemplates.filter(c => c.name.toLowerCase().includes(captionSearch.toLowerCase())) : captionTemplates
+    const captionTotalPages = Math.ceil(filteredCaptions.length / PER_PAGE) || 1
+    const visibleCaptions = filteredCaptions.slice(captionPage * PER_PAGE, (captionPage + 1) * PER_PAGE)
+
+    const filteredHooks = hookSearch.trim() ? hookTemplates.filter(h => h.name.toLowerCase().includes(hookSearch.toLowerCase())) : hookTemplates
+    const hookTotalPages = Math.ceil(filteredHooks.length / PER_PAGE) || 1
+    const visibleHooks = filteredHooks.slice(hookPage * PER_PAGE, (hookPage + 1) * PER_PAGE)
+
+    useEffect(() => { setCompPage(0) }, [compSearch])
+    useEffect(() => { setCaptionPage(0) }, [captionSearch])
+    useEffect(() => { setHookPage(0) }, [hookSearch])
+
+    return (
+        <div className="space-y-4">
+            {/* Mode toggle: Compositions vs Advanced */}
+            <div className="flex items-center justify-between">
+                <h3 className="text-sm font-bold flex items-center gap-2" style={{ color: 'var(--color-text-primary)' }}>
+                    <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: 'var(--color-accent-subtle)', border: '1px solid var(--color-accent-border)' }}>
+                        <span className="material-symbols-outlined text-[14px]" style={{ color: 'var(--color-accent)' }}>palette</span>
+                    </div>
+                    Style
+                </h3>
+                <button onClick={onToggleAdvanced}
+                    className="text-[10px] font-semibold px-3 py-1.5 rounded-lg transition-all flex items-center gap-1"
+                    style={{
+                        background: advancedMode ? 'var(--color-accent-subtle)' : 'transparent',
+                        color: advancedMode ? 'var(--color-accent)' : 'var(--color-text-muted)',
+                        border: `1px solid ${advancedMode ? 'var(--color-accent-border)' : 'var(--color-border-subtle)'}`
+                    }}>
+                    <span className="material-symbols-outlined text-[12px]">tune</span>
+                    Advanced
+                </button>
+            </div>
+
+            <AnimatePresence mode="wait">
+                {!advancedMode ? (
+                    <motion.div key="compositions" initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 10 }} className="space-y-3">
+                        {/* Search + pagination */}
+                        <div className="flex items-center gap-2">
+                            <div className="relative flex-1">
+                                <span className="absolute left-3 top-1/2 -translate-y-1/2 material-symbols-outlined text-[14px]" style={{ color: 'var(--color-text-muted)' }}>search</span>
+                                <input value={compSearch} onChange={e => setCompSearch(e.target.value)} placeholder="Search style presets..."
+                                    className="w-full pl-9 pr-3 py-2 text-xs rounded-lg outline-none transition-all"
+                                    style={{ background: 'var(--color-bg-input)', border: '1px solid var(--color-border-default)', color: 'var(--color-text-primary)' }} />
+                                {compSearch && <button onClick={() => setCompSearch('')} className="absolute right-2.5 top-1/2 -translate-y-1/2" style={{ color: 'var(--color-text-muted)' }}><span className="material-symbols-outlined text-[14px]">close</span></button>}
+                            </div>
+                            <div className="flex items-center gap-1">
+                                <motion.button onClick={() => setCompPage(p => Math.max(0, p - 1))} disabled={compPage === 0}
+                                    className="w-6 h-6 rounded-lg flex items-center justify-center disabled:opacity-30"
+                                    style={{ background: 'var(--color-surface-1)', border: '1px solid var(--color-border-subtle)' }}
+                                    whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                                    <span className="material-symbols-outlined text-[12px]" style={{ color: 'var(--color-text-secondary)' }}>chevron_left</span>
+                                </motion.button>
+                                <span className="text-[9px] tabular-nums min-w-[28px] text-center" style={{ color: 'var(--color-text-muted)' }}>{compPage + 1}/{compTotalPages}</span>
+                                <motion.button onClick={() => setCompPage(p => Math.min(compTotalPages - 1, p + 1))} disabled={compPage >= compTotalPages - 1}
+                                    className="w-6 h-6 rounded-lg flex items-center justify-center disabled:opacity-30"
+                                    style={{ background: 'var(--color-surface-1)', border: '1px solid var(--color-border-subtle)' }}
+                                    whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                                    <span className="material-symbols-outlined text-[12px]" style={{ color: 'var(--color-text-secondary)' }}>chevron_right</span>
+                                </motion.button>
+                            </div>
+                        </div>
+                        {/* Composition grid */}
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                            <AnimatePresence mode="popLayout">
+                                {visibleComps.map((comp, i) => (
+                                    <KeyframeCompositionCard
+                                        key={comp.id}
+                                        composition={comp}
+                                        isActive={selectedComp?.id === comp.id}
+                                        onSelect={onSelectComp}
+                                        index={i}
+                                        captionTemplates={captionTemplates}
+                                        hookTemplates={hookTemplates}
+                                    />
+                                ))}
+                            </AnimatePresence>
+                            {filteredComps.length === 0 && (
+                                <p className="col-span-3 text-center text-xs py-6" style={{ color: 'var(--color-text-muted)' }}>No style presets found</p>
+                            )}
+                        </div>
+                    </motion.div>
+                ) : (
+                    <motion.div key="advanced" initial={{ opacity: 0, x: 10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -10 }} className="space-y-5">
+                        {/* Caption Templates */}
+                        <div className="space-y-2.5">
+                            <div className="flex items-center justify-between">
+                                <h4 className="text-xs font-semibold flex items-center gap-1.5" style={{ color: 'var(--color-text-secondary)' }}>
+                                    <span className="material-symbols-outlined text-[14px]" style={{ color: 'var(--color-accent)' }}>subtitles</span>
+                                    Caption Template
+                                    <span className="text-[9px] px-1.5 py-0.5 rounded-full" style={{ background: 'var(--color-surface-1)', color: 'var(--color-text-muted)' }}>{filteredCaptions.length}</span>
+                                </h4>
+                                <div className="flex items-center gap-1">
+                                    <motion.button onClick={() => setCaptionPage(p => Math.max(0, p - 1))} disabled={captionPage === 0}
+                                        className="w-6 h-6 rounded-lg flex items-center justify-center disabled:opacity-30"
+                                        style={{ background: 'var(--color-surface-1)', border: '1px solid var(--color-border-subtle)' }}
+                                        whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                                        <span className="material-symbols-outlined text-[12px]" style={{ color: 'var(--color-text-secondary)' }}>chevron_left</span>
+                                    </motion.button>
+                                    <span className="text-[9px] tabular-nums min-w-[28px] text-center" style={{ color: 'var(--color-text-muted)' }}>{captionPage + 1}/{captionTotalPages}</span>
+                                    <motion.button onClick={() => setCaptionPage(p => Math.min(captionTotalPages - 1, p + 1))} disabled={captionPage >= captionTotalPages - 1}
+                                        className="w-6 h-6 rounded-lg flex items-center justify-center disabled:opacity-30"
+                                        style={{ background: 'var(--color-surface-1)', border: '1px solid var(--color-border-subtle)' }}
+                                        whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                                        <span className="material-symbols-outlined text-[12px]" style={{ color: 'var(--color-text-secondary)' }}>chevron_right</span>
+                                    </motion.button>
+                                </div>
+                            </div>
+                            <div className="relative">
+                                <span className="absolute left-3 top-1/2 -translate-y-1/2 material-symbols-outlined text-[13px]" style={{ color: 'var(--color-text-muted)' }}>search</span>
+                                <input value={captionSearch} onChange={e => setCaptionSearch(e.target.value)} placeholder="Search caption templates..."
+                                    className="w-full pl-8 pr-3 py-2 text-[11px] rounded-lg outline-none"
+                                    style={{ background: 'var(--color-bg-input)', border: '1px solid var(--color-border-default)', color: 'var(--color-text-primary)' }} />
+                            </div>
+                            <div className="grid grid-cols-3 gap-2">
+                                <AnimatePresence mode="popLayout">
+                                    {visibleCaptions.map((tpl, i) => (
+                                        <motion.button key={tpl.id} layout
+                                            initial={{ opacity: 0, scale: 0.95 }}
+                                            animate={{ opacity: 1, scale: 1 }}
+                                            exit={{ opacity: 0, scale: 0.95 }}
+                                            transition={{ duration: 0.2, delay: i * 0.03 }}
+                                            onClick={() => onSelectCaptionTpl(tpl)}
+                                            className="rounded-lg overflow-hidden transition-all text-left"
+                                            style={{
+                                                border: selectedCaptionTpl?.id === tpl.id ? '2px solid var(--color-accent)' : '1px solid var(--color-border-subtle)',
+                                                background: selectedCaptionTpl?.id === tpl.id ? 'var(--color-accent-subtle)' : 'var(--color-surface-1)',
+                                            }}>
+                                            <div className="aspect-[5/3] flex items-center justify-center p-2" style={{ background: 'linear-gradient(160deg, rgba(0,0,0,0.9), rgba(15,8,25,0.95))' }}>
+                                                <span className="text-[9px] font-bold text-center" style={{
+                                                    color: tpl.config?.highlight?.color || tpl.config?.colors?.primary || '#FFF',
+                                                    fontFamily: tpl.config?.font?.family || 'Inter',
+                                                }}>Aa</span>
+                                            </div>
+                                            <div className="px-2 py-1.5">
+                                                <p className="text-[8px] font-medium truncate" style={{ color: 'var(--color-text-primary)' }}>{tpl.name}</p>
+                                                <p className="text-[7px] truncate" style={{ color: 'var(--color-text-muted)' }}>{tpl.style_type}</p>
+                                            </div>
+                                        </motion.button>
+                                    ))}
+                                </AnimatePresence>
+                                {filteredCaptions.length === 0 && <p className="col-span-3 text-center text-[10px] py-4" style={{ color: 'var(--color-text-muted)' }}>No caption templates</p>}
+                            </div>
+                        </div>
+
+                        <div style={{ borderTop: '1px solid var(--color-border-subtle)' }} />
+
+                        {/* Hook Templates */}
+                        <div className="space-y-2.5">
+                            <div className="flex items-center justify-between">
+                                <h4 className="text-xs font-semibold flex items-center gap-1.5" style={{ color: 'var(--color-text-secondary)' }}>
+                                    <span className="material-symbols-outlined text-[14px]" style={{ color: 'var(--color-accent)' }}>format_quote</span>
+                                    Hook Template
+                                    <span className="text-[9px] px-1.5 py-0.5 rounded-full" style={{ background: 'var(--color-surface-1)', color: 'var(--color-text-muted)' }}>{filteredHooks.length}</span>
+                                </h4>
+                                <div className="flex items-center gap-1">
+                                    <motion.button onClick={() => onSelectHookTpl(null)}
+                                        className="text-[9px] font-semibold px-2 py-1 rounded-md transition-all"
+                                        style={{
+                                            background: !selectedHookTpl ? 'var(--color-accent-subtle)' : 'transparent',
+                                            color: !selectedHookTpl ? 'var(--color-accent)' : 'var(--color-text-muted)',
+                                            border: `1px solid ${!selectedHookTpl ? 'var(--color-accent-border)' : 'var(--color-border-subtle)'}`
+                                        }}>None</motion.button>
+                                    <motion.button onClick={() => setHookPage(p => Math.max(0, p - 1))} disabled={hookPage === 0}
+                                        className="w-6 h-6 rounded-lg flex items-center justify-center disabled:opacity-30"
+                                        style={{ background: 'var(--color-surface-1)', border: '1px solid var(--color-border-subtle)' }}
+                                        whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                                        <span className="material-symbols-outlined text-[12px]" style={{ color: 'var(--color-text-secondary)' }}>chevron_left</span>
+                                    </motion.button>
+                                    <span className="text-[9px] tabular-nums min-w-[28px] text-center" style={{ color: 'var(--color-text-muted)' }}>{hookPage + 1}/{hookTotalPages}</span>
+                                    <motion.button onClick={() => setHookPage(p => Math.min(hookTotalPages - 1, p + 1))} disabled={hookPage >= hookTotalPages - 1}
+                                        className="w-6 h-6 rounded-lg flex items-center justify-center disabled:opacity-30"
+                                        style={{ background: 'var(--color-surface-1)', border: '1px solid var(--color-border-subtle)' }}
+                                        whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                                        <span className="material-symbols-outlined text-[12px]" style={{ color: 'var(--color-text-secondary)' }}>chevron_right</span>
+                                    </motion.button>
+                                </div>
+                            </div>
+                            <div className="relative">
+                                <span className="absolute left-3 top-1/2 -translate-y-1/2 material-symbols-outlined text-[13px]" style={{ color: 'var(--color-text-muted)' }}>search</span>
+                                <input value={hookSearch} onChange={e => setHookSearch(e.target.value)} placeholder="Search hook templates..."
+                                    className="w-full pl-8 pr-3 py-2 text-[11px] rounded-lg outline-none"
+                                    style={{ background: 'var(--color-bg-input)', border: '1px solid var(--color-border-default)', color: 'var(--color-text-primary)' }} />
+                            </div>
+                            <div className="grid grid-cols-3 gap-2">
+                                <AnimatePresence mode="popLayout">
+                                    {visibleHooks.map((tpl, i) => (
+                                        <motion.button key={tpl.id} layout
+                                            initial={{ opacity: 0, scale: 0.95 }}
+                                            animate={{ opacity: 1, scale: 1 }}
+                                            exit={{ opacity: 0, scale: 0.95 }}
+                                            transition={{ duration: 0.2, delay: i * 0.03 }}
+                                            onClick={() => onSelectHookTpl(tpl)}
+                                            className="rounded-lg overflow-hidden transition-all text-left"
+                                            style={{
+                                                border: selectedHookTpl?.id === tpl.id ? '2px solid var(--color-accent)' : '1px solid var(--color-border-subtle)',
+                                                background: selectedHookTpl?.id === tpl.id ? 'var(--color-accent-subtle)' : 'var(--color-surface-1)',
+                                            }}>
+                                            <div className="aspect-[5/3] flex items-center justify-center p-2" style={{ background: 'linear-gradient(160deg, rgba(0,0,0,0.9), rgba(12,5,22,0.95))' }}>
+                                                <span className="text-[8px] font-bold text-center uppercase" style={{
+                                                    color: tpl.config?.text?.default_font?.color || '#FFD700',
+                                                    fontFamily: tpl.config?.text?.default_font?.family || 'Anton',
+                                                }}>Hook</span>
+                                            </div>
+                                            <div className="px-2 py-1.5">
+                                                <p className="text-[8px] font-medium truncate" style={{ color: 'var(--color-text-primary)' }}>{tpl.name}</p>
+                                                <p className="text-[7px] truncate" style={{ color: 'var(--color-text-muted)' }}>{tpl.style_type}</p>
+                                            </div>
+                                        </motion.button>
+                                    ))}
+                                </AnimatePresence>
+                                {filteredHooks.length === 0 && <p className="col-span-3 text-center text-[10px] py-4" style={{ color: 'var(--color-text-muted)' }}>No hook templates</p>}
+                            </div>
+                        </div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+        </div>
+    )
+}
+
+
 // --- Review Panel (for analyze mode) ---
 function ReviewPanel({ clips, onProcess, onBack, submitting, url, captionStyle, hookStyleId }) {
     const [items, setItems] = useState(() => clips.map(c => ({ ...c, _selected: true })))
@@ -584,34 +1089,47 @@ function CreatePage({ onJobStarted }) {
     const [resolution, setResolution] = useState('9:16')
     const isInitialLoad = useRef(true)
 
+    // ─── Keyframe system state ─────────────────────────────────────
+    const [kfCompositions, setKfCompositions] = useState([])
+    const [kfCaptionTemplates, setKfCaptionTemplates] = useState([])
+    const [kfHookTemplates, setKfHookTemplates] = useState([])
+    const [selectedKfComp, setSelectedKfComp] = useState(null)
+    const [selectedKfCaptionTpl, setSelectedKfCaptionTpl] = useState(null)
+    const [selectedKfHookTpl, setSelectedKfHookTpl] = useState(null)
+    const [kfAdvancedMode, setKfAdvancedMode] = useState(false)
+
     useEffect(() => {
         Promise.all([
-            api.getRemotionCaptionTemplates(),
             api.getFonts(),
-            api.getRemotionHookTemplates(),
-            api.getRemotionCompositions(),
-        ]).then(([stylesData, fontsData, hookData, compsData]) => {
-            if (Array.isArray(stylesData)) {
-                setStyles(stylesData)
-            }
+            // Keyframe system APIs
+            api.getStyleCompositions(),
+            api.getCaptionTemplates(),
+            api.getHookTemplates(),
+        ]).then(([fontsData, kfCompsData, kfCaptionsData, kfHooksData]) => {
             if (Array.isArray(fontsData)) loadGoogleFonts(fontsData)
-            if (Array.isArray(hookData)) setHookStyles(hookData)
-            if (Array.isArray(compsData)) {
-                setCompositions(compsData)
-                // Auto-select default composition
-                const defComp = compsData.find(c => c.is_default)
-                if (defComp) {
-                    setSelectedComp(defComp)
-                    // Set caption/hook from composition
-                    if (defComp.caption_template) { setSelectedStyle(defComp.caption_template); setEditStyle({ ...defComp.caption_template }) }
-                    if (defComp.hook_template) setSelectedHookStyle(defComp.hook_template)
-                } else if (compsData.length > 0) {
-                    setSelectedComp(compsData[0])
-                    if (compsData[0].caption_template) { setSelectedStyle(compsData[0].caption_template); setEditStyle({ ...compsData[0].caption_template }) }
-                    if (compsData[0].hook_template) setSelectedHookStyle(compsData[0].hook_template)
-                } else if (Array.isArray(stylesData) && stylesData.length > 0) {
-                    setSelectedStyle(stylesData[0]); setEditStyle({ ...stylesData[0] })
-                }
+            // Keyframe compositions
+            const kfCompsArr = Array.isArray(kfCompsData?.data) ? kfCompsData.data : Array.isArray(kfCompsData?.items) ? kfCompsData.items : Array.isArray(kfCompsData) ? kfCompsData : []
+            const kfCaptionsArr = Array.isArray(kfCaptionsData?.data) ? kfCaptionsData.data : Array.isArray(kfCaptionsData?.items) ? kfCaptionsData.items : Array.isArray(kfCaptionsData) ? kfCaptionsData : []
+            const kfHooksArr = Array.isArray(kfHooksData?.data) ? kfHooksData.data : Array.isArray(kfHooksData?.items) ? kfHooksData.items : Array.isArray(kfHooksData) ? kfHooksData : []
+            setKfCompositions(kfCompsArr)
+            setKfCaptionTemplates(kfCaptionsArr)
+            setKfHookTemplates(kfHooksArr)
+            // Populate Custom tab styles from keyframe templates (flattened for card rendering)
+            const flatCaptions = kfCaptionsArr.map(flattenCaptionConfig).filter(Boolean)
+            const flatHooks = kfHooksArr.map(flattenHookConfig).filter(Boolean)
+            setStyles(flatCaptions)
+            setHookStyles(flatHooks)
+            // Auto-select defaults
+            if (flatCaptions.length > 0) {
+                setSelectedStyle(flatCaptions[0])
+                setEditStyle({ ...flatCaptions[0] })
+            }
+            // Auto-select default keyframe composition
+            const defKfComp = kfCompsArr.find(c => c.is_default)
+            if (defKfComp) {
+                setSelectedKfComp(defKfComp)
+                setSelectedKfCaptionTpl(kfCaptionsArr.find(t => t.id === defKfComp.caption_template_id) || null)
+                setSelectedKfHookTpl(kfHooksArr.find(t => t.id === defKfComp.hook_template_id) || null)
             }
         })
     }, [])
@@ -619,11 +1137,7 @@ function CreatePage({ onJobStarted }) {
     useEffect(() => {
         if (!editStyle || !selectedStyle) return
         if (isInitialLoad.current) { isInitialLoad.current = false; return }
-        const timer = setTimeout(() => {
-            const { id, user_id, created_at, updated_at, is_active, is_default, sort_order, ...editable } = editStyle
-            api.updateRemotionCaptionTemplate(selectedStyle.id, editable)
-        }, 600)
-        return () => clearTimeout(timer)
+        // Auto-save disabled: keyframe templates are managed via the template CRUD API
     }, [editStyle, selectedStyle])
 
     const handleUrlChange = async (e) => {
@@ -642,8 +1156,20 @@ function CreatePage({ onJobStarted }) {
         setSelectedStyle(style)
         setSelectedComp(null) // deselect composition when manually picking
         isInitialLoad.current = true
-        const detail = await api.getRemotionCaptionTemplate(style.id)
-        setEditStyle({ ...detail })
+        // If the style has the original template data, fetch full detail from keyframe API
+        const templateId = style._template?.id || style.id
+        try {
+            const res = await api.getCaptionTemplate(templateId)
+            const tpl = res?.data || res
+            if (tpl && tpl.config) {
+                const flat = flattenCaptionConfig(tpl)
+                setEditStyle({ ...flat })
+            } else {
+                setEditStyle({ ...style })
+            }
+        } catch {
+            setEditStyle({ ...style })
+        }
     }
 
     const handleSelectComp = (comp) => {
@@ -660,12 +1186,58 @@ function CreatePage({ onJobStarted }) {
         }
     }
 
+    // ─── Keyframe composition/template selection handlers ─────────────
+    const handleSelectKfComp = (comp) => {
+        setSelectedKfComp(comp)
+        setSelectedKfCaptionTpl(kfCaptionTemplates.find(t => t.id === comp.caption_template_id) || null)
+        setSelectedKfHookTpl(kfHookTemplates.find(t => t.id === comp.hook_template_id) || null)
+        // Clear advanced selections when picking a composition
+        setKfAdvancedMode(false)
+    }
+
+    const handleSelectKfCaptionTpl = (tpl) => {
+        setSelectedKfCaptionTpl(tpl)
+        setSelectedKfComp(null) // Deselect composition when individually picking templates
+    }
+
+    const handleSelectKfHookTpl = (tpl) => {
+        setSelectedKfHookTpl(tpl)
+        setSelectedKfComp(null) // Deselect composition when individually picking templates
+    }
+
+    // Resolve effective template IDs for submission
+    const getKfSubmitPayload = () => {
+        if (selectedKfComp) {
+            return {
+                caption_template_id: selectedKfComp.caption_template_id || null,
+                hook_template_id: selectedKfComp.hook_template_id || null,
+                style_composition_id: selectedKfComp.id,
+            }
+        }
+        if (kfAdvancedMode && (selectedKfCaptionTpl || selectedKfHookTpl)) {
+            return {
+                caption_template_id: selectedKfCaptionTpl?.id || null,
+                hook_template_id: selectedKfHookTpl?.id || null,
+                style_composition_id: null,
+            }
+        }
+        // No selection — don't pass IDs (backend uses default composition)
+        return { caption_template_id: null, hook_template_id: null, style_composition_id: null }
+    }
+
     // --- STYLED MODE: Quick submit (original flow) ---
     const handleStyledSubmit = async () => {
-        if (!url || !selectedStyle) return
+        if (!url || (!selectedStyle && !selectedKfComp && !selectedKfCaptionTpl)) return
         setSubmitting(true)
         try {
-            const data = await api.createJob(url, selectedStyle.id, selectedHookStyle?.id || null, resolution)
+            const kfPayload = getKfSubmitPayload()
+            const data = await api.createJob(
+                url,
+                kfPayload.caption_template_id || selectedStyle.id,
+                kfPayload.hook_template_id || selectedHookStyle?.id || null,
+                resolution,
+                kfPayload.style_composition_id
+            )
             if (data.detail) { toast.error(data.detail); return }
             if (data.accepted > 0) {
                 toast.success(data.total_urls > 1 ? `${data.accepted} of ${data.total_urls} jobs submitted` : 'Job submitted')
@@ -680,10 +1252,17 @@ function CreatePage({ onJobStarted }) {
 
     // --- STYLED MODE: Analyze first ---
     const handleAnalyze = async () => {
-        if (!url || !selectedStyle) return
+        if (!url || (!selectedStyle && !selectedKfComp && !selectedKfCaptionTpl)) return
         setAnalyzing(true)
         try {
-            const data = await api.analyzeVideo(url, selectedStyle.id, selectedHookStyle?.id || null, resolution)
+            const kfPayload = getKfSubmitPayload()
+            const data = await api.analyzeVideo(
+                url,
+                kfPayload.caption_template_id || selectedStyle.id,
+                kfPayload.hook_template_id || selectedHookStyle?.id || null,
+                resolution,
+                kfPayload.style_composition_id
+            )
             if (data.detail) { toast.error(data.detail); return }
             if (data.clips) { setReviewClips(data.clips); toast.success(`Found ${data.clips.length} clips`) }
         } catch { toast.error('Analysis failed') }
@@ -693,7 +1272,15 @@ function CreatePage({ onJobStarted }) {
     const handleProcessSelected = async (clips) => {
         setSubmitting(true)
         try {
-            const data = await api.processSelected(url, selectedStyle.id, selectedHookStyle?.id || null, clips, resolution)
+            const kfPayload = getKfSubmitPayload()
+            const data = await api.processSelected(
+                url,
+                kfPayload.caption_template_id || selectedStyle.id,
+                kfPayload.hook_template_id || selectedHookStyle?.id || null,
+                clips,
+                resolution,
+                kfPayload.style_composition_id
+            )
             if (data.detail) { toast.error(data.detail); return }
             toast.success('Processing started')
             if (onJobStarted) onJobStarted({ jobId: null, videoInfo, url })
@@ -720,7 +1307,7 @@ function CreatePage({ onJobStarted }) {
         finally { setSubmitting(false) }
     }
 
-    const isReadyStyled = url && selectedStyle
+    const isReadyStyled = url && (selectedStyle || selectedKfComp || selectedKfCaptionTpl)
     const isReadyBase = !!url
 
     return (
@@ -869,121 +1456,27 @@ function CreatePage({ onJobStarted }) {
                                                         ))}
                                                     </div>
                                                     <span className="text-[10px] ml-auto" style={{ color: 'var(--color-text-muted)' }}>
-                                                        {styleTab === 'compositions' ? `${compositions.length} presets` : `${styles.length} captions · ${hookStyles.length} hooks`}
+                                                        {styleTab === 'compositions' ? `${kfCompositions.length} presets` : `${styles.length} captions · ${hookStyles.length} hooks`}
                                                     </span>
                                                 </div>
 
                                                 <div className="p-5 space-y-4">
                                                     <AnimatePresence mode="wait">
                                                         {styleTab === 'compositions' ? (
-                                                            <motion.div key="comps" initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 10 }} className="space-y-4">
-                                                                {compositions.length === 0 ? (
-                                                                    <p className="text-xs text-center py-4" style={{ color: 'var(--color-text-muted)' }}>No compositions available</p>
-                                                                ) : (
-                                                                    <>
-                                                                        {/* Grid of compositions */}
-                                                                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                                                                            {compositions.map(comp => {
-                                                                                const isActive = selectedComp?.id === comp.id
-                                                                                return (
-                                                                                    <motion.button key={comp.id}
-                                                                                        onClick={() => handleSelectComp(comp)}
-                                                                                        className="text-left rounded-xl transition-all overflow-hidden"
-                                                                                        style={{
-                                                                                            border: isActive ? '2px solid var(--color-accent)' : '1px solid var(--color-border-subtle)',
-                                                                                            background: isActive ? 'var(--color-accent-subtle)' : 'var(--color-surface-1)',
-                                                                                            boxShadow: isActive ? 'var(--shadow-glow)' : 'none',
-                                                                                        }}
-                                                                                        whileHover={{ scale: 1.02 }}
-                                                                                        whileTap={{ scale: 0.98 }}
-                                                                                    >
-                                                                                        {/* Mini combined preview */}
-                                                                                        <div className="h-16 flex items-center justify-center gap-3 px-3" style={{ background: 'linear-gradient(135deg, rgba(0,0,0,0.9), rgba(15,5,25,0.95))' }}>
-                                                                                            {comp.caption_template && (
-                                                                                                <span style={{
-                                                                                                    color: comp.caption_template.highlight_color || '#FFD700',
-                                                                                                    fontFamily: comp.caption_template.font_family || 'Inter',
-                                                                                                    fontSize: '11px',
-                                                                                                    fontWeight: comp.caption_template.font_weight || '700',
-                                                                                                    textShadow: '0 1px 3px rgba(0,0,0,0.8)',
-                                                                                                }}>Aa</span>
-                                                                                            )}
-                                                                                            {comp.hook_template && (
-                                                                                                <span style={{
-                                                                                                    color: comp.hook_template.keyword_color || '#FFF',
-                                                                                                    fontFamily: comp.hook_template.font_family || 'Anton',
-                                                                                                    fontSize: '10px',
-                                                                                                    fontWeight: 900,
-                                                                                                    textShadow: '0 1px 3px rgba(0,0,0,0.8)',
-                                                                                                    textTransform: 'uppercase',
-                                                                                                }}>Hook</span>
-                                                                                            )}
-                                                                                        </div>
-                                                                                        {/* Info */}
-                                                                                        <div className="px-2.5 py-2 relative" style={{ borderTop: '1px solid var(--color-border-subtle)' }}>
-                                                                                            <p className="text-[10px] font-semibold truncate" style={{ color: 'var(--color-text-primary)' }}>{comp.name}</p>
-                                                                                            {comp.is_default && <span className="absolute top-1.5 right-1.5 text-[7px] px-1 py-0.5 rounded font-bold" style={{ background: 'var(--color-accent-subtle)', color: 'var(--color-accent)' }}>DEFAULT</span>}
-                                                                                            {isActive && <motion.span initial={{ scale: 0 }} animate={{ scale: 1 }} className="absolute bottom-1.5 right-1.5 material-symbols-outlined text-[12px]" style={{ color: 'var(--color-accent)' }}>check_circle</motion.span>}
-                                                                                        </div>
-                                                                                    </motion.button>
-                                                                                )
-                                                                            })}
-                                                                        </div>
-
-                                                                        {/* Selected composition: full preview card */}
-                                                                        <AnimatePresence>
-                                                                            {selectedComp && (
-                                                                                <motion.div
-                                                                                    key={selectedComp.id}
-                                                                                    initial={{ opacity: 0, y: 10 }}
-                                                                                    animate={{ opacity: 1, y: 0 }}
-                                                                                    exit={{ opacity: 0, y: 10 }}
-                                                                                    className="rounded-2xl overflow-hidden"
-                                                                                    style={{ border: '1px solid var(--color-accent-border)', boxShadow: 'var(--shadow-md)' }}
-                                                                                >
-                                                                                    {/* Preview header */}
-                                                                                    <div className="px-4 py-2.5 flex items-center gap-2" style={{ background: 'var(--color-surface-1)' }}>
-                                                                                        <span className="material-symbols-outlined text-[14px]" style={{ color: 'var(--color-accent)' }}>visibility</span>
-                                                                                        <span className="text-[11px] font-semibold" style={{ color: 'var(--color-text-primary)' }}>{selectedComp.name} — Preview</span>
-                                                                                    </div>
-                                                                                    {/* Split preview area */}
-                                                                                    <div className="grid grid-cols-2" style={{ background: 'linear-gradient(160deg, rgba(0,0,0,0.93), rgba(15,8,25,0.96))' }}>
-                                                                                        {/* Caption side */}
-                                                                                        <div className="p-5 flex flex-col items-center justify-center min-h-[120px]" style={{ borderRight: '1px solid rgba(255,255,255,0.06)' }}>
-                                                                                            <p className="text-[8px] uppercase tracking-widest mb-3 font-medium" style={{ color: 'rgba(255,255,255,0.35)' }}>Caption Style</p>
-                                                                                            {selectedComp.caption_template ? (
-                                                                                                <div className="text-center" style={buildCaptionPillStyle(selectedComp.caption_template, { scale: 0.32 })}>
-                                                                                                    <div className="flex flex-wrap justify-center gap-x-1">
-                                                                                                        <span style={buildCaptionWordStyle(selectedComp.caption_template, { isHighlight: false, scale: 0.32 })}>sample</span>
-                                                                                                        <span style={buildCaptionWordStyle(selectedComp.caption_template, { isHighlight: true, scale: 0.32 })}>caption</span>
-                                                                                                        <span style={buildCaptionWordStyle(selectedComp.caption_template, { isHighlight: false, scale: 0.32 })}>text</span>
-                                                                                                    </div>
-                                                                                                </div>
-                                                                                            ) : (
-                                                                                                <p className="text-[10px] italic" style={{ color: 'rgba(255,255,255,0.25)' }}>None selected</p>
-                                                                                            )}
-                                                                                            <p className="text-[9px] mt-3" style={{ color: 'rgba(255,255,255,0.4)' }}>{selectedComp.caption_template?.name || '—'}</p>
-                                                                                        </div>
-                                                                                        {/* Hook side */}
-                                                                                        <div className="p-5 flex flex-col items-center justify-center min-h-[120px]">
-                                                                                            <p className="text-[8px] uppercase tracking-widest mb-3 font-medium" style={{ color: 'rgba(255,255,255,0.35)' }}>Hook Overlay</p>
-                                                                                            {selectedComp.hook_template ? (
-                                                                                                <div className="text-center" style={buildHookBoxStyle(selectedComp.hook_template, { scale: 0.3 })}>
-                                                                                                    <p style={buildHookWordStyle(selectedComp.hook_template, { isKeyword: false, scale: 0.3 })}>Did you know</p>
-                                                                                                    <p style={buildHookWordStyle(selectedComp.hook_template, { isKeyword: true, scale: 0.3 })}>THIS</p>
-                                                                                                    <p style={buildHookWordStyle(selectedComp.hook_template, { isKeyword: false, scale: 0.3 })}>trick?</p>
-                                                                                                </div>
-                                                                                            ) : (
-                                                                                                <p className="text-[10px] italic" style={{ color: 'rgba(255,255,255,0.25)' }}>No hook</p>
-                                                                                            )}
-                                                                                            <p className="text-[9px] mt-3" style={{ color: 'rgba(255,255,255,0.4)' }}>{selectedComp.hook_template?.name || '—'}</p>
-                                                                                        </div>
-                                                                                    </div>
-                                                                                </motion.div>
-                                                                            )}
-                                                                        </AnimatePresence>
-                                                                    </>
-                                                                )}
+                                                            <motion.div key="comps" initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 10 }}>
+                                                                <KeyframeStyleSection
+                                                                    compositions={kfCompositions}
+                                                                    captionTemplates={kfCaptionTemplates}
+                                                                    hookTemplates={kfHookTemplates}
+                                                                    selectedComp={selectedKfComp}
+                                                                    selectedCaptionTpl={selectedKfCaptionTpl}
+                                                                    selectedHookTpl={selectedKfHookTpl}
+                                                                    onSelectComp={handleSelectKfComp}
+                                                                    onSelectCaptionTpl={handleSelectKfCaptionTpl}
+                                                                    onSelectHookTpl={handleSelectKfHookTpl}
+                                                                    advancedMode={kfAdvancedMode}
+                                                                    onToggleAdvanced={() => setKfAdvancedMode(m => !m)}
+                                                                />
                                                             </motion.div>
                                                         ) : (
                                                             <motion.div key="custom" initial={{ opacity: 0, x: 10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -10 }} className="space-y-5">
@@ -1056,18 +1549,13 @@ function CreatePage({ onJobStarted }) {
                     {mode === 'styled' && (
                         <div className="xl:w-[360px] flex-shrink-0 hidden xl:flex flex-col items-center">
                             <div className="sticky top-8 space-y-4">
-                                {/* Remotion Animated Preview */}
+                                {/* Keyframe Animated Preview */}
                                 <div className="rounded-2xl overflow-hidden p-6" style={{ background: 'linear-gradient(160deg, rgba(0,0,0,0.92) 0%, rgba(20,10,30,0.95) 100%)', border: '1px solid var(--color-border-subtle)', boxShadow: 'var(--shadow-lg)' }}>
-                                    <RemotionPreview
-                                        captionStyle={editStyle}
-                                        hookStyle={selectedHookStyle}
-                                        resolution={resolution}
-                                        size="md"
-                                        showPlayback={true}
-                                        showBadge={true}
-                                        showParticles={true}
-                                        showGlow={true}
-                                        label="Live Preview"
+                                    <KeyframePreview
+                                        template={editStyle}
+                                        type="caption"
+                                        words={['sample', 'caption', 'preview']}
+                                        loop={true}
                                     />
                                 </div>
 

@@ -63,13 +63,18 @@ class RequestLogModel(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     youtube_url = Column(String(255), nullable=False)
-    caption_style_id = Column(Integer, nullable=True)  # Can be from caption_styles OR remotion_caption_templates
-    hook_style_id = Column(BigInteger, nullable=True)  # Can be from hook_styles OR remotion_hook_templates
+    caption_style_id = Column(Integer, nullable=True)  # Legacy caption_styles reference
+    hook_style_id = Column(BigInteger, nullable=True)  # Legacy hook_styles reference
     caption_response = Column(JSON, nullable=False)
     status = Column(String(50), default="pending")
     output_path = Column(String(500), nullable=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     requested_at = Column(TIMESTAMP, server_default=func.current_timestamp())
+    # Keyframe animation system fields
+    caption_template_id = Column(Integer, nullable=True)
+    hook_template_id = Column(Integer, nullable=True)
+    style_composition_id = Column(Integer, nullable=True)
+    hook_text_raw = Column(Text, nullable=True)
 
 
 class UserModel(Base):

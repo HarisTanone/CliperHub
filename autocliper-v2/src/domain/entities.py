@@ -381,6 +381,11 @@ class RequestLog:
     requested_at: Optional[datetime] = None
     user_id: Optional[int] = None
     hook_style_id: Optional[int] = None
+    # Keyframe animation system fields
+    caption_template_id: Optional[int] = None
+    hook_template_id: Optional[int] = None
+    style_composition_id: Optional[int] = None
+    hook_text_raw: Optional[str] = None
 
 
 @dataclass
@@ -391,6 +396,10 @@ class JobRequest:
     hook_style_id: Optional[int] = None
     base_only: bool = False
     resolution: str = "9:16"  # Default TikTok portrait
+    # Keyframe animation system fields
+    caption_template_id: Optional[int] = None
+    hook_template_id: Optional[int] = None
+    style_composition_id: Optional[int] = None
 
 
 @dataclass

@@ -169,9 +169,9 @@ export const api = {
   },
 
   // Jobs (batch support — urls can be newline-separated)
-  createJob: (urls, captionTemplateId, hookTemplateId, resolution = '9:16') => api._req('/api/v1/jobs/', {
+  createJob: (urls, captionTemplateId, hookTemplateId, resolution = '9:16', styleCompositionId = null) => api._req('/api/v1/jobs/', {
     method: 'POST',
-    body: JSON.stringify({ urls, caption_template_id: captionTemplateId, ...(hookTemplateId ? { hook_template_id: hookTemplateId } : {}), resolution }),
+    body: JSON.stringify({ urls, caption_template_id: captionTemplateId, ...(hookTemplateId ? { hook_template_id: hookTemplateId } : {}), ...(styleCompositionId ? { style_composition_id: styleCompositionId } : {}), resolution }),
   }),
   getJobs: () => api._req('/api/v1/jobs/'),
   getJobQueue: () => api._req('/api/v1/jobs/queue'),
@@ -185,13 +185,13 @@ export const api = {
   getResolutions: () => api._req('/api/v1/jobs/resolutions'),
 
   // Two-step clip selection
-  analyzeVideo: (url, captionTemplateId, hookTemplateId, resolution = '9:16') => api._req('/api/v1/jobs/analyze', {
+  analyzeVideo: (url, captionTemplateId, hookTemplateId, resolution = '9:16', styleCompositionId = null) => api._req('/api/v1/jobs/analyze', {
     method: 'POST',
-    body: JSON.stringify({ url, caption_template_id: captionTemplateId, ...(hookTemplateId ? { hook_template_id: hookTemplateId } : {}), resolution }),
+    body: JSON.stringify({ url, caption_template_id: captionTemplateId, ...(hookTemplateId ? { hook_template_id: hookTemplateId } : {}), ...(styleCompositionId ? { style_composition_id: styleCompositionId } : {}), resolution }),
   }),
-  processSelected: (url, captionTemplateId, hookTemplateId, clips, resolution = '9:16') => api._req('/api/v1/jobs/process-selected', {
+  processSelected: (url, captionTemplateId, hookTemplateId, clips, resolution = '9:16', styleCompositionId = null) => api._req('/api/v1/jobs/process-selected', {
     method: 'POST',
-    body: JSON.stringify({ url, caption_template_id: captionTemplateId, ...(hookTemplateId ? { hook_template_id: hookTemplateId } : {}), clips, resolution }),
+    body: JSON.stringify({ url, caption_template_id: captionTemplateId, ...(hookTemplateId ? { hook_template_id: hookTemplateId } : {}), ...(styleCompositionId ? { style_composition_id: styleCompositionId } : {}), clips, resolution }),
   }),
 
   // Base Processing Pipeline (no styling)
@@ -208,6 +208,16 @@ export const api = {
   applyStyle: (jobId, captionTemplateId, hookTemplateId, resolution = '9:16') => api._req(`/api/v1/jobs/${jobId}/apply-style`, {
     method: 'POST',
     body: JSON.stringify({ caption_template_id: captionTemplateId, ...(hookTemplateId ? { hook_template_id: hookTemplateId } : {}), resolution }),
+  }),
+
+  // Re-style: apply new keyframe templates to existing completed clip (no Gemini re-call)
+  restyleJob: (jobId, { captionTemplateId, hookTemplateId, styleCompositionId }) => api._req(`/api/v1/jobs/${jobId}/restyle`, {
+    method: 'POST',
+    body: JSON.stringify({
+      ...(captionTemplateId ? { caption_template_id: captionTemplateId } : {}),
+      ...(hookTemplateId ? { hook_template_id: hookTemplateId } : {}),
+      ...(styleCompositionId ? { style_composition_id: styleCompositionId } : {}),
+    }),
   }),
 
   // Preview (5-second low-res preview before full processing)
@@ -440,7 +450,24 @@ export const api = {
   cancelSocialUpload: (id) => api._tiktokReq(`/api/v1/social/upload/${id}`, { method: 'DELETE' }),
   retrySocialUpload: (id) => api._tiktokReq(`/api/v1/social/upload/${id}/retry`, { method: 'POST' }),
 
-  // ─── Remotion Templates ─────────────────────────────────────────────────
+  // ─── Keyframe Templates (new system) ─────────────────────────────────────
+  getStyleCompositions: (page = 1, perPage = 50) =>
+    api._req(`/api/v1/style-compositions?page=${page}&per_page=${perPage}`),
+  getStyleComposition: (id) => api._req(`/api/v1/style-compositions/${id}`),
+  getCaptionTemplates: (category, page = 1, perPage = 50) => {
+    const params = new URLSearchParams({ page, per_page: perPage })
+    if (category) params.set('category', category)
+    return api._req(`/api/v1/caption-templates?${params}`)
+  },
+  getCaptionTemplate: (id) => api._req(`/api/v1/caption-templates/${id}`),
+  getHookTemplates: (category, page = 1, perPage = 50) => {
+    const params = new URLSearchParams({ page, per_page: perPage })
+    if (category) params.set('category', category)
+    return api._req(`/api/v1/hook-templates?${params}`)
+  },
+  getHookTemplate: (id) => api._req(`/api/v1/hook-templates/${id}`),
+
+  // ─── Remotion Templates (legacy) ───────────────────────────────────────────
   getRemotionCaptionTemplates: (category) => {
     const params = category ? `?category=${category}` : ""
     return api._req(`/api/v1/remotion/caption-templates${params}`)

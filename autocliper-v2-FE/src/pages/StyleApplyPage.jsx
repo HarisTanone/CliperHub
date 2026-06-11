@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { toast } from 'react-hot-toast'
 import { api, loadGoogleFonts, getAuthenticatedMediaUrl } from '../utils/api'
-import RemotionPreview from '../components/RemotionPreview'
+import KeyframePreview from '../components/KeyframePreview'
 import ResolutionSelector from '../components/ResolutionSelector'
 
 // ═══════════════════════════════════════════════════════════════
@@ -419,16 +419,11 @@ function StyleApplyPage({ jobId, onBack, onDone }) {
                                         className="flex items-center justify-center p-5 pt-8"
                                         style={{ background: 'linear-gradient(160deg, rgba(8,5,15,0.95), rgba(20,10,35,0.98))' }}
                                     >
-                                        <RemotionPreview
-                                            captionStyle={selectedStyle}
-                                            hookStyle={selectedHookStyle}
-                                            thumbnailUrl={thumbnailUrls[currentClip?.index]}
-                                            resolution={resolution}
-                                            size="md"
-                                            showPlayback={true}
-                                            showBadge={true}
-                                            showParticles={true}
-                                            showGlow={true}
+                                        <KeyframePreview
+                                            template={selectedStyle}
+                                            type="caption"
+                                            words={['sample', 'style', 'preview']}
+                                            loop={true}
                                         />
                                     </motion.div>
                                 ) : (

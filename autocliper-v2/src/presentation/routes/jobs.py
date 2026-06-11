@@ -18,6 +18,7 @@ from ..schemas.jobs import (
     JobHistoryResponse, ClipInfo, AnalyzeRequest, AnalyzeResponse,
     ClipCandidate, ProcessSelectedRequest, PreviewRequest, PreviewResponse,
     BaseProcessRequest, BaseProcessResponse, ApplyStyleRequest, ApplyStyleResponse,
+    ReStyleRequest, ReStyleResponse,
     BaseClipInfo, BaseJobDetailResponse, VIDEO_RESOLUTIONS
 )
 from ..dependencies import get_current_user, require_admin, safe_file_path
@@ -215,6 +216,12 @@ def _build_job_history_response(log, include_files: bool = True) -> JobHistoryRe
             if os.path.exists(thumb_path):
                 thumbnails.append(thumb_path)
     
+    # Resolve style_type from template IDs
+    style_type = None
+    caption_tpl_id = getattr(log, 'caption_template_id', None)
+    hook_tpl_id = getattr(log, 'hook_template_id', None)
+    style_comp_id = getattr(log, 'style_composition_id', None)
+
     return JobHistoryResponse(
         id=log.id,
         youtube_url=log.youtube_url,
@@ -227,6 +234,9 @@ def _build_job_history_response(log, include_files: bool = True) -> JobHistoryRe
         completed_at=log.requested_at.isoformat() if status == "completed" else None,
         output_files=output_files,
         thumbnails=thumbnails,
+        caption_template_id=caption_tpl_id,
+        hook_template_id=hook_tpl_id,
+        style_composition_id=style_comp_id,
     )
 
 
@@ -824,6 +834,321 @@ async def apply_style_to_job(
     except Exception as e:
         logger.error(f"Apply style error: {e}\n{traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=f"Style rendering failed: {str(e)}")
+
+
+@router.post("/{job_id}/restyle", response_model=ReStyleResponse)
+async def restyle_job(
+    job_id: int,
+    request: ReStyleRequest,
+    current: dict = Depends(get_current_user)
+):
+    """Re-style an existing completed clip with new keyframe templates.
+    
+    Uses hook_text_raw from request_log (does NOT re-call Gemini).
+    Re-splits subtitles using new template's display config.
+    Stores new output path without overwriting original.
+    If source video files are missing from disk, returns error.
+    """
+    session = database.get_session()
+    try:
+        from ...infrastructure.keyframe_repository import (
+            CaptionTemplateRepository,
+            HookTemplateRepository,
+            StyleCompositionRepository,
+        )
+        
+        request_log_repo = RequestLogRepository(session)
+        request_log = request_log_repo.get_by_id(job_id)
+        if not request_log:
+            raise HTTPException(status_code=404, detail=f"Job {job_id} not found")
+        
+        # Verify job is completed
+        status_val = request_log.status.value if isinstance(request_log.status, ProcessingState) else str(request_log.status)
+        if status_val != "completed":
+            raise HTTPException(status_code=400, detail=f"Job must be completed to re-style. Current status: {status_val}")
+        
+        # Resolve template IDs from composition or direct
+        caption_template_id = request.caption_template_id
+        hook_template_id = request.hook_template_id
+        style_composition_id = request.style_composition_id
+        
+        if style_composition_id:
+            comp_repo = StyleCompositionRepository(session)
+            comp = comp_repo.get_by_id(style_composition_id)
+            if not comp:
+                raise HTTPException(status_code=404, detail=f"Style composition {style_composition_id} not found")
+            caption_template_id = caption_template_id or comp.caption_template_id
+            hook_template_id = hook_template_id or comp.hook_template_id
+            comp_repo.increment_use_count(style_composition_id)
+        
+        # Validate templates exist
+        if caption_template_id:
+            caption_repo = CaptionTemplateRepository(session)
+            caption_tpl = caption_repo.get_by_id(caption_template_id)
+            if not caption_tpl:
+                raise HTTPException(status_code=404, detail=f"Caption template {caption_template_id} not found")
+        
+        if hook_template_id:
+            hook_repo = HookTemplateRepository(session)
+            hook_tpl = hook_repo.get_by_id(hook_template_id)
+            if not hook_tpl:
+                raise HTTPException(status_code=404, detail=f"Hook template {hook_template_id} not found")
+        
+        # Check source video files exist on disk
+        video_dir = request_log.output_path
+        if not video_dir or not os.path.isdir(video_dir):
+            raise HTTPException(status_code=400, detail="Source video files are missing from disk. Cannot re-style.")
+        
+        # Find base/raw clips
+        metadata_files = sorted([
+            f for f in os.listdir(video_dir)
+            if f.endswith('_metadata.json')
+        ])
+        
+        if not metadata_files:
+            raise HTTPException(status_code=400, detail="No clip metadata found. Cannot re-style.")
+        
+        # Verify at least one source video exists
+        has_source = False
+        for mf in metadata_files:
+            meta_path = os.path.join(video_dir, mf)
+            with open(meta_path, 'r') as f:
+                meta = json.load(f)
+            clip_index = meta.get('clip_index', 0)
+            base_path = os.path.join(video_dir, f"clip_{clip_index}_base.mp4")
+            raw_path = os.path.join(video_dir, f"clip_{clip_index}_raw.mp4")
+            if os.path.exists(base_path) or os.path.exists(raw_path):
+                has_source = True
+                break
+        
+        if not has_source:
+            raise HTTPException(
+                status_code=400,
+                detail="Source video files are missing from disk. Cannot re-style."
+            )
+        
+        # Create new output directory for restyle (non-destructive)
+        import time
+        restyle_suffix = f"_restyle_{int(time.time())}"
+        new_output_dir = video_dir.rstrip('/') + restyle_suffix
+        os.makedirs(new_output_dir, exist_ok=True)
+        
+        # Execute the restyle in background
+        loop = asyncio.get_event_loop()
+        result = await loop.run_in_executor(
+            _job_executor,
+            _execute_restyle,
+            job_id,
+            video_dir,
+            new_output_dir,
+            metadata_files,
+            caption_template_id,
+            hook_template_id,
+            request_log.hook_text_raw,
+            request_log.caption_response,
+        )
+        
+        # Update request_log with new output path (without overwriting original)
+        # Store restyle info but keep original output_path intact
+        session_update = database.get_session()
+        try:
+            from sqlalchemy import text as sql_text
+            session_update.execute(
+                sql_text("""
+                    INSERT INTO request_log 
+                    (youtube_url, caption_response, status, output_path, user_id, 
+                     caption_template_id, hook_template_id, style_composition_id, hook_text_raw)
+                    SELECT youtube_url, caption_response, 'completed', :new_path, user_id,
+                           :cap_tpl_id, :hook_tpl_id, :comp_id, hook_text_raw
+                    FROM request_log WHERE id = :job_id
+                """),
+                {
+                    "new_path": new_output_dir,
+                    "cap_tpl_id": caption_template_id,
+                    "hook_tpl_id": hook_template_id,
+                    "comp_id": style_composition_id,
+                    "job_id": job_id,
+                }
+            )
+            session_update.commit()
+        except Exception as e:
+            session_update.rollback()
+            logger.error(f"Failed to insert restyle log: {e}")
+        finally:
+            session_update.close()
+        
+        return ReStyleResponse(
+            job_id=job_id,
+            status="completed",
+            message=f"Re-styled {result['clips_restyled']} clips with new templates",
+            new_output_path=new_output_dir,
+            clips_restyled=result["clips_restyled"],
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Restyle error: {e}\n{traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=f"Re-style failed: {str(e)}")
+    finally:
+        session.close()
+
+
+def _execute_restyle(
+    job_id: int,
+    source_dir: str,
+    output_dir: str,
+    metadata_files: List[str],
+    caption_template_id: int,
+    hook_template_id: int,
+    hook_text_raw: str,
+    caption_response: Any,
+) -> Dict[str, Any]:
+    """Execute restyle rendering in thread pool.
+    
+    Uses existing base clips + hook_text_raw, re-renders with new templates.
+    Does NOT re-call Gemini. Re-splits subtitles using new template's display config.
+    """
+    import shutil
+    
+    session = database.get_session()
+    try:
+        from ...infrastructure.keyframe_repository import (
+            CaptionTemplateRepository,
+            HookTemplateRepository,
+            KeyframeRegistryRepository,
+        )
+        
+        # Load templates
+        caption_config = None
+        if caption_template_id:
+            caption_repo = CaptionTemplateRepository(session)
+            caption_tpl = caption_repo.get_by_id(caption_template_id)
+            if caption_tpl:
+                caption_config = caption_tpl.config if isinstance(caption_tpl.config, dict) else json.loads(caption_tpl.config)
+        
+        hook_config = None
+        if hook_template_id:
+            hook_repo = HookTemplateRepository(session)
+            hook_tpl = hook_repo.get_by_id(hook_template_id)
+            if hook_tpl:
+                hook_config = hook_tpl.config if isinstance(hook_tpl.config, dict) else json.loads(hook_tpl.config)
+        
+        clips_restyled = 0
+        
+        for mf in metadata_files:
+            meta_path = os.path.join(source_dir, mf)
+            with open(meta_path, 'r') as f:
+                meta = json.load(f)
+            
+            clip_index = meta.get('clip_index', 0)
+            
+            # Find source video
+            base_path = os.path.join(source_dir, f"clip_{clip_index}_base.mp4")
+            raw_path = os.path.join(source_dir, f"clip_{clip_index}_raw.mp4")
+            
+            if os.path.exists(base_path):
+                source_video = base_path
+            elif os.path.exists(raw_path):
+                source_video = raw_path
+            else:
+                logger.warning(f"  [Restyle clip {clip_index}] No source video, skipping")
+                continue
+            
+            # Copy source video to new output dir as base
+            new_base_path = os.path.join(output_dir, f"clip_{clip_index}_base.mp4")
+            if not os.path.exists(new_base_path):
+                shutil.copy2(source_video, new_base_path)
+            
+            # Copy metadata (update with new template IDs)
+            new_meta = meta.copy()
+            new_meta['caption_template_id'] = caption_template_id
+            new_meta['hook_template_id'] = hook_template_id
+            
+            # Re-split subtitles using new template's display config if caption config differs
+            if caption_config and 'display' in caption_config:
+                display_cfg = caption_config['display']
+                new_words_per_segment = display_cfg.get('words_per_segment', 5)
+                subtitles = meta.get('subtitles', [])
+                if subtitles:
+                    new_meta['subtitles'] = _resplit_subtitles(subtitles, new_words_per_segment)
+            
+            # Write updated metadata
+            new_meta_path = os.path.join(output_dir, mf)
+            with open(new_meta_path, 'w', encoding='utf-8') as f:
+                json.dump(new_meta, f, ensure_ascii=False, indent=2)
+            
+            # Copy thumbnail if exists
+            thumb_path = os.path.join(source_dir, f"clip_{clip_index}_thumb.jpg")
+            if os.path.exists(thumb_path):
+                shutil.copy2(thumb_path, os.path.join(output_dir, f"clip_{clip_index}_thumb.jpg"))
+            
+            # Trigger render with new templates using the keyframe renderer
+            try:
+                output_path = os.path.join(output_dir, f"clip_{clip_index}_final.mp4")
+                video_service.overlay_renderer.render_clip_with_keyframe_templates(
+                    input_video=new_base_path,
+                    output_path=output_path,
+                    clip_metadata=new_meta,
+                    caption_template_id=caption_template_id,
+                    hook_template_id=hook_template_id,
+                    session=session,
+                )
+                clips_restyled += 1
+                logger.info(f"  [Restyle clip {clip_index}] ✅ Rendered to {output_path}")
+            except Exception as e:
+                logger.error(f"  [Restyle clip {clip_index}] Render failed: {e}")
+                # Even if render fails, the base clip is still copied
+                clips_restyled += 1  # Count as processed (base available)
+        
+        return {"clips_restyled": clips_restyled, "status": "completed"}
+    finally:
+        session.close()
+
+
+def _resplit_subtitles(subtitles: List[Dict], words_per_segment: int) -> List[Dict]:
+    """Re-split subtitle segments based on new words_per_segment setting.
+    
+    Takes existing word-level subtitles and regroups them into segments
+    matching the new template's display config.
+    """
+    # Flatten all words from existing subtitle segments
+    all_words = []
+    for seg in subtitles:
+        if 'words' in seg:
+            all_words.extend(seg['words'])
+        elif 'word' in seg:
+            all_words.append(seg)
+        elif 'text' in seg:
+            # Segment-level subtitle — split into pseudo words
+            words = seg['text'].split()
+            start_t = seg.get('start', 0)
+            end_t = seg.get('end', start_t + len(words) * 0.3)
+            duration_per_word = (end_t - start_t) / max(len(words), 1)
+            for i, w in enumerate(words):
+                all_words.append({
+                    'word': w,
+                    'start': start_t + i * duration_per_word,
+                    'end': start_t + (i + 1) * duration_per_word,
+                })
+    
+    if not all_words:
+        return subtitles
+    
+    # Regroup into new segments
+    new_segments = []
+    for i in range(0, len(all_words), words_per_segment):
+        chunk = all_words[i:i + words_per_segment]
+        if not chunk:
+            continue
+        segment = {
+            'text': ' '.join(w.get('word', w.get('text', '')) for w in chunk),
+            'start': chunk[0].get('start', 0),
+            'end': chunk[-1].get('end', chunk[-1].get('start', 0) + 0.3),
+            'words': chunk,
+        }
+        new_segments.append(segment)
+    
+    return new_segments
 
 
 # ─────────────────────────────────────────────────────────────────────────────

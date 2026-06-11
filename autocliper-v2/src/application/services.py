@@ -189,40 +189,6 @@ def _generate_smart_thumbnail(video_path: str, output_path: str) -> bool:
         return False
 
 
-def _make_caption_style_from_remotion(remotion_caption):
-    """Create a CaptionStyle-compatible object from a Remotion caption template.
-    
-    Includes get_extended_config() so the rendering pipeline can read display_mode
-    and other extended settings.
-    """
-    config = {**(remotion_caption.config or {}), 'display_mode': getattr(remotion_caption, 'display_mode', 'phrase') or 'phrase'}
-    
-    class _CompatCaptionStyle:
-        def __init__(self):
-            self.id = remotion_caption.id
-            self.name = remotion_caption.name
-            self.font_family = remotion_caption.font_family
-            self.font_weight = remotion_caption.font_weight
-            self.font_size = remotion_caption.font_size
-            self.color = remotion_caption.color
-            self.highlight_color = remotion_caption.highlight_color
-            self.outline_color = remotion_caption.outline_color or '#000000'
-            self.outline_width = remotion_caption.outline_width or 2
-            self.shadow_color = remotion_caption.shadow_color or '#000000'
-            self.shadow_offset_x = getattr(remotion_caption, 'shadow_offset_x', 0) or 0
-            self.shadow_offset_y = remotion_caption.shadow_offset_y or 2
-            self.line_spacing = remotion_caption.line_height or 1.3
-            self.caption_bottom_margin = remotion_caption.position_y_offset or 80
-            self.config = config
-        
-        def get_extended_config(self):
-            from ..domain.entities import CaptionStyle as _CS
-            dummy = _CS(id=0, name="tmp", config=self.config)
-            return dummy.get_extended_config()
-    
-    return _CompatCaptionStyle()
-
-
 class VideoProcessingPipeline:
     """Main video processing pipeline with modular architecture"""
     
@@ -251,6 +217,129 @@ class VideoProcessingPipeline:
         
         # Processing status
         self.status = ProcessingStatus(state=ProcessingState.PENDING)
+
+    def _resolve_keyframe_templates(self, job_request: JobRequest, session):
+        """Resolve caption_template_id and hook_template_id from job request.
+        
+        Resolution priority:
+        1. If style_composition_id is provided → load composition, extract template IDs
+        2. If individual template IDs are provided → use them directly
+        3. If nothing is provided → load default composition (get_default())
+        
+        Returns:
+            Tuple of (caption_template_id, hook_template_id, style_composition_id,
+                      caption_template, hook_template, keyframe_data_cache)
+            where templates and keyframe_data_cache are None if not using the new system.
+        """
+        from ..infrastructure.keyframe_repository import (
+            CaptionTemplateRepository as KfCaptionRepo,
+            HookTemplateRepository as KfHookRepo,
+            StyleCompositionRepository,
+            KeyframeRegistryRepository,
+        )
+        from ..infrastructure.keyframe_parser import parse_keyframes
+
+        caption_template_id = getattr(job_request, 'caption_template_id', None)
+        hook_template_id = getattr(job_request, 'hook_template_id', None)
+        style_composition_id = getattr(job_request, 'style_composition_id', None)
+
+        caption_template = None
+        hook_template = None
+        keyframe_data_cache = {}  # keyframe_registry_id → parsed FrameData list
+
+        # Step 1: Resolve from composition if provided
+        if style_composition_id:
+            comp_repo = StyleCompositionRepository(session)
+            composition = comp_repo.get_by_id(style_composition_id)
+            if composition:
+                caption_template_id = caption_template_id or composition.caption_template_id
+                hook_template_id = hook_template_id or composition.hook_template_id
+                # Increment use_count
+                comp_repo.increment_use_count(style_composition_id)
+                logger.info(f"[Keyframe] Resolved composition #{style_composition_id}: "
+                           f"caption_template={caption_template_id}, hook_template={hook_template_id}")
+            else:
+                logger.warning(f"[Keyframe] Composition #{style_composition_id} not found, falling back to default")
+                style_composition_id = None
+
+        # Step 2: If still no template IDs, try default composition
+        if not caption_template_id and not hook_template_id:
+            comp_repo = StyleCompositionRepository(session)
+            default_comp = comp_repo.get_default()
+            if default_comp:
+                caption_template_id = default_comp.caption_template_id
+                hook_template_id = default_comp.hook_template_id
+                style_composition_id = default_comp.id
+                comp_repo.increment_use_count(default_comp.id)
+                logger.info(f"[Keyframe] Using default composition #{default_comp.id}: "
+                           f"caption_template={caption_template_id}, hook_template={hook_template_id}")
+            else:
+                # No default composition found — will use legacy path
+                logger.info("[Keyframe] No default composition found, using legacy rendering path")
+                return (None, None, None, None, None, {})
+
+        # Step 3: Load templates from repositories
+        kf_registry_repo = KeyframeRegistryRepository(session)
+
+        if caption_template_id:
+            caption_repo = KfCaptionRepo(session)
+            caption_template = caption_repo.get_by_id(caption_template_id)
+            if caption_template:
+                # Pre-load referenced keyframe data from animation config
+                config = caption_template.config or {}
+                animation = config.get("animation") or {}
+                for kf_key in ("entrance_keyframe_id", "exit_keyframe_id", "highlight_keyframe_id"):
+                    kf_id = animation.get(kf_key)
+                    if kf_id and kf_id not in keyframe_data_cache:
+                        registry_entry = kf_registry_repo.get_by_id(kf_id)
+                        if registry_entry and registry_entry.keyframes:
+                            try:
+                                keyframe_data_cache[kf_id] = parse_keyframes(registry_entry.keyframes)
+                            except Exception as e:
+                                logger.warning(f"[Keyframe] Failed to parse keyframe #{kf_id}: {e}")
+                        else:
+                            logger.warning(f"[Keyframe] Keyframe registry #{kf_id} not found (referenced by caption template)")
+            else:
+                logger.warning(f"[Keyframe] Caption template #{caption_template_id} not found")
+                caption_template_id = None
+
+        if hook_template_id:
+            hook_repo = KfHookRepo(session)
+            hook_template = hook_repo.get_by_id(hook_template_id)
+            if hook_template:
+                # Pre-load referenced keyframe data from animation config
+                config = hook_template.config or {}
+                animation = config.get("animation") or {}
+                # Container entrance
+                entrance_id = animation.get("entrance_keyframe_id")
+                if entrance_id and entrance_id not in keyframe_data_cache:
+                    registry_entry = kf_registry_repo.get_by_id(entrance_id)
+                    if registry_entry and registry_entry.keyframes:
+                        try:
+                            keyframe_data_cache[entrance_id] = parse_keyframes(registry_entry.keyframes)
+                        except Exception as e:
+                            logger.warning(f"[Keyframe] Failed to parse keyframe #{entrance_id}: {e}")
+                    else:
+                        logger.warning(f"[Keyframe] Keyframe registry #{entrance_id} not found (hook container)")
+                # Per-line keyframes
+                per_line = animation.get("per_line") or []
+                for line_anim in per_line:
+                    kf_id = line_anim.get("keyframe_id")
+                    if kf_id and kf_id not in keyframe_data_cache:
+                        registry_entry = kf_registry_repo.get_by_id(kf_id)
+                        if registry_entry and registry_entry.keyframes:
+                            try:
+                                keyframe_data_cache[kf_id] = parse_keyframes(registry_entry.keyframes)
+                            except Exception as e:
+                                logger.warning(f"[Keyframe] Failed to parse per-line keyframe #{kf_id}: {e}")
+                        else:
+                            logger.warning(f"[Keyframe] Keyframe registry #{kf_id} not found (hook per-line)")
+            else:
+                logger.warning(f"[Keyframe] Hook template #{hook_template_id} not found")
+                hook_template_id = None
+
+        return (caption_template_id, hook_template_id, style_composition_id,
+                caption_template, hook_template, keyframe_data_cache)
     
     def process_job(self, job_request: JobRequest) -> Dict[str, Any]:
         """
@@ -269,7 +358,7 @@ class VideoProcessingPipeline:
         video_info = None
         
         try:
-            # 1. Get caption style from database (try Remotion template first, then legacy)
+            # 1. Get caption style from database
             logger.info("Step 1: Getting caption style from database")
             self._update_status(ProcessingState.PENDING, "Getting caption style")
             job_logger.log("Getting caption style from database", "fetching_video")
@@ -277,64 +366,14 @@ class VideoProcessingPipeline:
             caption_repo = CaptionStyleRepository(session)
             caption_style = caption_repo.get_by_id(job_request.caption_style)
             if not caption_style:
-                # Try Remotion caption template as fallback
-                from ..infrastructure.remotion_repository import RemotionCaptionTemplateRepository
-                remotion_caption = RemotionCaptionTemplateRepository(session).get_by_id(job_request.caption_style)
-                if remotion_caption:
-                    # Convert Remotion template to a compatible CaptionStyle object
-                    caption_style = _make_caption_style_from_remotion(remotion_caption)
-                else:
-                    raise ValueError(f"Caption style {job_request.caption_style} not found")
+                raise ValueError(f"Caption style {job_request.caption_style} not found")
 
-            # Load hook style if provided (try Remotion template first, then legacy)
+            # Load hook style if provided
             hook_style = None
             if job_request.hook_style_id:
                 hook_style = HookStyleRepository(session).get_by_id(job_request.hook_style_id)
                 if not hook_style:
-                    # Try Remotion hook template
-                    from ..infrastructure.remotion_repository import RemotionHookTemplateRepository
-                    remotion_hook = RemotionHookTemplateRepository(session).get_by_id(job_request.hook_style_id)
-                    if remotion_hook:
-                        # Convert Remotion template to domain HookStyle entity
-                        hook_style = HookStyle(
-                            id=remotion_hook.id,
-                            name=remotion_hook.name,
-                            config={
-                                'text': {
-                                    'color': remotion_hook.color or '#FFFFFF',
-                                    'keyword_color': remotion_hook.keyword_color or '#FFD700',
-                                    'font_size_normal': remotion_hook.font_size_normal or 36,
-                                    'font_size_keyword': remotion_hook.font_size_keyword or 56,
-                                    'fallback_font': remotion_hook.font_family or '',
-                                },
-                                'shadow': {
-                                    'enable': remotion_hook.shadow_enabled if remotion_hook.shadow_enabled is not None else True,
-                                    'blur': remotion_hook.shadow_blur or 12,
-                                    'color': remotion_hook.shadow_color or '#000000',
-                                    'opacity': 180,
-                                    'offset_y': remotion_hook.shadow_offset_y or 3,
-                                },
-                                'keyword': {
-                                    'underline': {
-                                        'color': remotion_hook.keyword_underline_color or '#FFD700',
-                                        'opacity': 200 if remotion_hook.keyword_underline_enabled else 0,
-                                        'thickness': remotion_hook.keyword_underline_thickness or 3,
-                                    },
-                                },
-                                'box': {
-                                    'enable': remotion_hook.box_enabled or False,
-                                    'color': remotion_hook.box_color or '#000000',
-                                    'opacity': int((remotion_hook.box_opacity or 0) * 255),
-                                    'padding': remotion_hook.box_padding or 0,
-                                },
-                                'animation': {
-                                    'fade_in': (remotion_hook.animation_in_duration or 400) / 1000,
-                                    'fade_out': (remotion_hook.animation_out_duration or 400) / 1000,
-                                },
-                            },
-                        )
-                    else:
-                        raise ValueError(f"Hook style {job_request.hook_style_id} not found")
+                    raise ValueError(f"Hook style {job_request.hook_style_id} not found")
 
             request_log_repo = RequestLogRepository(session)
             
@@ -427,6 +466,26 @@ class VideoProcessingPipeline:
             logger.info("Step 5: Saving to database")
             job_logger.log("Saving AI results to database")
             
+            # 5a. Resolve keyframe templates (new system)
+            (resolved_caption_template_id,
+             resolved_hook_template_id,
+             resolved_style_composition_id,
+             kf_caption_template,
+             kf_hook_template,
+             keyframe_data_cache) = self._resolve_keyframe_templates(job_request, session)
+            
+            # Store keyframe template context on overlay_renderer for use during clip processing
+            self.overlay_renderer._kf_caption_template = kf_caption_template
+            self.overlay_renderer._kf_hook_template = kf_hook_template
+            self.overlay_renderer._keyframe_data_cache = keyframe_data_cache
+            
+            if resolved_caption_template_id or resolved_hook_template_id:
+                logger.info(f"[Keyframe] Templates resolved: caption={resolved_caption_template_id}, "
+                           f"hook={resolved_hook_template_id}, composition={resolved_style_composition_id}")
+
+            # Collect all hook_text_raw values from clips (original hook text before formatting)
+            hook_texts_raw = "; ".join(clip.hook for clip in clips if clip.hook) if clips else None
+            
             # Update output_path immediately since we have it
             request_log = RequestLog(
                 id=None,
@@ -436,7 +495,11 @@ class VideoProcessingPipeline:
                 caption_response=clips,
                 status=ProcessingState.PROCESSING,
                 output_path=video_dir,
-                user_id=job_request.user_id
+                user_id=job_request.user_id,
+                caption_template_id=resolved_caption_template_id,
+                hook_template_id=resolved_hook_template_id,
+                style_composition_id=resolved_style_composition_id,
+                hook_text_raw=hook_texts_raw,
             )
             saved_log = request_log_repo.create(request_log)
             request_log = saved_log
@@ -796,7 +859,10 @@ class VideoProcessingPipeline:
                         hook_duration=hook_duration,
                         output_path=final_path,
                         request_log_data={'caption_response': [c.__dict__ for c in all_clips]},
-                        hook_style=hook_style
+                        hook_style=hook_style,
+                        kf_caption_template=getattr(self.overlay_renderer, '_kf_caption_template', None),
+                        kf_hook_template=getattr(self.overlay_renderer, '_kf_hook_template', None),
+                        keyframe_data_cache=getattr(self.overlay_renderer, '_keyframe_data_cache', None),
                     )
                     logger.info(f"  ✅ Final clip rendered: {os.path.getsize(final_path) / 1024 / 1024:.1f}MB")
                     job_logger.log(f"  [Clip {clip_index}] ✅ Final render complete: {os.path.getsize(final_path) / 1024 / 1024:.1f}MB")
@@ -881,7 +947,10 @@ class VideoProcessingPipeline:
                         hook_duration=hook_duration,
                         output_path=final_path,
                         request_log_data={'caption_response': [c.__dict__ for c in all_clips]},
-                        hook_style=hook_style
+                        hook_style=hook_style,
+                        kf_caption_template=getattr(self.overlay_renderer, '_kf_caption_template', None),
+                        kf_hook_template=getattr(self.overlay_renderer, '_kf_hook_template', None),
+                        keyframe_data_cache=getattr(self.overlay_renderer, '_keyframe_data_cache', None),
                     )
                     
                     # Save metadata for re-styling (fallback path)
@@ -957,7 +1026,10 @@ class VideoProcessingPipeline:
                     hook_duration=hook_duration,
                     output_path=final_path,
                     request_log_data={'caption_response': [c.__dict__ for c in all_clips]},
-                    hook_style=hook_style
+                    hook_style=hook_style,
+                    kf_caption_template=getattr(self.overlay_renderer, '_kf_caption_template', None),
+                    kf_hook_template=getattr(self.overlay_renderer, '_kf_hook_template', None),
+                    keyframe_data_cache=getattr(self.overlay_renderer, '_keyframe_data_cache', None),
                 )
                 logger.info(f"  ✅ Overlays rendered: {os.path.getsize(final_path) / 1024 / 1024:.1f}MB")
                 
@@ -1234,7 +1306,11 @@ class VideoProcessingPipeline:
                 caption_response=clips,
                 status=ProcessingState.PROCESSING,
                 output_path=video_dir,
-                user_id=job_request.user_id
+                user_id=job_request.user_id,
+                caption_template_id=getattr(job_request, 'caption_template_id', None),
+                hook_template_id=getattr(job_request, 'hook_template_id', None),
+                style_composition_id=getattr(job_request, 'style_composition_id', None),
+                hook_text_raw="; ".join(clip.hook for clip in clips if clip.hook) if clips else None,
             )
             saved_log = request_log_repo.create(request_log)
             request_log = saved_log
@@ -1873,37 +1949,18 @@ class VideoProcessingPipeline:
             if not video_dir or not os.path.exists(video_dir):
                 raise ValueError(f"Output directory not found for job {job_id}")
             
-            # Load caption style (try legacy first, then Remotion)
+            # Load caption style
             caption_repo = CaptionStyleRepository(session)
             caption_style = caption_repo.get_by_id(caption_style_id)
             if not caption_style:
-                from ..infrastructure.remotion_repository import RemotionCaptionTemplateRepository
-                remotion_caption = RemotionCaptionTemplateRepository(session).get_by_id(caption_style_id)
-                if remotion_caption:
-                    caption_style = _make_caption_style_from_remotion(remotion_caption)
-                else:
-                    raise ValueError(f"Caption style {caption_style_id} not found")
+                raise ValueError(f"Caption style {caption_style_id} not found")
             
-            # Load hook style (try legacy first, then Remotion)
+            # Load hook style
             hook_style = None
             if hook_style_id:
                 hook_style = HookStyleRepository(session).get_by_id(hook_style_id)
                 if not hook_style:
-                    from ..infrastructure.remotion_repository import RemotionHookTemplateRepository
-                    remotion_hook = RemotionHookTemplateRepository(session).get_by_id(hook_style_id)
-                    if remotion_hook:
-                        hook_style = HookStyle(
-                            id=remotion_hook.id, name=remotion_hook.name,
-                            config={
-                                'text': {'color': remotion_hook.color or '#FFFFFF', 'keyword_color': remotion_hook.keyword_color or '#FFD700', 'font_size_normal': remotion_hook.font_size_normal or 36, 'font_size_keyword': remotion_hook.font_size_keyword or 56, 'fallback_font': remotion_hook.font_family or ''},
-                                'shadow': {'enable': remotion_hook.shadow_enabled if remotion_hook.shadow_enabled is not None else True, 'blur': remotion_hook.shadow_blur or 12, 'color': remotion_hook.shadow_color or '#000000', 'opacity': 180, 'offset_y': remotion_hook.shadow_offset_y or 3},
-                                'keyword': {'underline': {'color': remotion_hook.keyword_underline_color or '#FFD700', 'opacity': 200 if remotion_hook.keyword_underline_enabled else 0, 'thickness': remotion_hook.keyword_underline_thickness or 3}},
-                                'box': {'enable': remotion_hook.box_enabled or False, 'color': remotion_hook.box_color or '#000000', 'opacity': int((remotion_hook.box_opacity or 0) * 255), 'padding': remotion_hook.box_padding or 0},
-                                'animation': {'fade_in': (remotion_hook.animation_in_duration or 400) / 1000, 'fade_out': (remotion_hook.animation_out_duration or 400) / 1000},
-                            },
-                        )
-                    else:
-                        raise ValueError(f"Hook style {hook_style_id} not found")
+                    raise ValueError(f"Hook style {hook_style_id} not found")
             
             # Find all clip metadata files
             metadata_files = sorted([
@@ -1950,20 +2007,11 @@ class VideoProcessingPipeline:
                     meta = json.load(f)
                     all_clips_data.append(meta)
             
-            # ─── Remotion Render Pipeline ─────────────────────────────────────
-            # Create render jobs that the RemotionRenderWorker will pick up.
-            # This replaces the old PIL/OpenCV frame-by-frame rendering.
-            from ..infrastructure.remotion_repository import (
-                RemotionRenderJobRepository,
-                RemotionCaptionTemplateRepository,
-                RemotionHookTemplateRepository,
-            )
+            # ─── Keyframe Render Pipeline ─────────────────────────────────────
+            # Render clips using the keyframe-based overlay system (PIL/FFmpeg).
             
-            render_job_repo = RemotionRenderJobRepository(session)
-            
-            # Resolve Remotion template IDs
-            remotion_caption_id = caption_style_id
-            remotion_hook_id = hook_style_id
+            # Update keywords in hook renderer
+            self.overlay_renderer.hook_renderer.update_keywords(all_clips_data)
             
             for idx, mf in enumerate(metadata_files):
                 metadata_path = os.path.join(video_dir, mf)
@@ -2010,42 +2058,44 @@ class VideoProcessingPipeline:
                         logger.warning(f"  [Clip {clip_index}] ⚠️ Whisper fallback failed: {whisper_err}")
                         subtitles = []
                 
-                # Create Remotion render job
-                render_job_data = {
-                    "request_log_id": job_id,
-                    "clip_index": clip_index,
-                    "caption_template_id": remotion_caption_id,
-                    "hook_template_id": remotion_hook_id,
-                    "input_video_path": input_video,
-                    "metadata_path": metadata_path,
-                    "hook_text": hook_text,
-                    "subtitle_data": subtitles,
-                }
-                
-                render_job = render_job_repo.create(render_job_data)
-                
-                rendered_clips.append({
-                    "index": clip_index,
-                    "render_job_id": render_job.id,
-                    "output_path": os.path.join(video_dir, f"clip_{clip_index}_remotion.mp4"),
-                    "hook": hook_text,
-                    "duration": duration,
-                    "status": "pending",
-                })
-                
-                job_logger.log(f"  [Clip {clip_index}] ✅ Render job #{render_job.id} queued")
-                logger.info(f"  [Clip {clip_index}] Render job #{render_job.id} created (pending)")
-            
-            # Update keywords in hook renderer for legacy fallback
-            self.overlay_renderer.hook_renderer.update_keywords(all_clips_data)
+                # Render overlay using keyframe system
+                output_path = os.path.join(video_dir, f"clip_{clip_index}_styled.mp4")
+                try:
+                    self.overlay_renderer.render_clip(
+                        input_video_path=input_video,
+                        output_path=output_path,
+                        hook_text=hook_text,
+                        subtitles=subtitles,
+                        caption_style=caption_style,
+                        hook_style=hook_style,
+                        clip_index=clip_index,
+                    )
+                    rendered_clips.append({
+                        "index": clip_index,
+                        "output_path": output_path,
+                        "hook": hook_text,
+                        "duration": duration,
+                        "status": "completed",
+                    })
+                    job_logger.log(f"  [Clip {clip_index}] ✅ Rendered with keyframe system")
+                    logger.info(f"  [Clip {clip_index}] Rendered successfully")
+                except Exception as render_err:
+                    logger.error(f"  [Clip {clip_index}] Render failed: {render_err}")
+                    job_logger.log(f"  [Clip {clip_index}] ❌ Render failed: {render_err}")
+                    rendered_clips.append({
+                        "index": clip_index,
+                        "output_path": None,
+                        "hook": hook_text,
+                        "duration": duration,
+                        "status": "failed",
+                    })
             
             # Update request log with new style info
             request_log.caption_style_id = caption_style_id
             request_log.hook_style_id = hook_style_id
             request_log_repo.update(request_log)
             
-            job_logger.log(f"Remotion render queued — {len(rendered_clips)} clips pending", "applying_captions")
-            job_logger.log(f"Worker will process render jobs automatically (poll interval: 5s)")
+            job_logger.log(f"Style render complete — {len(rendered_clips)} clips processed", "applying_captions")
             
             return {
                 "status": "success",
@@ -2054,7 +2104,7 @@ class VideoProcessingPipeline:
                 "clips": rendered_clips,
                 "caption_style_id": caption_style_id,
                 "hook_style_id": hook_style_id,
-                "render_mode": "remotion",
+                "render_mode": "keyframe",
             }
             
         except Exception as e:

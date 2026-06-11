@@ -321,7 +321,7 @@ class HookRenderer:
         fallback_font = style["fallback_font"]
         
         # Adaptive font size: scale to video resolution + scale down if text too long
-        # DB values (font_size_normal/keyword) are Remotion reference values designed
+        # DB values (font_size_normal/keyword) are reference values designed
         # for ~360px preview. Scale up to actual video resolution (1080px).
         # Factor: target_width / reference_width = 1080 / 360 = 3.0
         render_scale = width / 360.0
@@ -632,7 +632,7 @@ class SubtitleRenderer:
         draw = ImageDraw.Draw(overlay)
         
         # Get font - scale font size for video resolution
-        # DB font sizes are Remotion reference values (~360px preview width)
+        # DB font sizes are reference values (~360px preview width)
         # Scale to actual render resolution (same reference as hook renderer)
         scaled_font_size = max(24, int(style.font_size * (width / 360)))  # Scale based on width
         font = self.text_renderer.get_font(
@@ -807,6 +807,7 @@ class OverlayRenderer(IOverlayRenderer):
     
     Uses PremiumHookRenderer and PremiumCaptionRenderer for cinematic-quality output.
     Falls back to legacy renderers if premium fails.
+    Supports keyframe-based rendering via KeyframeRenderer for new template configs.
     """
     
     def __init__(self):
@@ -816,6 +817,79 @@ class OverlayRenderer(IOverlayRenderer):
         self.premium_hook = PremiumHookRenderer()
         self.premium_caption = PremiumCaptionRenderer()
         self._use_premium = True  # Set False to revert to legacy
+        
+        # Keyframe-based renderer (new system)
+        from .text_measurer import TextMeasurer
+        from .keyframe_renderer import KeyframeRenderer
+        text_measurer = TextMeasurer(font_resolver=TextRenderer())
+        self.keyframe_renderer = KeyframeRenderer(text_measurer)
+
+    def render_caption_with_keyframe(self, frame: np.ndarray, frame_index: int,
+                                     fps: float, words: List[Dict],
+                                     active_word_index: int,
+                                     template_config: dict,
+                                     keyframe_data=None) -> np.ndarray:
+        """Render caption overlay using the KeyframeRenderer (new template system).
+        
+        Delegates to KeyframeRenderer.render_caption_frame() for animated or static
+        caption templates from the new keyframe animation system.
+        
+        Args:
+            frame: BGR numpy video frame.
+            frame_index: Current frame index (0-based).
+            fps: Video FPS.
+            words: List of word dicts with 'text' key.
+            active_word_index: Index of the currently highlighted word.
+            template_config: Caption template config JSON from CaptionTemplateModel.
+            keyframe_data: Parsed keyframe frames for entrance animation, or None.
+            
+        Returns:
+            Frame with caption overlay composited.
+        """
+        return self.keyframe_renderer.render_caption_frame(
+            frame=frame,
+            frame_index=frame_index,
+            fps=fps,
+            words=words,
+            active_word_index=active_word_index,
+            template_config=template_config,
+            keyframe_data=keyframe_data,
+        )
+
+    def render_hook_with_keyframe(self, frame: np.ndarray, frame_index: int,
+                                  fps: float, hook_lines: List[str],
+                                  template_config: dict,
+                                  container_keyframes=None,
+                                  per_line_keyframes: List = None,
+                                  per_line_delays_ms: List[int] = None) -> np.ndarray:
+        """Render hook overlay using the KeyframeRenderer (new template system).
+        
+        Delegates to KeyframeRenderer.render_hook_frame() for animated or static
+        hook templates from the new keyframe animation system.
+        
+        Args:
+            frame: BGR numpy video frame.
+            frame_index: Current frame index (0-based).
+            fps: Video FPS.
+            hook_lines: List of text strings, one per line.
+            template_config: Hook template config JSON from HookTemplateModel.
+            container_keyframes: Keyframe data for overall container entrance, or None.
+            per_line_keyframes: Per-line keyframe data list, or None.
+            per_line_delays_ms: Per-line delay in ms list, or None.
+            
+        Returns:
+            Frame with hook overlay composited.
+        """
+        return self.keyframe_renderer.render_hook_frame(
+            frame=frame,
+            frame_index=frame_index,
+            fps=fps,
+            hook_lines=hook_lines,
+            template_config=template_config,
+            container_keyframes=container_keyframes,
+            per_line_keyframes=per_line_keyframes or [],
+            per_line_delays_ms=per_line_delays_ms or [],
+        )
     
     def render_hook(self, video_path: str, hook_text: str, duration: float = 3.0, 
                     output_path: str = None) -> str:
@@ -1045,10 +1119,198 @@ class OverlayRenderer(IOverlayRenderer):
         
         return chunks
     
+    def render_clip_with_keyframe_templates(self, input_video: str, output_path: str,
+                                              clip_metadata: Dict, caption_template_id: int = None,
+                                              hook_template_id: int = None, session=None) -> str:
+        """Render a clip with new keyframe-based templates (used by restyle).
+        
+        Uses pre-computed metadata (hook_text, subtitles) — does NOT re-call Gemini.
+        Renders overlays using the keyframe renderer system.
+        
+        Args:
+            input_video: Path to source video (base/raw clip).
+            output_path: Where to write the final rendered video.
+            clip_metadata: Dict with hook, subtitles, duration, etc.
+            caption_template_id: ID of the new caption template.
+            hook_template_id: ID of the new hook template.
+            session: SQLAlchemy session for loading templates.
+            
+        Returns:
+            Path to the rendered output video.
+        """
+        import subprocess
+        import json as json_mod
+        from .keyframe_repository import (
+            CaptionTemplateRepository, HookTemplateRepository, KeyframeRegistryRepository,
+        )
+        from .keyframe_parser import parse_keyframes
+        
+        hook_text = clip_metadata.get('hook', '')
+        subtitles = clip_metadata.get('subtitles', [])
+        
+        # Load template configs
+        caption_config = None
+        caption_keyframes = None
+        if caption_template_id and session:
+            caption_repo = CaptionTemplateRepository(session)
+            caption_tpl = caption_repo.get_by_id(caption_template_id)
+            if caption_tpl:
+                caption_config = caption_tpl.config if isinstance(caption_tpl.config, dict) else json_mod.loads(caption_tpl.config)
+                # Load entrance keyframe if referenced
+                anim = caption_config.get('animation') or {}
+                entrance_id = anim.get('entrance_keyframe_id')
+                if entrance_id:
+                    kf_repo = KeyframeRegistryRepository(session)
+                    kf_entry = kf_repo.get_by_id(entrance_id)
+                    if kf_entry:
+                        kf_data = kf_entry.keyframes if isinstance(kf_entry.keyframes, list) else json_mod.loads(kf_entry.keyframes)
+                        caption_keyframes = parse_keyframes(kf_data)
+        
+        hook_config = None
+        container_keyframes = None
+        per_line_keyframes = []
+        per_line_delays = []
+        if hook_template_id and session:
+            hook_repo = HookTemplateRepository(session)
+            hook_tpl = hook_repo.get_by_id(hook_template_id)
+            if hook_tpl:
+                hook_config = hook_tpl.config if isinstance(hook_tpl.config, dict) else json_mod.loads(hook_tpl.config)
+                # Load container keyframe
+                anim = hook_config.get('animation') or {}
+                container_id = anim.get('entrance_keyframe_id')
+                if container_id:
+                    kf_repo = KeyframeRegistryRepository(session)
+                    kf_entry = kf_repo.get_by_id(container_id)
+                    if kf_entry:
+                        kf_data = kf_entry.keyframes if isinstance(kf_entry.keyframes, list) else json_mod.loads(kf_entry.keyframes)
+                        container_keyframes = parse_keyframes(kf_data)
+                # Load per-line keyframes
+                for line_anim in anim.get('per_line', []):
+                    kf_id = line_anim.get('keyframe_id')
+                    delay = line_anim.get('delay_ms', 0)
+                    per_line_delays.append(delay)
+                    if kf_id:
+                        kf_repo = KeyframeRegistryRepository(session)
+                        kf_entry = kf_repo.get_by_id(kf_id)
+                        if kf_entry:
+                            kf_data = kf_entry.keyframes if isinstance(kf_entry.keyframes, list) else json_mod.loads(kf_entry.keyframes)
+                            per_line_keyframes.append(parse_keyframes(kf_data))
+                        else:
+                            per_line_keyframes.append(None)
+                    else:
+                        per_line_keyframes.append(None)
+        
+        # Open video
+        cap = cv2.VideoCapture(input_video)
+        if not cap.isOpened():
+            raise ValueError(f"Cannot open video: {input_video}")
+        
+        fps = cap.get(cv2.CAP_PROP_FPS)
+        width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+        height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        
+        # Hook display timing
+        hook_duration = 3.0
+        if hook_config and 'timing' in hook_config:
+            hook_duration = hook_config['timing'].get('display_duration_seconds', 3.0)
+        hook_frames = int(hook_duration * fps)
+        
+        # Group subtitles for caption display
+        words_per_segment = 5
+        if caption_config and 'display' in caption_config:
+            words_per_segment = caption_config['display'].get('words_per_segment', 5)
+        chunked_subtitles = self._group_words_to_chunks(subtitles, words_per_chunk=words_per_segment)
+        
+        # Split hook text into lines
+        hook_lines = [l.strip() for l in hook_text.split('\n') if l.strip()] if hook_text else []
+        if not hook_lines and hook_text:
+            hook_lines = [hook_text]
+        
+        # FFmpeg output
+        ffmpeg_cmd = [
+            'ffmpeg', '-f', 'rawvideo', '-pix_fmt', 'bgr24',
+            '-s', f'{width}x{height}', '-r', str(fps), '-i', '-',
+            '-c:v', 'libx264', '-preset', 'fast', '-crf', '18',
+            '-pix_fmt', 'yuv420p', '-movflags', '+faststart', '-y', output_path
+        ]
+        
+        import tempfile
+        stderr_file = tempfile.NamedTemporaryFile(mode='w', suffix='_ffmpeg_stderr.log', delete=False)
+        proc = subprocess.Popen(ffmpeg_cmd, stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=stderr_file)
+        
+        frame_idx = 0
+        try:
+            while True:
+                ret, frame = cap.read()
+                if not ret:
+                    break
+                
+                current_time = frame_idx / fps
+                
+                # Render hook overlay (during hook_duration)
+                if hook_config and hook_lines and frame_idx < hook_frames:
+                    frame = self.render_hook_with_keyframe(
+                        frame=frame, frame_index=frame_idx, fps=fps,
+                        hook_lines=hook_lines, template_config=hook_config,
+                        container_keyframes=container_keyframes,
+                        per_line_keyframes=per_line_keyframes,
+                        per_line_delays_ms=per_line_delays,
+                    )
+                
+                # Render caption overlay (karaoke)
+                if caption_config and chunked_subtitles:
+                    # Find current subtitle chunk
+                    active_chunk = None
+                    for chunk in chunked_subtitles:
+                        if chunk['start'] <= current_time <= chunk['end']:
+                            active_chunk = chunk
+                            break
+                    
+                    if active_chunk and 'words' in active_chunk:
+                        words = active_chunk['words']
+                        # Find active word index
+                        active_word_idx = 0
+                        for wi, w in enumerate(words):
+                            if w.get('start', 0) <= current_time <= w.get('end', 0):
+                                active_word_idx = wi
+                                break
+                            elif w.get('start', 0) > current_time:
+                                break
+                            active_word_idx = wi
+                        
+                        word_dicts = [{'text': w.get('word', w.get('text', ''))} for w in words]
+                        frame = self.render_caption_with_keyframe(
+                            frame=frame, frame_index=frame_idx, fps=fps,
+                            words=word_dicts, active_word_index=active_word_idx,
+                            template_config=caption_config,
+                            keyframe_data=caption_keyframes,
+                        )
+                
+                proc.stdin.write(frame.tobytes())
+                frame_idx += 1
+        finally:
+            cap.release()
+            if proc.stdin:
+                proc.stdin.close()
+            proc.wait()
+            stderr_file.close()
+            try:
+                os.remove(stderr_file.name)
+            except:
+                pass
+        
+        # Copy audio from source
+        self._copy_audio(input_video, output_path)
+        
+        return output_path
+
     def render_full_overlay(self, video_path: str, hook_text: str, subtitles: List[Dict],
                             style: CaptionStyle, hook_duration: float = 3.0,
                             output_path: str = None, request_log_data: Dict = None,
-                            hook_style: HookStyle = None) -> str:
+                            hook_style: HookStyle = None,
+                            kf_caption_template=None,
+                            kf_hook_template=None,
+                            keyframe_data_cache: Dict = None) -> str:
         import subprocess
         
         if output_path is None:
@@ -1115,6 +1377,8 @@ class OverlayRenderer(IOverlayRenderer):
         )
         
         frame_idx = 0
+        _use_kf_hook = kf_hook_template is not None and keyframe_data_cache is not None
+        _use_kf_caption = kf_caption_template is not None and keyframe_data_cache is not None
         try:
             while True:
                 ret, frame = cap.read()
@@ -1123,9 +1387,39 @@ class OverlayRenderer(IOverlayRenderer):
                 
                 current_time = frame_idx / fps
                 
-                # Render hook for first N seconds (PREMIUM renderer)
+                # Render hook for first N seconds
                 if frame_idx < hook_frames and hook_text and hook_text.strip():
-                    if self._use_premium:
+                    if _use_kf_hook:
+                        # ── Keyframe-based hook rendering ──
+                        try:
+                            hook_config = kf_hook_template.config or {}
+                            animation = hook_config.get("animation") or {}
+                            container_kf_id = animation.get("entrance_keyframe_id")
+                            container_kf = keyframe_data_cache.get(container_kf_id) if container_kf_id else None
+                            per_line_anim = animation.get("per_line") or []
+                            per_line_kfs = []
+                            per_line_delays = []
+                            for pl in per_line_anim:
+                                kf_id = pl.get("keyframe_id")
+                                per_line_kfs.append(keyframe_data_cache.get(kf_id) if kf_id else None)
+                                per_line_delays.append(pl.get("delay_ms", 0))
+                            hook_lines = hook_text.split("\n") if "\n" in hook_text else [hook_text]
+                            frame = self.render_hook_with_keyframe(
+                                frame=frame,
+                                frame_index=frame_idx,
+                                fps=fps,
+                                hook_lines=hook_lines,
+                                template_config=hook_config,
+                                container_keyframes=container_kf,
+                                per_line_keyframes=per_line_kfs,
+                                per_line_delays_ms=per_line_delays,
+                            )
+                        except Exception:
+                            frame = self.hook_renderer.create_hook_frame(
+                                frame, hook_text, hook_style,
+                                current_time=current_time, hook_duration=hook_duration
+                            )
+                    elif self._use_premium:
                         try:
                             frame = self.premium_hook.render(
                                 frame, hook_text, hook_style,
@@ -1157,7 +1451,37 @@ class OverlayRenderer(IOverlayRenderer):
                             break
 
                     if current_subtitle:
-                        if self._use_premium:
+                        if _use_kf_caption:
+                            # ── Keyframe-based caption rendering ──
+                            try:
+                                caption_config = kf_caption_template.config or {}
+                                animation = caption_config.get("animation") or {}
+                                entrance_kf_id = animation.get("entrance_keyframe_id")
+                                entrance_kf = keyframe_data_cache.get(entrance_kf_id) if entrance_kf_id else None
+                                words = current_subtitle.get("words", [])
+                                word_dicts = [{"text": w.get("word", w.get("text", ""))} for w in words] if words else [{"text": current_subtitle["text"]}]
+                                active_idx = 0
+                                if words and current_time is not None:
+                                    for wi, w in enumerate(words):
+                                        if w.get("start", 0) <= current_time <= w.get("end", 0):
+                                            active_idx = wi
+                                            break
+                                frame = self.render_caption_with_keyframe(
+                                    frame=frame,
+                                    frame_index=frame_idx,
+                                    fps=fps,
+                                    words=word_dicts,
+                                    active_word_index=active_idx,
+                                    template_config=caption_config,
+                                    keyframe_data=entrance_kf,
+                                )
+                            except Exception:
+                                frame = self.subtitle_renderer.create_subtitle_frame(
+                                    frame, current_subtitle["text"], style,
+                                    current_time=current_time,
+                                    words=current_subtitle.get("words", [])
+                                )
+                        elif self._use_premium:
                             try:
                                 frame = self.premium_caption.render(
                                     frame, current_subtitle["text"], style,
@@ -1231,7 +1555,10 @@ class OverlayRenderer(IOverlayRenderer):
                                        style: CaptionStyle, hook_duration: float = 3.0,
                                        output_path: str = None,
                                        request_log_data: Dict = None,
-                                       hook_style: HookStyle = None) -> str:
+                                       hook_style: HookStyle = None,
+                                       kf_caption_template=None,
+                                       kf_hook_template=None,
+                                       keyframe_data_cache: Dict = None) -> str:
         import subprocess
         import tempfile
         
@@ -1385,8 +1712,48 @@ class OverlayRenderer(IOverlayRenderer):
                 cropped_frame = blender.blend(mode, frame_idx, cropped_frame)
                 
                 # ── Step B: OVERLAY (hook + subtitles) on cropped frame ──
+                # Determine rendering path: keyframe (new) vs legacy
+                _use_kf_hook = kf_hook_template is not None and keyframe_data_cache is not None
+                _use_kf_caption = kf_caption_template is not None and keyframe_data_cache is not None
+                
                 if frame_idx < hook_frames and hook_text and hook_text.strip():
-                    if self._use_premium:
+                    if _use_kf_hook:
+                        # ── Keyframe-based hook rendering ──
+                        try:
+                            hook_config = kf_hook_template.config or {}
+                            animation = hook_config.get("animation") or {}
+                            # Container keyframes
+                            container_kf_id = animation.get("entrance_keyframe_id")
+                            container_kf = keyframe_data_cache.get(container_kf_id) if container_kf_id else None
+                            # Per-line keyframes
+                            per_line_anim = animation.get("per_line") or []
+                            per_line_kfs = []
+                            per_line_delays = []
+                            for pl in per_line_anim:
+                                kf_id = pl.get("keyframe_id")
+                                per_line_kfs.append(keyframe_data_cache.get(kf_id) if kf_id else None)
+                                per_line_delays.append(pl.get("delay_ms", 0))
+                            # Split hook text into lines (by newline or use as single line)
+                            hook_lines = hook_text.split("\n") if "\n" in hook_text else [hook_text]
+                            cropped_frame = self.render_hook_with_keyframe(
+                                frame=cropped_frame,
+                                frame_index=frame_idx,
+                                fps=fps,
+                                hook_lines=hook_lines,
+                                template_config=hook_config,
+                                container_keyframes=container_kf,
+                                per_line_keyframes=per_line_kfs,
+                                per_line_delays_ms=per_line_delays,
+                            )
+                        except Exception as e:
+                            # Fallback to legacy renderer on error
+                            import traceback
+                            print(f"[SinglePass] Keyframe hook render failed: {e}")
+                            cropped_frame = self.hook_renderer.create_hook_frame(
+                                cropped_frame, hook_text, hook_style,
+                                current_time=current_time, hook_duration=hook_duration
+                            )
+                    elif self._use_premium:
                         try:
                             cropped_frame = self.premium_hook.render(
                                 cropped_frame, hook_text, hook_style,
@@ -1418,7 +1785,42 @@ class OverlayRenderer(IOverlayRenderer):
                             break
 
                     if current_subtitle:
-                        if self._use_premium:
+                        if _use_kf_caption:
+                            # ── Keyframe-based caption rendering ──
+                            try:
+                                caption_config = kf_caption_template.config or {}
+                                animation = caption_config.get("animation") or {}
+                                entrance_kf_id = animation.get("entrance_keyframe_id")
+                                entrance_kf = keyframe_data_cache.get(entrance_kf_id) if entrance_kf_id else None
+                                # Build words list for the renderer
+                                words = current_subtitle.get("words", [])
+                                word_dicts = [{"text": w.get("word", w.get("text", ""))} for w in words] if words else [{"text": current_subtitle["text"]}]
+                                # Determine active word index from timing
+                                active_idx = 0
+                                if words and current_time is not None:
+                                    for wi, w in enumerate(words):
+                                        if w.get("start", 0) <= current_time <= w.get("end", 0):
+                                            active_idx = wi
+                                            break
+                                cropped_frame = self.render_caption_with_keyframe(
+                                    frame=cropped_frame,
+                                    frame_index=frame_idx,
+                                    fps=fps,
+                                    words=word_dicts,
+                                    active_word_index=active_idx,
+                                    template_config=caption_config,
+                                    keyframe_data=entrance_kf,
+                                )
+                            except Exception as e:
+                                # Fallback to legacy caption renderer
+                                import traceback
+                                print(f"[SinglePass] Keyframe caption render failed: {e}")
+                                cropped_frame = self.subtitle_renderer.create_subtitle_frame(
+                                    cropped_frame, current_subtitle["text"], style,
+                                    current_time=current_time,
+                                    words=current_subtitle.get("words", [])
+                                )
+                        elif self._use_premium:
                             try:
                                 cropped_frame = self.premium_caption.render(
                                     cropped_frame, current_subtitle["text"], style,

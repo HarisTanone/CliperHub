@@ -7,6 +7,82 @@ import { CardSkeleton } from '../components/Skeleton'
 import EmptyState from '../components/EmptyState'
 import PostToSocialModal from '../components/PostToSocialModal'
 
+// ─── Template Badge Components ───────────────────────────────────────────────
+
+function TemplateBadge({ name, type, isDeleted = false }) {
+  if (isDeleted) {
+    return (
+      <span
+        className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[9px] font-medium line-through"
+        style={{
+          background: 'var(--color-error-bg)',
+          color: 'var(--color-error-text)',
+          border: '1px solid var(--color-error-border)',
+          textDecoration: 'line-through',
+          opacity: 0.7
+        }}
+      >
+        <span className="material-symbols-outlined text-[10px]">
+          {type === 'caption' ? 'subtitles' : 'title'}
+        </span>
+        Deleted Style
+      </span>
+    )
+  }
+
+  return (
+    <span
+      className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[9px] font-medium"
+      style={{
+        background: type === 'caption' ? 'var(--color-accent-subtle)' : 'var(--color-info-bg)',
+        color: type === 'caption' ? 'var(--color-accent)' : 'var(--color-info-text)',
+        border: `1px solid ${type === 'caption' ? 'var(--color-accent)' : 'var(--color-info-border)'}`,
+        opacity: 0.9
+      }}
+    >
+      <span className="material-symbols-outlined text-[10px]">
+        {type === 'caption' ? 'subtitles' : 'title'}
+      </span>
+      {name}
+    </span>
+  )
+}
+
+function LegacyStyleBadge() {
+  return (
+    <span
+      className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[9px] font-medium"
+      style={{
+        background: 'var(--color-surface-1)',
+        color: 'var(--color-text-muted)',
+        border: '1px solid var(--color-border-subtle)'
+      }}
+    >
+      <span className="material-symbols-outlined text-[10px]">history</span>
+      Legacy Style
+    </span>
+  )
+}
+
+function StyleTypeBadge({ styleType }) {
+  const isAnimated = styleType === 'animated'
+  return (
+    <span
+      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider"
+      style={{
+        background: isAnimated ? 'var(--color-warning-bg)' : 'var(--color-surface-1)',
+        color: isAnimated ? 'var(--color-warning-text)' : 'var(--color-text-muted)',
+        border: `1px solid ${isAnimated ? 'var(--color-warning-border)' : 'var(--color-border-subtle)'}`
+      }}
+    >
+      <span className="material-symbols-outlined text-[10px]">
+        {isAnimated ? 'animation' : 'format_paint'}
+      </span>
+      {isAnimated ? 'Animated' : 'Static'}
+    </span>
+  )
+}
+
 // Social media platforms config with SVG icons
 const SOCIAL_PLATFORMS = [
   {
@@ -445,7 +521,7 @@ function ClipCard({ clip, outputFile, thumbnail, isSelected, onSelectChange }) {
   )
 }
 
-function JobRow({ job, onDelete, onViewProgress, onApplyStyle, onPostToSocial }) {
+function JobRow({ job, onDelete, onViewProgress, onApplyStyle, onPostToSocial, templateLookup }) {
   const [expanded, setExpanded] = useState(false)
   const [videoInfo, setVideoInfo] = useState(null)
   const [selectedClips, setSelectedClips] = useState(new Set())
@@ -459,6 +535,23 @@ function JobRow({ job, onDelete, onViewProgress, onApplyStyle, onPostToSocial })
   const isActive = !['completed', 'failed'].includes(job.status)
   const hasClips = job.clips?.length > 0
   const avgScore = hasClips ? job.clips.reduce((s, c) => s + (c.score || 0), 0) / job.clips.length : 0
+
+  // Resolve template names from lookup
+  const captionTplId = job.caption_template_id
+  const hookTplId = job.hook_template_id
+  const isLegacy = !captionTplId && !hookTplId
+  const captionTpl = captionTplId ? templateLookup.caption[captionTplId] : null
+  const hookTpl = hookTplId ? templateLookup.hook[hookTplId] : null
+  const captionDeleted = captionTplId && !captionTpl
+  const hookDeleted = hookTplId && !hookTpl
+
+  // Determine style_type from job or templates
+  const styleType = job.style_type || captionTpl?.style_type || hookTpl?.style_type || null
+
+  // Calculate render time from created_at → completed_at
+  const renderTime = job.completed_at && job.created_at
+    ? Math.round((new Date(job.completed_at) - new Date(job.created_at)) / 1000)
+    : null
 
   const handleSelectAll = (checked) => {
     if (checked) {
@@ -526,6 +619,37 @@ function JobRow({ job, onDelete, onViewProgress, onApplyStyle, onPostToSocial })
                   <span className="material-symbols-outlined text-[13px]">trending_up</span>
                   avg {Math.round(avgScore * 100)}%
                 </span>
+              )}
+              {renderTime != null && renderTime > 0 && (
+                <span className="flex items-center gap-1">
+                  <span className="material-symbols-outlined text-[13px]">timer</span>
+                  {renderTime < 60 ? `${renderTime}s` : `${Math.floor(renderTime / 60)}m ${renderTime % 60}s`}
+                </span>
+              )}
+            </div>
+
+            {/* Template Badges */}
+            <div className="flex items-center gap-1.5 flex-wrap mt-1.5">
+              {styleType && <StyleTypeBadge styleType={styleType} />}
+              {isLegacy ? (
+                <LegacyStyleBadge />
+              ) : (
+                <>
+                  {captionTplId && (
+                    <TemplateBadge
+                      name={captionTpl?.name || 'Unknown'}
+                      type="caption"
+                      isDeleted={captionDeleted}
+                    />
+                  )}
+                  {hookTplId && (
+                    <TemplateBadge
+                      name={hookTpl?.name || 'Unknown'}
+                      type="hook"
+                      isDeleted={hookDeleted}
+                    />
+                  )}
+                </>
               )}
             </div>
 
@@ -640,6 +764,10 @@ function LibraryPage({ onViewProgress, onApplyStyle }) {
   const [jobs, setJobs] = useState([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
+  const [templateFilter, setTemplateFilter] = useState('')  // 'caption:{id}' or 'hook:{id}' or ''
+
+  // Template lookup maps: { caption: { id: { name, style_type } }, hook: { id: { name, style_type } } }
+  const [templateLookup, setTemplateLookup] = useState({ caption: {}, hook: {} })
 
   // Social post modal state
   const [socialModal, setSocialModal] = useState({
@@ -662,7 +790,31 @@ function LibraryPage({ onViewProgress, onApplyStyle }) {
     finally { setLoading(false) }
   }, [])
 
-  useEffect(() => { loadHistory() }, [loadHistory])
+  // Load templates for the lookup map
+  const loadTemplates = useCallback(async () => {
+    try {
+      // Fetch active templates for the filter dropdown + lookup resolution
+      const [captionActiveRes, hookActiveRes] = await Promise.all([
+        api.getCaptionTemplates(null, 1, 100),
+        api.getHookTemplates(null, 1, 100),
+      ])
+      const captionMap = {}
+      const hookMap = {}
+      if (captionActiveRes?.data) {
+        for (const tpl of captionActiveRes.data) {
+          captionMap[tpl.id] = { name: tpl.name, style_type: tpl.style_type, is_active: tpl.is_active }
+        }
+      }
+      if (hookActiveRes?.data) {
+        for (const tpl of hookActiveRes.data) {
+          hookMap[tpl.id] = { name: tpl.name, style_type: tpl.style_type, is_active: tpl.is_active }
+        }
+      }
+      setTemplateLookup({ caption: captionMap, hook: hookMap })
+    } catch (err) { console.error('Failed to load templates:', err) }
+  }, [])
+
+  useEffect(() => { loadHistory(); loadTemplates() }, [loadHistory, loadTemplates])
 
   const handleDelete = async (id) => {
     if (!confirm('Delete this job and its output files?')) return
@@ -706,9 +858,30 @@ function LibraryPage({ onViewProgress, onApplyStyle }) {
     }
   }
 
-  const filteredJobs = search.trim()
-    ? jobs.filter(j => j.youtube_url?.toLowerCase().includes(search.toLowerCase()) || j.clips?.some(c => c.hook?.toLowerCase().includes(search.toLowerCase())))
-    : jobs
+  const filteredJobs = (() => {
+    let result = jobs
+    // Text search filter
+    if (search.trim()) {
+      const q = search.toLowerCase()
+      result = result.filter(j =>
+        j.youtube_url?.toLowerCase().includes(q) ||
+        j.clips?.some(c => c.hook?.toLowerCase().includes(q))
+      )
+    }
+    // Template filter
+    if (templateFilter) {
+      const [filterType, filterId] = templateFilter.split(':')
+      const id = parseInt(filterId)
+      if (filterType === 'caption') {
+        result = result.filter(j => j.caption_template_id === id)
+      } else if (filterType === 'hook') {
+        result = result.filter(j => j.hook_template_id === id)
+      } else if (filterType === 'legacy') {
+        result = result.filter(j => !j.caption_template_id && !j.hook_template_id)
+      }
+    }
+    return result
+  })()
   const completedCount = filteredJobs.filter(j => j.status === 'completed').length
   const totalClips = filteredJobs.reduce((sum, j) => sum + (j.clips?.length || 0), 0)
 
@@ -718,7 +891,7 @@ function LibraryPage({ onViewProgress, onApplyStyle }) {
   const totalLibPages = Math.ceil(filteredJobs.length / JOBS_PER_PAGE) || 1
   const paginatedJobs = filteredJobs.slice(libPage * JOBS_PER_PAGE, (libPage + 1) * JOBS_PER_PAGE)
 
-  useEffect(() => { setLibPage(0) }, [search])
+  useEffect(() => { setLibPage(0) }, [search, templateFilter])
 
   return (
     <div className="flex-1 overflow-y-auto p-6 md:p-8" style={{ background: 'var(--color-bg-primary)' }}>
@@ -758,6 +931,27 @@ function LibraryPage({ onViewProgress, onApplyStyle }) {
               <p className="text-xs mt-0.5" style={{ color: 'var(--color-text-muted)' }}>Jobs with output files still on disk</p>
             </div>
             <div className="flex items-center gap-2">
+              {/* Template Filter */}
+              <select
+                value={templateFilter}
+                onChange={e => setTemplateFilter(e.target.value)}
+                className="px-2.5 py-1.5 text-xs rounded-xl outline-none transition-all appearance-none cursor-pointer"
+                style={{
+                  background: 'var(--color-bg-input)',
+                  border: `1px solid ${templateFilter ? 'var(--color-accent)' : 'var(--color-border-default)'}`,
+                  color: templateFilter ? 'var(--color-accent)' : 'var(--color-text-secondary)',
+                  minWidth: '120px'
+                }}
+              >
+                <option value="">All Templates</option>
+                <option value="legacy:0">Legacy Style</option>
+                {Object.entries(templateLookup.caption).filter(([, t]) => t.is_active).map(([id, t]) => (
+                  <option key={`caption-${id}`} value={`caption:${id}`}>📝 {t.name}</option>
+                ))}
+                {Object.entries(templateLookup.hook).filter(([, t]) => t.is_active).map(([id, t]) => (
+                  <option key={`hook-${id}`} value={`hook:${id}`}>🎬 {t.name}</option>
+                ))}
+              </select>
               <div className="relative">
                 <span className="absolute left-2.5 top-1/2 -translate-y-1/2 material-symbols-outlined text-[14px]" style={{ color: 'var(--color-text-muted)' }}>search</span>
                 <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search URL or hook..."
@@ -767,7 +961,7 @@ function LibraryPage({ onViewProgress, onApplyStyle }) {
               <motion.button
                 whileHover={{ rotate: 180 }}
                 transition={{ duration: 0.3 }}
-                onClick={loadHistory}
+                onClick={() => { loadHistory(); loadTemplates() }}
                 className="flex items-center justify-center w-8 h-8 rounded-xl transition-colors"
                 style={{ color: 'var(--color-text-muted)', border: '1px solid var(--color-border-default)' }}>
                 <span className="material-symbols-outlined text-[18px]">refresh</span>
@@ -790,7 +984,7 @@ function LibraryPage({ onViewProgress, onApplyStyle }) {
           ) : (
             <div>
               {paginatedJobs.map(job => (
-                <JobRow key={job.id} job={job} onDelete={handleDelete} onViewProgress={onViewProgress} onApplyStyle={onApplyStyle} onPostToSocial={handlePostToSocial} />
+                <JobRow key={job.id} job={job} onDelete={handleDelete} onViewProgress={onViewProgress} onApplyStyle={onApplyStyle} onPostToSocial={handlePostToSocial} templateLookup={templateLookup} />
               ))}
               {/* Pagination */}
               {totalLibPages > 1 && (

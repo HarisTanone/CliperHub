@@ -11,6 +11,7 @@ from .jobs import (
     JobHistoryResponse, ClipInfo, AnalyzeRequest, AnalyzeResponse,
     ClipCandidate, ProcessSelectedRequest, PreviewRequest, PreviewResponse,
     BaseProcessRequest, BaseProcessResponse, ApplyStyleRequest, ApplyStyleResponse,
+    ReStyleRequest, ReStyleResponse,
     BaseClipInfo, BaseJobDetailResponse
 )
 from .styles import (
@@ -31,6 +32,7 @@ __all__ = [
     "JobHistoryResponse", "ClipInfo", "AnalyzeRequest", "AnalyzeResponse",
     "ClipCandidate", "ProcessSelectedRequest", "PreviewRequest", "PreviewResponse",
     "BaseProcessRequest", "BaseProcessResponse", "ApplyStyleRequest", "ApplyStyleResponse",
+    "ReStyleRequest", "ReStyleResponse",
     "BaseClipInfo", "BaseJobDetailResponse",
     # Styles
     "FontResponse", "FontCreateModel", "FontUpdateModel",

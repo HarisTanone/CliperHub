@@ -23,9 +23,9 @@ VIDEO_RESOLUTIONS = {
 class JobRequestModel(BaseModel):
     urls: str  # Single URL or newline/comma-separated multiple URLs
     caption_style: Optional[int] = None  # Legacy field (FFmpeg)
-    caption_template_id: Optional[int] = None  # Remotion template
+    caption_template_id: Optional[int] = None  # Keyframe template
     hook_style_id: Optional[int] = None  # Legacy field (FFmpeg)
-    hook_template_id: Optional[int] = None  # Remotion template
+    hook_template_id: Optional[int] = None  # Keyframe template
     resolution: Optional[str] = "9:16"  # Aspect ratio: 9:16, 4:5, 16:9, etc.
 
     @property
@@ -86,6 +86,11 @@ class JobHistoryResponse(BaseModel):
     completed_at: Optional[str] = None
     output_files: List[str] = []
     thumbnails: List[str] = []
+    # Keyframe animation system fields
+    caption_template_id: Optional[int] = None
+    hook_template_id: Optional[int] = None
+    style_composition_id: Optional[int] = None
+    style_type: Optional[str] = None  # "animated", "static", or None for legacy
 
 
 class JobStatusResponse(BaseModel):
@@ -161,7 +166,7 @@ class ProcessSelectedRequest(BaseModel):
 class PreviewRequest(BaseModel):
     video_path: str
     caption_style_id: Optional[int] = None  # Legacy
-    caption_template_id: Optional[int] = None  # Remotion
+    caption_template_id: Optional[int] = None  # Keyframe template
     hook_style_id: Optional[int] = None
     hook_template_id: Optional[int] = None
     clip_index: int = 1
@@ -200,9 +205,9 @@ class BaseProcessResponse(BaseModel):
 
 class ApplyStyleRequest(BaseModel):
     caption_style_id: Optional[int] = None  # Legacy
-    caption_template_id: Optional[int] = None  # Remotion
+    caption_template_id: Optional[int] = None  # Keyframe template
     hook_style_id: Optional[int] = None  # Legacy
-    hook_template_id: Optional[int] = None  # Remotion
+    hook_template_id: Optional[int] = None  # Keyframe template
     resolution: Optional[str] = "9:16"
 
     @property
@@ -219,6 +224,20 @@ class ApplyStyleResponse(BaseModel):
     status: str
     message: str
     clips_to_style: int = 0
+
+
+class ReStyleRequest(BaseModel):
+    caption_template_id: Optional[int] = None
+    hook_template_id: Optional[int] = None
+    style_composition_id: Optional[int] = None
+
+
+class ReStyleResponse(BaseModel):
+    job_id: int
+    status: str
+    message: str
+    new_output_path: Optional[str] = None
+    clips_restyled: int = 0
 
 
 class BaseClipInfo(BaseModel):

@@ -446,7 +446,7 @@ class PremiumHookRenderer:
         # ── Font setup ────────────────────────────────────────────────────
         fontfile = text_cfg.get("fontfile", "")
         fallback = text_cfg.get("fallback_font", "Anton")
-        # DB font sizes are Remotion reference values (~360px preview width)
+        # DB font sizes are reference values (~360px preview width)
         # Scale to actual render resolution
         render_scale = width / 360.0
         size_normal = int(text_cfg.get("font_size_normal", 48) * render_scale)
@@ -743,7 +743,7 @@ class PremiumCaptionRenderer:
         overlay = Image.new('RGBA', (width, height), (0, 0, 0, 0))
         draw = ImageDraw.Draw(overlay)
 
-        # Font — DB font sizes are Remotion reference values (~360px preview width)
+        # Font — DB font sizes are reference values (~360px preview width)
         # Use same reference as hook renderer for consistent proportions
         scaled_font_size = max(24, int(style.font_size * (width / 360)))
         font = self.text_renderer.get_font(style.font_family, scaled_font_size, style.font_weight)

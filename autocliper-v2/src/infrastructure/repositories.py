@@ -188,7 +188,11 @@ class RequestLogRepository:
             caption_response=clips_json,
             status=status_value,
             output_path=request_log.output_path,
-            user_id=request_log.user_id
+            user_id=request_log.user_id,
+            caption_template_id=getattr(request_log, 'caption_template_id', None),
+            hook_template_id=getattr(request_log, 'hook_template_id', None),
+            style_composition_id=getattr(request_log, 'style_composition_id', None),
+            hook_text_raw=getattr(request_log, 'hook_text_raw', None),
         )
         self.session.add(model)
         self.session.commit()
@@ -393,6 +397,10 @@ class RequestLogRepository:
             output_path=model.output_path,
             requested_at=model.requested_at,
             user_id=model.user_id,
+            caption_template_id=getattr(model, 'caption_template_id', None),
+            hook_template_id=getattr(model, 'hook_template_id', None),
+            style_composition_id=getattr(model, 'style_composition_id', None),
+            hook_text_raw=getattr(model, 'hook_text_raw', None),
         )
 
 
