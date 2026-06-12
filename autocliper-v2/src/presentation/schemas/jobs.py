@@ -26,6 +26,7 @@ class JobRequestModel(BaseModel):
     caption_template_id: Optional[int] = None  # Keyframe template
     hook_style_id: Optional[int] = None  # Legacy field (FFmpeg)
     hook_template_id: Optional[int] = None  # Keyframe template
+    style_composition_id: Optional[int] = None  # Keyframe composition
     resolution: Optional[str] = "9:16"  # Aspect ratio: 9:16, 4:5, 16:9, etc.
 
     @property
@@ -114,6 +115,7 @@ class AnalyzeRequest(BaseModel):
     caption_template_id: Optional[int] = None
     hook_style_id: Optional[int] = None
     hook_template_id: Optional[int] = None
+    style_composition_id: Optional[int] = None
     resolution: Optional[str] = "9:16"
 
     @property
@@ -150,6 +152,7 @@ class ProcessSelectedRequest(BaseModel):
     caption_template_id: Optional[int] = None
     hook_style_id: Optional[int] = None
     hook_template_id: Optional[int] = None
+    style_composition_id: Optional[int] = None
     resolution: Optional[str] = "9:16"
 
     @property

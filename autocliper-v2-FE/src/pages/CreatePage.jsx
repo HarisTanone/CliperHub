@@ -369,7 +369,7 @@ function StyleCarousel({ styles, selectedStyle, onSelect }) {
                     style={{ background: 'var(--color-bg-input)', border: '1px solid var(--color-border-default)', color: 'var(--color-text-primary)' }} />
                 {search && <button onClick={() => setSearch('')} className="absolute right-2.5 top-1/2 -translate-y-1/2" style={{ color: 'var(--color-text-muted)' }}><span className="material-symbols-outlined text-[14px]">close</span></button>}
             </div>
-            <div className="grid grid-cols-3 gap-2.5">
+            <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 gap-2.5">
                 <AnimatePresence mode="popLayout">
                     {visible.map((style, i) => (
                         <CaptionStyleCard key={style.id} style={style} isActive={selectedStyle?.id === style.id} onSelect={onSelect} index={i} />
@@ -432,7 +432,7 @@ function HookCarousel({ hookStyles, selected, onSelect }) {
                     className="w-full pl-9 pr-3 py-2.5 text-xs rounded-xl outline-none transition-all"
                     style={{ background: 'var(--color-bg-input)', border: '1px solid var(--color-border-default)', color: 'var(--color-text-primary)' }} />
             </div>
-            <div className="grid grid-cols-3 gap-2.5">
+            <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 gap-2.5">
                 <AnimatePresence mode="popLayout">
                     {visible.map((hs, i) => (
                         <HookStyleCard key={hs.id} hs={hs} isActive={selected?.id === hs.id} onSelect={onSelect} index={i} />
@@ -817,7 +817,7 @@ function KeyframeStyleSection({ compositions, captionTemplates, hookTemplates, s
                             </div>
                         </div>
                         {/* Composition grid */}
-                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                        <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 gap-2.5">
                             <AnimatePresence mode="popLayout">
                                 {visibleComps.map((comp, i) => (
                                     <KeyframeCompositionCard
@@ -868,7 +868,7 @@ function KeyframeStyleSection({ compositions, captionTemplates, hookTemplates, s
                                     className="w-full pl-8 pr-3 py-2 text-[11px] rounded-lg outline-none"
                                     style={{ background: 'var(--color-bg-input)', border: '1px solid var(--color-border-default)', color: 'var(--color-text-primary)' }} />
                             </div>
-                            <div className="grid grid-cols-3 gap-2">
+                            <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 gap-2">
                                 <AnimatePresence mode="popLayout">
                                     {visibleCaptions.map((tpl, i) => (
                                         <motion.button key={tpl.id} layout
@@ -938,7 +938,7 @@ function KeyframeStyleSection({ compositions, captionTemplates, hookTemplates, s
                                     className="w-full pl-8 pr-3 py-2 text-[11px] rounded-lg outline-none"
                                     style={{ background: 'var(--color-bg-input)', border: '1px solid var(--color-border-default)', color: 'var(--color-text-primary)' }} />
                             </div>
-                            <div className="grid grid-cols-3 gap-2">
+                            <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 gap-2">
                                 <AnimatePresence mode="popLayout">
                                     {visibleHooks.map((tpl, i) => (
                                         <motion.button key={tpl.id} layout
@@ -1311,15 +1311,14 @@ function CreatePage({ onJobStarted }) {
     const isReadyBase = !!url
 
     return (
-        <div className="flex-1 overflow-y-auto relative" style={{ background: 'var(--color-bg-primary)' }}>
-            <div className="absolute top-0 left-1/4 w-96 h-96 rounded-full blur-[120px] pointer-events-none" style={{ background: 'var(--color-accent-subtle)' }} />
-            <div className="absolute bottom-0 right-1/4 w-80 h-80 rounded-full blur-[100px] pointer-events-none" style={{ background: 'var(--color-accent-subtle)' }} />
+        <div className="flex-1 flex overflow-hidden" style={{ background: 'var(--color-bg-primary)' }}>
+            {/* ─── Left Column: Scrollable content ─── */}
+            <div className="flex-1 min-w-0 overflow-y-auto relative">
+                <div className="absolute top-0 left-1/4 w-96 h-96 rounded-full blur-[120px] pointer-events-none" style={{ background: 'var(--color-accent-subtle)' }} />
+                <div className="absolute bottom-0 right-1/4 w-80 h-80 rounded-full blur-[100px] pointer-events-none" style={{ background: 'var(--color-accent-subtle)' }} />
 
-            <div className="relative p-4 sm:p-6 lg:p-8">
-                <div className="max-w-[1400px] mx-auto flex flex-col xl:flex-row gap-8">
-
-                    {/* Left Panel */}
-                    <div className="flex-1 space-y-5 min-w-0">
+                <div className="relative p-4 sm:p-6 lg:p-6">
+                    <div className="space-y-5">
                         {/* Mode Toggle: Styled vs Base */}
                         <div className="flex items-center justify-between flex-wrap gap-3">
                             <div className="flex p-0.5 rounded-xl backdrop-blur-sm" style={{ background: 'var(--color-surface-1)', border: '1px solid var(--color-border-subtle)' }}>
@@ -1544,56 +1543,95 @@ function CreatePage({ onJobStarted }) {
                             )}
                         </AnimatePresence>
                     </div>
-
-                    {/* Right: Preview (only in styled mode) */}
-                    {mode === 'styled' && (
-                        <div className="xl:w-[360px] flex-shrink-0 hidden xl:flex flex-col items-center">
-                            <div className="sticky top-8 space-y-4">
-                                {/* Keyframe Animated Preview */}
-                                <div className="rounded-2xl overflow-hidden p-6" style={{ background: 'linear-gradient(160deg, rgba(0,0,0,0.92) 0%, rgba(20,10,30,0.95) 100%)', border: '1px solid var(--color-border-subtle)', boxShadow: 'var(--shadow-lg)' }}>
-                                    <KeyframePreview
-                                        template={editStyle}
-                                        type="caption"
-                                        words={['sample', 'caption', 'preview']}
-                                        loop={true}
-                                    />
-                                </div>
-
-                                {/* Style Info Card */}
-                                {editStyle && (
-                                    <motion.div
-                                        initial={{ opacity: 0, y: 8 }}
-                                        animate={{ opacity: 1, y: 0 }}
-                                        className="rounded-xl p-3.5 space-y-2.5"
-                                        style={{ background: 'var(--color-bg-card)', border: '1px solid var(--color-border-subtle)' }}
-                                    >
-                                        <div className="flex items-center justify-between">
-                                            <p className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: 'var(--color-text-muted)' }}>Active Style</p>
-                                            <span className="w-2 h-2 rounded-full animate-pulse" style={{ background: 'var(--color-success-text)' }} />
-                                        </div>
-                                        <div className="flex items-center gap-2">
-                                            <span className="text-xs font-semibold" style={{ color: 'var(--color-text-primary)' }}>{editStyle.name}</span>
-                                            <span className="text-[10px]" style={{ color: 'var(--color-text-muted)' }}>·</span>
-                                            <span className="text-[10px]" style={{ color: 'var(--color-text-muted)' }}>{editStyle.font_family}</span>
-                                        </div>
-                                        <div className="flex items-center gap-2">
-                                            {[editStyle.color, editStyle.highlight_color, editStyle.outline_color, editStyle.shadow_color].filter(Boolean).map((c, i) => (
-                                                <div key={i} className="w-4 h-4 rounded-md shadow-sm" style={{ backgroundColor: c, border: '1.5px solid var(--color-border-default)' }} />
-                                            ))}
-                                        </div>
-                                        {selectedHookStyle && (
-                                            <div className="flex items-center gap-2 pt-1" style={{ borderTop: '1px solid var(--color-border-subtle)' }}>
-                                                <span className="material-symbols-outlined text-[12px]" style={{ color: 'var(--color-accent)' }}>format_quote</span>
-                                                <span className="text-[10px] font-medium" style={{ color: 'var(--color-text-secondary)' }}>{selectedHookStyle.name}</span>
-                                            </div>
-                                        )}
-                                    </motion.div>
-                                )}
-                            </div>
-                        </div>
-                    )}
                 </div>
             </div>
+
+            {/* ─── Right Column: Sticky Device Preview (Google Pixel 7 Pro) ─── */}
+            {mode === 'styled' && (
+                <div className="hidden lg:flex w-[320px] xl:w-[340px] flex-shrink-0 items-start justify-center p-4 pt-[12vh]"
+                    style={{ borderLeft: '1px solid var(--color-border-subtle)' }}>
+                    <div className="sticky top-6 flex flex-col items-center gap-3">
+                        {/* Device Label */}
+                        <div className="flex items-center gap-2">
+                            <span className="material-symbols-outlined text-[14px]" style={{ color: 'var(--color-text-muted)' }}>phone_android</span>
+                            <span className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: 'var(--color-text-muted)' }}>Google Pixel 7 Pro</span>
+                        </div>
+
+                        {/* Device Frame */}
+                        <div className="relative">
+                            <div className="rounded-[2.2rem] p-[3px]"
+                                style={{ background: 'linear-gradient(145deg, #2a2a2a, #1a1a1a)', boxShadow: '0 20px 50px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.05) inset' }}>
+                                <div className="rounded-[2rem] overflow-hidden relative"
+                                    style={{ width: 240, height: 520, background: 'linear-gradient(180deg, #1a1025 0%, #0d0a14 50%, #1a0f20 100%)' }}>
+                                    {/* Status bar */}
+                                    <div className="absolute top-0 left-0 right-0 h-7 flex items-center justify-between px-5 z-30">
+                                        <span className="text-[9px] font-medium text-white/50">9:41</span>
+                                        <div className="flex items-center gap-1"><span className="text-[8px] text-white/50">●●●</span></div>
+                                    </div>
+                                    {/* Camera punch hole */}
+                                    <div className="absolute top-2.5 left-1/2 -translate-x-1/2 w-5 h-5 rounded-full z-30"
+                                        style={{ background: 'radial-gradient(circle, #111 40%, #000 70%)' }} />
+
+                                    {/* Preview content */}
+                                    <div className="absolute inset-0 z-10">
+                                        {/* Show hook template preview if available */}
+                                        {(styleTab === 'compositions' && selectedKfComp) ? (
+                                            (() => {
+                                                const hookTpl = kfHookTemplates.find(h => h.id === selectedKfComp.hook_template_id)
+                                                const captionTpl = kfCaptionTemplates.find(c => c.id === selectedKfComp.caption_template_id)
+                                                if (hookTpl) return <KeyframePreview template={hookTpl} type="hook" text={"Sample Hook\nText Here"} loop={true} />
+                                                if (captionTpl) return <KeyframePreview template={captionTpl} type="caption" words={['sample', 'caption', 'preview']} loop={true} />
+                                                return <KeyframePreview template={editStyle} type="caption" words={['sample', 'caption', 'preview']} loop={true} />
+                                            })()
+                                        ) : (kfAdvancedMode && selectedKfHookTpl) ? (
+                                            <KeyframePreview template={selectedKfHookTpl} type="hook" text={"Sample Hook\nText Here"} loop={true} />
+                                        ) : (kfAdvancedMode && selectedKfCaptionTpl) ? (
+                                            <KeyframePreview template={selectedKfCaptionTpl} type="caption" words={['sample', 'caption', 'preview']} loop={true} />
+                                        ) : selectedHookStyle?._template ? (
+                                            <KeyframePreview template={selectedHookStyle._template} type="hook" text={"Sample Hook\nText Here"} loop={true} />
+                                        ) : selectedStyle?._template ? (
+                                            <KeyframePreview template={selectedStyle._template} type="caption" words={['sample', 'caption', 'preview']} loop={true} />
+                                        ) : (
+                                            <KeyframePreview template={editStyle} type="caption" words={['sample', 'caption', 'preview']} loop={true} />
+                                        )}
+                                    </div>
+
+                                    {/* Bottom nav bar */}
+                                    <div className="absolute bottom-1.5 left-1/2 -translate-x-1/2 w-[100px] h-[4px] rounded-full bg-white/20 z-20" />
+                                </div>
+                            </div>
+                            {/* Side buttons */}
+                            <div className="absolute right-[-2px] top-[120px] w-[3px] h-[40px] rounded-r-full" style={{ background: '#333' }} />
+                            <div className="absolute left-[-2px] top-[100px] w-[3px] h-[25px] rounded-l-full" style={{ background: '#333' }} />
+                            <div className="absolute left-[-2px] top-[140px] w-[3px] h-[50px] rounded-l-full" style={{ background: '#333' }} />
+                        </div>
+
+                        {/* Style Info Card */}
+                        {(selectedKfComp || selectedKfCaptionTpl || selectedKfHookTpl || editStyle) && (
+                            <motion.div
+                                initial={{ opacity: 0, y: 8 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                className="w-full rounded-xl p-3.5 space-y-2.5"
+                                style={{ background: 'var(--color-bg-card)', border: '1px solid var(--color-border-subtle)' }}
+                            >
+                                <div className="flex items-center justify-between">
+                                    <p className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: 'var(--color-text-muted)' }}>Active Style</p>
+                                    <span className="w-2 h-2 rounded-full animate-pulse" style={{ background: 'var(--color-success-text)' }} />
+                                </div>
+                                <p className="text-xs font-semibold truncate" style={{ color: 'var(--color-text-primary)' }}>
+                                    {selectedKfComp?.name || selectedKfCaptionTpl?.name || selectedKfHookTpl?.name || editStyle?.name || 'None'}
+                                </p>
+                                {selectedKfComp && (
+                                    <div className="flex items-center gap-2">
+                                        {selectedKfComp.caption_template_id && <span className="text-[9px] px-1.5 py-0.5 rounded" style={{ background: 'var(--color-surface-1)', color: 'var(--color-text-muted)' }}>Caption</span>}
+                                        {selectedKfComp.hook_template_id && <span className="text-[9px] px-1.5 py-0.5 rounded" style={{ background: 'var(--color-accent-subtle)', color: 'var(--color-accent)' }}>Hook</span>}
+                                    </div>
+                                )}
+                            </motion.div>
+                        )}
+                    </div>
+                </div>
+            )}
         </div>
     )
 }

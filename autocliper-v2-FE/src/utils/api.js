@@ -451,21 +451,46 @@ export const api = {
   retrySocialUpload: (id) => api._tiktokReq(`/api/v1/social/upload/${id}/retry`, { method: 'POST' }),
 
   // ─── Keyframe Templates (new system) ─────────────────────────────────────
+  // Keyframe Registry
+  getKeyframes: (category, page = 1, perPage = 50) => {
+    const params = new URLSearchParams({ page, per_page: perPage })
+    if (category) params.set('category', category)
+    return api._req(`/api/v1/keyframes?${params}`)
+  },
+  getKeyframe: (id) => api._req(`/api/v1/keyframes/${id}`),
+  createKeyframe: (d) => api._req('/api/v1/keyframes', { method: 'POST', body: JSON.stringify(d) }),
+  updateKeyframe: (id, d) => api._req(`/api/v1/keyframes/${id}`, { method: 'PUT', body: JSON.stringify(d) }),
+  deleteKeyframe: (id) => api._req(`/api/v1/keyframes/${id}`, { method: 'DELETE' }),
+
+  // Style Compositions
   getStyleCompositions: (page = 1, perPage = 50) =>
     api._req(`/api/v1/style-compositions?page=${page}&per_page=${perPage}`),
   getStyleComposition: (id) => api._req(`/api/v1/style-compositions/${id}`),
+  createStyleComposition: (d) => api._req('/api/v1/style-compositions', { method: 'POST', body: JSON.stringify(d) }),
+  updateStyleComposition: (id, d) => api._req(`/api/v1/style-compositions/${id}`, { method: 'PUT', body: JSON.stringify(d) }),
+  deleteStyleComposition: (id) => api._req(`/api/v1/style-compositions/${id}`, { method: 'DELETE' }),
+
+  // Caption Templates
   getCaptionTemplates: (category, page = 1, perPage = 50) => {
     const params = new URLSearchParams({ page, per_page: perPage })
     if (category) params.set('category', category)
     return api._req(`/api/v1/caption-templates?${params}`)
   },
   getCaptionTemplate: (id) => api._req(`/api/v1/caption-templates/${id}`),
+  createCaptionTemplate: (d) => api._req('/api/v1/caption-templates', { method: 'POST', body: JSON.stringify(d) }),
+  updateCaptionTemplate: (id, d) => api._req(`/api/v1/caption-templates/${id}`, { method: 'PUT', body: JSON.stringify(d) }),
+  deleteCaptionTemplate: (id) => api._req(`/api/v1/caption-templates/${id}`, { method: 'DELETE' }),
+
+  // Hook Templates
   getHookTemplates: (category, page = 1, perPage = 50) => {
     const params = new URLSearchParams({ page, per_page: perPage })
     if (category) params.set('category', category)
     return api._req(`/api/v1/hook-templates?${params}`)
   },
   getHookTemplate: (id) => api._req(`/api/v1/hook-templates/${id}`),
+  createHookTemplate: (d) => api._req('/api/v1/hook-templates', { method: 'POST', body: JSON.stringify(d) }),
+  updateHookTemplate: (id, d) => api._req(`/api/v1/hook-templates/${id}`, { method: 'PUT', body: JSON.stringify(d) }),
+  deleteHookTemplate: (id) => api._req(`/api/v1/hook-templates/${id}`, { method: 'DELETE' }),
 
   // ─── Remotion Templates (legacy) ───────────────────────────────────────────
   getRemotionCaptionTemplates: (category) => {

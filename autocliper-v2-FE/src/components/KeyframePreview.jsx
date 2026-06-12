@@ -324,13 +324,15 @@ export default function KeyframePreview({
     }, [templateKey])
 
     return (
-        <div className="relative flex flex-col items-center">
-            {/* Phone-shaped container: 9:16 aspect ratio */}
+        <div className="relative flex flex-col items-center w-full h-full">
+            {/* Phone-shaped container: 9:16 aspect ratio — fills parent if inside device frame */}
             <div
-                className="relative overflow-hidden rounded-2xl shadow-lg"
+                className="relative overflow-hidden rounded-2xl shadow-lg w-full h-full"
                 style={{
-                    width: 270,
-                    height: 480,
+                    minWidth: 240,
+                    minHeight: 426,
+                    maxWidth: 300,
+                    aspectRatio: '9/16',
                     background: 'linear-gradient(180deg, #1a1025 0%, #0d0a14 50%, #1a0f20 100%)',
                     border: '2px solid rgba(255, 255, 255, 0.08)',
                     boxShadow: '0 20px 50px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.04) inset',

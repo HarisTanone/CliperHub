@@ -358,22 +358,70 @@ class VideoProcessingPipeline:
         video_info = None
         
         try:
-            # 1. Get caption style from database
+            # 1. Resolve style templates (keyframe system first, then legacy fallback)
             logger.info("Step 1: Getting caption style from database")
             self._update_status(ProcessingState.PENDING, "Getting caption style")
             job_logger.log("Getting caption style from database", "fetching_video")
             
-            caption_repo = CaptionStyleRepository(session)
-            caption_style = caption_repo.get_by_id(job_request.caption_style)
-            if not caption_style:
-                raise ValueError(f"Caption style {job_request.caption_style} not found")
-
-            # Load hook style if provided
+            # Try keyframe system first
+            use_keyframe_system = False
+            caption_template = None
+            hook_template = None
+            keyframe_data_cache = {}
+            kf_caption_template_id = None
+            kf_hook_template_id = None
+            kf_style_composition_id = None
+            
+            if (job_request.caption_template_id or job_request.hook_template_id 
+                or job_request.style_composition_id):
+                try:
+                    (kf_caption_template_id, kf_hook_template_id, kf_style_composition_id,
+                     caption_template, hook_template, keyframe_data_cache
+                    ) = self._resolve_keyframe_templates(job_request, session)
+                    
+                    if caption_template or hook_template:
+                        use_keyframe_system = True
+                        logger.info(f"[Keyframe] Using keyframe system: caption_template={kf_caption_template_id}, hook_template={kf_hook_template_id}")
+                except Exception as e:
+                    logger.warning(f"[Keyframe] Failed to resolve keyframe templates: {e}, falling back to legacy")
+            
+            # Legacy fallback: load from old caption_styles table
+            caption_style = None
             hook_style = None
-            if job_request.hook_style_id:
+            
+            if not use_keyframe_system:
+                try:
+                    caption_repo = CaptionStyleRepository(session)
+                    caption_style = caption_repo.get_by_id(job_request.caption_style)
+                    if not caption_style:
+                        # If legacy also fails, try resolving from keyframe with default composition
+                        logger.info("[Legacy] Caption style not found, attempting keyframe default")
+                        (kf_caption_template_id, kf_hook_template_id, kf_style_composition_id,
+                         caption_template, hook_template, keyframe_data_cache
+                        ) = self._resolve_keyframe_templates(job_request, session)
+                        if caption_template or hook_template:
+                            use_keyframe_system = True
+                            logger.info(f"[Keyframe] Resolved via default composition: caption={kf_caption_template_id}, hook={kf_hook_template_id}")
+                        else:
+                            raise ValueError(f"Caption style {job_request.caption_style} not found and no keyframe default available")
+                except ValueError:
+                    raise
+                except Exception as e:
+                    # Table might not exist (dropped) — try keyframe system
+                    logger.warning(f"[Legacy] Failed to load caption_style: {e}, trying keyframe system")
+                    (kf_caption_template_id, kf_hook_template_id, kf_style_composition_id,
+                     caption_template, hook_template, keyframe_data_cache
+                    ) = self._resolve_keyframe_templates(job_request, session)
+                    if caption_template or hook_template:
+                        use_keyframe_system = True
+                    else:
+                        raise ValueError(f"No style available: legacy table missing and no keyframe templates found")
+
+            # Load hook style (legacy) if not using keyframe
+            if not use_keyframe_system and job_request.hook_style_id:
                 hook_style = HookStyleRepository(session).get_by_id(job_request.hook_style_id)
                 if not hook_style:
-                    raise ValueError(f"Hook style {job_request.hook_style_id} not found")
+                    logger.warning(f"Hook style {job_request.hook_style_id} not found, continuing without hook")
 
             request_log_repo = RequestLogRepository(session)
             
@@ -466,13 +514,20 @@ class VideoProcessingPipeline:
             logger.info("Step 5: Saving to database")
             job_logger.log("Saving AI results to database")
             
-            # 5a. Resolve keyframe templates (new system)
-            (resolved_caption_template_id,
-             resolved_hook_template_id,
-             resolved_style_composition_id,
-             kf_caption_template,
-             kf_hook_template,
-             keyframe_data_cache) = self._resolve_keyframe_templates(job_request, session)
+            # 5a. Use already-resolved keyframe templates from Step 1 (or re-resolve if not yet done)
+            if use_keyframe_system:
+                resolved_caption_template_id = kf_caption_template_id
+                resolved_hook_template_id = kf_hook_template_id
+                resolved_style_composition_id = kf_style_composition_id
+                kf_caption_template = caption_template
+                kf_hook_template = hook_template
+            else:
+                (resolved_caption_template_id,
+                 resolved_hook_template_id,
+                 resolved_style_composition_id,
+                 kf_caption_template,
+                 kf_hook_template,
+                 keyframe_data_cache) = self._resolve_keyframe_templates(job_request, session)
             
             # Store keyframe template context on overlay_renderer for use during clip processing
             self.overlay_renderer._kf_caption_template = kf_caption_template

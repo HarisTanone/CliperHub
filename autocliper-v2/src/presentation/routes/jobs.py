@@ -271,6 +271,7 @@ async def create_job(
         # Get effective IDs (support both legacy caption_style and new caption_template_id)
         caption_id = request.effective_caption_id
         hook_id = request.effective_hook_id
+        style_composition_id = request.style_composition_id
         
         # Process each URL
         results = []
@@ -293,7 +294,10 @@ async def create_job(
                 caption_style=caption_id or 1,
                 user_id=user_id,
                 hook_style_id=hook_id,
-                resolution=request.resolution or "9:16"
+                resolution=request.resolution or "9:16",
+                caption_template_id=request.caption_template_id,
+                hook_template_id=request.hook_template_id,
+                style_composition_id=style_composition_id,
             )
             job_queue.enqueue(QueuedJob(job_request=job_request))
             results.append({"url": url, "status": "accepted", "message": "Job queued"})
@@ -527,6 +531,9 @@ async def retry_failed_job(job_id: int, current: dict = Depends(get_current_user
             caption_style=log.caption_style_id,
             user_id=log.user_id,
             hook_style_id=log.hook_style_id,
+            caption_template_id=getattr(log, 'caption_template_id', None),
+            hook_template_id=getattr(log, 'hook_template_id', None),
+            style_composition_id=getattr(log, 'style_composition_id', None),
         )
         job_queue.enqueue(QueuedJob(job_request=job_request))
         
@@ -1231,6 +1238,9 @@ async def process_selected_clips(
             user_id=user_id,
             hook_style_id=hook_id,
             resolution=request.resolution or "9:16",
+            caption_template_id=request.caption_template_id,
+            hook_template_id=request.hook_template_id,
+            style_composition_id=getattr(request, 'style_composition_id', None),
         )
         job_request._selected_indices = request.selected_indices
         job_request._edited_hooks = request.edited_hooks

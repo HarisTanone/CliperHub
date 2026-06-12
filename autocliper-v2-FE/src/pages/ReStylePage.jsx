@@ -63,7 +63,7 @@ export default function ReStylePage() {
                 } catch { /* ignore */ }
             }
             setThumbnailUrls(thumbs)
-        } catch (e) {
+        } catch {
             toast.error('Failed to load data')
         } finally {
             setLoading(false)
@@ -192,8 +192,9 @@ export default function ReStylePage() {
     }
 
     return (
-        <div className="flex-1 overflow-y-auto" style={{ background: 'var(--color-bg-primary)' }}>
-            <div className="max-w-7xl mx-auto p-4 md:p-6 lg:p-8">
+        <div className="flex-1 flex overflow-hidden" style={{ background: 'var(--color-bg-primary)' }}>
+            {/* ─── Left Column: Scrollable content (clips + styles) ─── */}
+            <div className="flex-1 min-w-0 overflow-y-auto p-4 md:p-6 lg:p-8">
                 {/* Header */}
                 <motion.div
                     className="flex items-center gap-3 mb-6"
@@ -211,288 +212,231 @@ export default function ReStylePage() {
                     </div>
                 </motion.div>
 
-                {/* Main Layout: left clips list, right style+preview */}
-                <div className="flex flex-col lg:flex-row gap-6">
-                    {/* Left: Completed Clips List */}
-                    <motion.div
-                        className="lg:w-[340px] xl:w-[380px] flex-shrink-0 space-y-3"
-                        initial={{ opacity: 0, x: -20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: 0.1 }}
-                    >
-                        <div className="flex items-center justify-between">
-                            <h2 className="text-xs font-bold uppercase tracking-wider" style={{ color: 'var(--color-text-muted)' }}>
-                                Completed Clips ({filteredJobs.length})
-                            </h2>
-                        </div>
+                {/* Clip Selection */}
+                <div className="space-y-3 mb-6">
+                    <div className="flex items-center justify-between">
+                        <h2 className="text-xs font-bold uppercase tracking-wider" style={{ color: 'var(--color-text-muted)' }}>
+                            Completed Clips ({filteredJobs.length})
+                        </h2>
+                    </div>
+                    <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 material-symbols-outlined text-[14px]" style={{ color: 'var(--color-text-muted)' }}>search</span>
+                        <input value={searchJobs} onChange={e => setSearchJobs(e.target.value)}
+                            placeholder="Search by title or URL..."
+                            className="w-full pl-9 pr-3 py-2.5 text-xs rounded-xl outline-none"
+                            style={{ background: 'var(--color-bg-input)', border: '1px solid var(--color-border-default)', color: 'var(--color-text-primary)' }}
+                            aria-label="Search completed clips" />
+                    </div>
+                    <div className="space-y-2 max-h-[240px] overflow-y-auto pr-1">
+                        <AnimatePresence>
+                            {filteredJobs.map((job, i) => (
+                                <ClipListItem key={job.id} job={job} thumbnail={thumbnailUrls[job.id]}
+                                    isSelected={selectedJob?.id === job.id} onClick={() => setSelectedJob(job)} delay={i * 0.03} />
+                            ))}
+                        </AnimatePresence>
+                        {filteredJobs.length === 0 && (
+                            <p className="text-center text-xs py-6" style={{ color: 'var(--color-text-muted)' }}>No clips match your search</p>
+                        )}
+                    </div>
+                </div>
 
-                        {/* Search */}
-                        <div className="relative">
-                            <span className="absolute left-3 top-1/2 -translate-y-1/2 material-symbols-outlined text-[14px]" style={{ color: 'var(--color-text-muted)' }}>search</span>
-                            <input
-                                value={searchJobs}
-                                onChange={e => setSearchJobs(e.target.value)}
-                                placeholder="Search by title or URL..."
-                                className="w-full pl-9 pr-3 py-2 text-xs rounded-lg outline-none"
-                                style={{ background: 'var(--color-bg-input)', border: '1px solid var(--color-border-subtle)', color: 'var(--color-text-primary)' }}
-                                aria-label="Search completed clips"
-                            />
-                        </div>
+                {/* Style Selection */}
+                {selectedJob && (
+                    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
+                        {/* Style card */}
+                        <div className="rounded-2xl overflow-hidden" style={{ background: 'var(--color-bg-card)', border: '1px solid var(--color-border-subtle)' }}>
+                            <div className="px-4 py-3 flex items-center justify-between" style={{ borderBottom: '1px solid var(--color-border-subtle)' }}>
+                                <h3 className="text-xs font-bold flex items-center gap-2" style={{ color: 'var(--color-text-primary)' }}>
+                                    <span className="material-symbols-outlined text-[16px]" style={{ color: 'var(--color-accent)' }}>palette</span>
+                                    {advancedMode ? 'Select Templates' : 'Style Presets'}
+                                </h3>
+                                <button onClick={() => setAdvancedMode(!advancedMode)}
+                                    className="text-[10px] font-semibold px-3 py-1.5 rounded-lg transition-all flex items-center gap-1"
+                                    style={{
+                                        background: advancedMode ? 'var(--color-accent-subtle)' : 'transparent',
+                                        color: advancedMode ? 'var(--color-accent)' : 'var(--color-text-muted)',
+                                        border: `1px solid ${advancedMode ? 'var(--color-accent-border)' : 'var(--color-border-subtle)'}`
+                                    }}>
+                                    <span className="material-symbols-outlined text-[12px]">tune</span>
+                                    Advanced
+                                </button>
+                            </div>
 
-                        {/* Scrollable clip list */}
-                        <div className="space-y-2 max-h-[calc(100vh-260px)] overflow-y-auto pr-1">
-                            <AnimatePresence>
-                                {filteredJobs.map((job, i) => (
-                                    <ClipListItem
-                                        key={job.id}
-                                        job={job}
-                                        thumbnail={thumbnailUrls[job.id]}
-                                        isSelected={selectedJob?.id === job.id}
-                                        onClick={() => setSelectedJob(job)}
-                                        delay={i * 0.03}
-                                    />
-                                ))}
-                            </AnimatePresence>
-                            {filteredJobs.length === 0 && (
-                                <p className="text-center text-xs py-8" style={{ color: 'var(--color-text-muted)' }}>No clips match your search</p>
-                            )}
-                        </div>
-                    </motion.div>
-
-                    {/* Right: Style Selection + Preview */}
-                    <motion.div
-                        className="flex-1 min-w-0 space-y-5"
-                        initial={{ opacity: 0, x: 20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: 0.2 }}
-                    >
-                        {!selectedJob ? (
-                            <div className="flex items-center justify-center h-[400px] rounded-2xl" style={{ background: 'var(--color-surface-1)', border: '1px dashed var(--color-border-subtle)' }}>
-                                <div className="text-center space-y-2">
-                                    <span className="material-symbols-outlined text-4xl" style={{ color: 'var(--color-text-muted)' }}>touch_app</span>
-                                    <p className="text-sm font-medium" style={{ color: 'var(--color-text-muted)' }}>Select a clip to re-style</p>
+                            <div className="px-4 pt-3 flex items-center gap-2">
+                                <div className="relative flex-1">
+                                    <span className="absolute left-3 top-1/2 -translate-y-1/2 material-symbols-outlined text-[14px]" style={{ color: 'var(--color-text-muted)' }}>search</span>
+                                    <input value={styleSearch} onChange={e => setStyleSearch(e.target.value)}
+                                        placeholder={advancedMode ? "Search templates..." : "Search presets..."}
+                                        className="w-full pl-9 pr-3 py-2 text-xs rounded-lg outline-none"
+                                        style={{ background: 'var(--color-bg-input)', border: '1px solid var(--color-border-subtle)', color: 'var(--color-text-primary)' }} />
+                                </div>
+                                <div className="flex items-center gap-1">
+                                    <button onClick={() => setStylePage(p => Math.max(0, p - 1))} disabled={stylePage === 0}
+                                        className="w-7 h-7 rounded-lg flex items-center justify-center disabled:opacity-30"
+                                        style={{ border: '1px solid var(--color-border-subtle)' }}>
+                                        <span className="material-symbols-outlined text-[14px]" style={{ color: 'var(--color-text-muted)' }}>chevron_left</span>
+                                    </button>
+                                    <span className="text-[9px] tabular-nums min-w-[28px] text-center" style={{ color: 'var(--color-text-muted)' }}>{stylePage + 1}/{styleTotalPages}</span>
+                                    <button onClick={() => setStylePage(p => Math.min(styleTotalPages - 1, p + 1))} disabled={stylePage >= styleTotalPages - 1}
+                                        className="w-7 h-7 rounded-lg flex items-center justify-center disabled:opacity-30"
+                                        style={{ border: '1px solid var(--color-border-subtle)' }}>
+                                        <span className="material-symbols-outlined text-[14px]" style={{ color: 'var(--color-text-muted)' }}>chevron_right</span>
+                                    </button>
                                 </div>
                             </div>
-                        ) : (
-                            <>
-                                {/* Side-by-side preview */}
-                                <div className="rounded-2xl p-4" style={{ background: 'var(--color-bg-card)', border: '1px solid var(--color-border-subtle)' }}>
-                                    <div className="flex items-center gap-2 mb-4">
-                                        <span className="material-symbols-outlined text-[16px]" style={{ color: 'var(--color-accent)' }}>compare</span>
-                                        <h3 className="text-xs font-bold" style={{ color: 'var(--color-text-primary)' }}>Preview Comparison</h3>
-                                    </div>
 
-                                    <div className="grid grid-cols-2 gap-4">
-                                        {/* Original thumbnail (static) */}
-                                        <div className="space-y-2">
-                                            <p className="text-[10px] font-semibold text-center uppercase tracking-wider" style={{ color: 'var(--color-text-muted)' }}>Original</p>
-                                            <div className="rounded-xl overflow-hidden relative" style={{ aspectRatio: '9/16', background: 'linear-gradient(135deg, #1a1025, #0d0a14)' }}>
-                                                {thumbnailUrls[selectedJob.id] ? (
-                                                    <img src={thumbnailUrls[selectedJob.id]} alt="Original clip thumbnail" className="w-full h-full object-cover" />
-                                                ) : (
-                                                    <div className="w-full h-full flex items-center justify-center">
-                                                        <span className="material-symbols-outlined text-3xl" style={{ color: 'var(--color-text-muted)' }}>movie</span>
-                                                    </div>
-                                                )}
-                                                <div className="absolute top-2 left-2 text-[8px] font-bold text-white px-1.5 py-0.5 rounded-full" style={{ background: 'rgba(0,0,0,0.6)' }}>
-                                                    Current
+                            <div className="p-4">
+                                <AnimatePresence mode="wait">
+                                    {!advancedMode ? (
+                                        <motion.div key="compositions" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+                                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                                                {visibleStyles.map((comp, i) => (
+                                                    <StyleCompositionCard key={comp.id} composition={comp} isActive={selectedComp?.id === comp.id}
+                                                        onClick={() => handleSelectComposition(comp)} delay={i * 0.03}
+                                                        captionTemplates={captionTemplates} hookTemplates={hookTemplates} />
+                                                ))}
+                                            </div>
+                                            {filteredStyles.length === 0 && (
+                                                <p className="text-center text-xs py-6" style={{ color: 'var(--color-text-muted)' }}>No style presets found</p>
+                                            )}
+                                        </motion.div>
+                                    ) : (
+                                        <motion.div key="advanced" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-4">
+                                            <div>
+                                                <p className="text-[10px] font-semibold mb-2 flex items-center gap-1" style={{ color: 'var(--color-text-secondary)' }}>
+                                                    <span className="material-symbols-outlined text-[12px]" style={{ color: 'var(--color-accent)' }}>subtitles</span>
+                                                    Caption Template
+                                                </p>
+                                                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                                                    {visibleStyles.map((tpl, i) => (
+                                                        <TemplateCard key={tpl.id} template={tpl} isActive={selectedCaptionTpl?.id === tpl.id}
+                                                            onClick={() => { setSelectedCaptionTpl(tpl); setSelectedComp(null) }} delay={i * 0.03} />
+                                                    ))}
                                                 </div>
                                             </div>
-                                        </div>
+                                            <div>
+                                                <p className="text-[10px] font-semibold mb-2 flex items-center gap-1" style={{ color: 'var(--color-text-secondary)' }}>
+                                                    <span className="material-symbols-outlined text-[12px]" style={{ color: 'var(--color-accent)' }}>format_quote</span>
+                                                    Hook Template
+                                                    <button onClick={() => setSelectedHookTpl(null)}
+                                                        className="ml-auto text-[9px] px-2 py-0.5 rounded"
+                                                        style={{ background: !selectedHookTpl ? 'var(--color-accent-subtle)' : 'var(--color-surface-1)', color: !selectedHookTpl ? 'var(--color-accent)' : 'var(--color-text-muted)' }}>
+                                                        None
+                                                    </button>
+                                                </p>
+                                                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                                                    {hookTemplates.slice(0, 6).map((tpl, i) => (
+                                                        <TemplateCard key={tpl.id} template={tpl} isActive={selectedHookTpl?.id === tpl.id}
+                                                            onClick={() => { setSelectedHookTpl(tpl); setSelectedComp(null) }} delay={i * 0.03} />
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        </motion.div>
+                                    )}
+                                </AnimatePresence>
+                            </div>
+                        </div>
 
-                                        {/* New style animated preview */}
-                                        <div className="space-y-2">
-                                            <p className="text-[10px] font-semibold text-center uppercase tracking-wider" style={{ color: 'var(--color-accent)' }}>New Style</p>
-                                            <div className="rounded-xl overflow-hidden">
-                                                {previewHookTemplate ? (
-                                                    <KeyframePreview
-                                                        template={previewHookTemplate}
-                                                        type="hook"
-                                                        text={selectedJobHookText}
-                                                        loop={true}
-                                                    />
-                                                ) : previewCaptionTemplate ? (
-                                                    <KeyframePreview
-                                                        template={previewCaptionTemplate}
-                                                        type="caption"
-                                                        words={selectedJobHookText.split(' ').slice(0, 5)}
-                                                        loop={true}
-                                                    />
-                                                ) : (
-                                                    <div className="flex items-center justify-center" style={{ aspectRatio: '9/16', background: 'linear-gradient(135deg, #1a1025, #0d0a14)' }}>
-                                                        <p className="text-[10px] text-center px-4" style={{ color: 'var(--color-text-muted)' }}>Select a style to see preview</p>
-                                                    </div>
-                                                )}
+                        {/* Apply Button */}
+                        <motion.button onClick={handleRestyle}
+                            disabled={applying || (!selectedComp && !selectedCaptionTpl && !selectedHookTpl)}
+                            className="w-full py-3.5 rounded-xl font-semibold text-sm flex items-center justify-center gap-2.5 transition-all"
+                            style={{
+                                background: (selectedComp || selectedCaptionTpl || selectedHookTpl) && !applying ? 'var(--btn-primary-bg)' : 'var(--color-surface-1)',
+                                color: (selectedComp || selectedCaptionTpl || selectedHookTpl) && !applying ? 'var(--btn-primary-text)' : 'var(--color-text-muted)',
+                                boxShadow: (selectedComp || selectedCaptionTpl || selectedHookTpl) && !applying ? 'var(--btn-primary-shadow)' : 'none',
+                                cursor: applying || (!selectedComp && !selectedCaptionTpl && !selectedHookTpl) ? 'not-allowed' : 'pointer',
+                            }}
+                            whileHover={(selectedComp || selectedCaptionTpl || selectedHookTpl) && !applying ? { scale: 1.01 } : {}}>
+                            {applying ? (
+                                <><motion.div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full" animate={{ rotate: 360 }} transition={{ duration: 0.7, repeat: Infinity, ease: 'linear' }} />Re-styling...</>
+                            ) : (
+                                <><span className="material-symbols-outlined text-[18px]">auto_awesome</span>Apply Re-Style</>
+                            )}
+                        </motion.button>
+
+                        {/* Info note */}
+                        <div className="rounded-xl p-3 flex items-start gap-2" style={{ background: 'var(--color-info-bg)', border: '1px solid var(--color-info-border)' }}>
+                            <span className="material-symbols-outlined text-[13px] mt-0.5 flex-shrink-0" style={{ color: 'var(--color-info-text)' }}>tips_and_updates</span>
+                            <p className="text-[10px] leading-relaxed" style={{ color: 'var(--color-info-text)' }}>
+                                Re-style menggunakan teks hook yang sudah ada — tidak memanggil AI ulang.
+                                Output baru disimpan terpisah tanpa menimpa file asli.
+                            </p>
+                        </div>
+                    </motion.div>
+                )}
+
+                {!selectedJob && (
+                    <div className="flex items-center justify-center h-[200px] rounded-2xl" style={{ background: 'var(--color-surface-1)', border: '1px dashed var(--color-border-subtle)' }}>
+                        <div className="text-center space-y-2">
+                            <span className="material-symbols-outlined text-3xl" style={{ color: 'var(--color-text-muted)' }}>touch_app</span>
+                            <p className="text-sm font-medium" style={{ color: 'var(--color-text-muted)' }}>Select a clip above to re-style</p>
+                        </div>
+                    </div>
+                )}
+            </div>
+
+            {/* ─── Right Column: Sticky Device Preview (Google Pixel 7 Pro) ─── */}
+            <div className="hidden lg:flex w-[340px] xl:w-[380px] flex-shrink-0 items-start justify-center p-6"
+                style={{ borderLeft: '1px solid var(--color-border-subtle)' }}>
+                <div className="sticky top-6 flex flex-col items-center gap-4">
+                    <div className="flex items-center gap-2">
+                        <span className="material-symbols-outlined text-[14px]" style={{ color: 'var(--color-text-muted)' }}>phone_android</span>
+                        <span className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: 'var(--color-text-muted)' }}>Google Pixel 7 Pro</span>
+                    </div>
+
+                    {/* Device Frame */}
+                    <div className="relative">
+                        <div className="rounded-[2.5rem] p-[3px]"
+                            style={{ background: 'linear-gradient(145deg, #2a2a2a, #1a1a1a)', boxShadow: '0 25px 60px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.05) inset' }}>
+                            <div className="rounded-[2.3rem] overflow-hidden relative"
+                                style={{ width: 280, height: 600, background: 'linear-gradient(180deg, #1a1025 0%, #0d0a14 50%, #1a0f20 100%)' }}>
+                                <div className="absolute top-0 left-0 right-0 h-7 flex items-center justify-between px-5 z-30">
+                                    <span className="text-[9px] font-medium text-white/50">9:41</span>
+                                    <div className="flex items-center gap-1"><span className="text-[8px] text-white/50">●●●</span></div>
+                                </div>
+                                <div className="absolute top-2.5 left-1/2 -translate-x-1/2 w-5 h-5 rounded-full z-30"
+                                    style={{ background: 'radial-gradient(circle, #111 40%, #000 70%)' }} />
+
+                                <div className="absolute inset-0 z-10">
+                                    {previewHookTemplate ? (
+                                        <KeyframePreview template={previewHookTemplate} type="hook"
+                                            text={selectedJobHookText} loop={true} />
+                                    ) : previewCaptionTemplate ? (
+                                        <KeyframePreview template={previewCaptionTemplate} type="caption"
+                                            words={selectedJobHookText.split(' ').slice(0, 5)} loop={true} />
+                                    ) : (
+                                        <div className="absolute inset-0 flex items-center justify-center">
+                                            <div className="text-center space-y-3 px-6">
+                                                <span className="material-symbols-outlined text-3xl" style={{ color: 'rgba(255,255,255,0.2)' }}>touch_app</span>
+                                                <p className="text-[11px]" style={{ color: 'rgba(255,255,255,0.3)' }}>Select a style to preview</p>
                                             </div>
                                         </div>
-                                    </div>
-                                </div>
-
-                                {/* Style Selection Panel */}
-                                <div className="rounded-2xl overflow-hidden" style={{ background: 'var(--color-bg-card)', border: '1px solid var(--color-border-subtle)' }}>
-                                    {/* Header with mode toggle */}
-                                    <div className="px-4 py-3 flex items-center justify-between" style={{ borderBottom: '1px solid var(--color-border-subtle)' }}>
-                                        <h3 className="text-xs font-bold flex items-center gap-2" style={{ color: 'var(--color-text-primary)' }}>
-                                            <span className="material-symbols-outlined text-[16px]" style={{ color: 'var(--color-accent)' }}>palette</span>
-                                            {advancedMode ? 'Select Templates' : 'Style Presets'}
-                                        </h3>
-                                        <button
-                                            onClick={() => setAdvancedMode(!advancedMode)}
-                                            className="text-[10px] font-semibold px-3 py-1.5 rounded-lg transition-all flex items-center gap-1"
-                                            style={{
-                                                background: advancedMode ? 'var(--color-accent-subtle)' : 'transparent',
-                                                color: advancedMode ? 'var(--color-accent)' : 'var(--color-text-muted)',
-                                                border: `1px solid ${advancedMode ? 'var(--color-accent-border)' : 'var(--color-border-subtle)'}`
-                                            }}
-                                        >
-                                            <span className="material-symbols-outlined text-[12px]">tune</span>
-                                            Advanced
-                                        </button>
-                                    </div>
-
-                                    {/* Search + Pagination */}
-                                    <div className="px-4 pt-3 flex items-center gap-2">
-                                        <div className="relative flex-1">
-                                            <span className="absolute left-3 top-1/2 -translate-y-1/2 material-symbols-outlined text-[14px]" style={{ color: 'var(--color-text-muted)' }}>search</span>
-                                            <input
-                                                value={styleSearch}
-                                                onChange={e => setStyleSearch(e.target.value)}
-                                                placeholder={advancedMode ? "Search templates..." : "Search style presets..."}
-                                                className="w-full pl-9 pr-3 py-2 text-xs rounded-lg outline-none"
-                                                style={{ background: 'var(--color-bg-input)', border: '1px solid var(--color-border-subtle)', color: 'var(--color-text-primary)' }}
-                                                aria-label="Search styles"
-                                            />
-                                        </div>
-                                        <div className="flex items-center gap-1">
-                                            <button onClick={() => setStylePage(p => Math.max(0, p - 1))} disabled={stylePage === 0}
-                                                className="w-7 h-7 rounded-lg flex items-center justify-center disabled:opacity-30 transition-all hover:bg-[var(--color-surface-2)]"
-                                                style={{ border: '1px solid var(--color-border-subtle)' }}>
-                                                <span className="material-symbols-outlined text-[14px]" style={{ color: 'var(--color-text-muted)' }}>chevron_left</span>
-                                            </button>
-                                            <span className="text-[9px] tabular-nums min-w-[28px] text-center" style={{ color: 'var(--color-text-muted)' }}>{stylePage + 1}/{styleTotalPages}</span>
-                                            <button onClick={() => setStylePage(p => Math.min(styleTotalPages - 1, p + 1))} disabled={stylePage >= styleTotalPages - 1}
-                                                className="w-7 h-7 rounded-lg flex items-center justify-center disabled:opacity-30 transition-all hover:bg-[var(--color-surface-2)]"
-                                                style={{ border: '1px solid var(--color-border-subtle)' }}>
-                                                <span className="material-symbols-outlined text-[14px]" style={{ color: 'var(--color-text-muted)' }}>chevron_right</span>
-                                            </button>
-                                        </div>
-                                    </div>
-
-                                    {/* Style Grid */}
-                                    <div className="p-4">
-                                        <AnimatePresence mode="wait">
-                                            {!advancedMode ? (
-                                                <motion.div key="compositions" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-                                                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
-                                                        {visibleStyles.map((comp, i) => (
-                                                            <StyleCompositionCard
-                                                                key={comp.id}
-                                                                composition={comp}
-                                                                isActive={selectedComp?.id === comp.id}
-                                                                onClick={() => handleSelectComposition(comp)}
-                                                                delay={i * 0.03}
-                                                                captionTemplates={captionTemplates}
-                                                                hookTemplates={hookTemplates}
-                                                            />
-                                                        ))}
-                                                    </div>
-                                                    {filteredStyles.length === 0 && (
-                                                        <p className="text-center text-xs py-6" style={{ color: 'var(--color-text-muted)' }}>No style presets found</p>
-                                                    )}
-                                                </motion.div>
-                                            ) : (
-                                                <motion.div key="advanced" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-4">
-                                                    {/* Caption Templates */}
-                                                    <div>
-                                                        <p className="text-[10px] font-semibold mb-2 flex items-center gap-1" style={{ color: 'var(--color-text-secondary)' }}>
-                                                            <span className="material-symbols-outlined text-[12px]" style={{ color: 'var(--color-accent)' }}>subtitles</span>
-                                                            Caption Template
-                                                        </p>
-                                                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                                                            {visibleStyles.map((tpl, i) => (
-                                                                <TemplateCard
-                                                                    key={tpl.id}
-                                                                    template={tpl}
-                                                                    isActive={selectedCaptionTpl?.id === tpl.id}
-                                                                    onClick={() => { setSelectedCaptionTpl(tpl); setSelectedComp(null) }}
-                                                                    delay={i * 0.03}
-                                                                />
-                                                            ))}
-                                                        </div>
-                                                    </div>
-
-                                                    {/* Hook Templates */}
-                                                    <div>
-                                                        <p className="text-[10px] font-semibold mb-2 flex items-center gap-1" style={{ color: 'var(--color-text-secondary)' }}>
-                                                            <span className="material-symbols-outlined text-[12px]" style={{ color: 'var(--color-accent)' }}>format_quote</span>
-                                                            Hook Template
-                                                            <button onClick={() => setSelectedHookTpl(null)}
-                                                                className="ml-auto text-[9px] px-2 py-0.5 rounded"
-                                                                style={{ background: !selectedHookTpl ? 'var(--color-accent-subtle)' : 'var(--color-surface-1)', color: !selectedHookTpl ? 'var(--color-accent)' : 'var(--color-text-muted)' }}>
-                                                                None
-                                                            </button>
-                                                        </p>
-                                                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                                                            {hookTemplates.slice(0, 6).map((tpl, i) => (
-                                                                <TemplateCard
-                                                                    key={tpl.id}
-                                                                    template={tpl}
-                                                                    isActive={selectedHookTpl?.id === tpl.id}
-                                                                    onClick={() => { setSelectedHookTpl(tpl); setSelectedComp(null) }}
-                                                                    delay={i * 0.03}
-                                                                />
-                                                            ))}
-                                                        </div>
-                                                    </div>
-                                                </motion.div>
-                                            )}
-                                        </AnimatePresence>
-                                    </div>
-                                </div>
-
-                                {/* Apply Re-Style Button */}
-                                <motion.button
-                                    onClick={handleRestyle}
-                                    disabled={applying || (!selectedComp && !selectedCaptionTpl && !selectedHookTpl)}
-                                    className="w-full py-3.5 rounded-xl font-semibold text-sm flex items-center justify-center gap-2.5 transition-all"
-                                    style={{
-                                        background: (selectedComp || selectedCaptionTpl || selectedHookTpl) && !applying ? 'var(--btn-primary-bg)' : 'var(--color-surface-1)',
-                                        color: (selectedComp || selectedCaptionTpl || selectedHookTpl) && !applying ? 'var(--btn-primary-text)' : 'var(--color-text-muted)',
-                                        boxShadow: (selectedComp || selectedCaptionTpl || selectedHookTpl) && !applying ? 'var(--btn-primary-shadow)' : 'none',
-                                        cursor: applying || (!selectedComp && !selectedCaptionTpl && !selectedHookTpl) ? 'not-allowed' : 'pointer',
-                                        border: (selectedComp || selectedCaptionTpl || selectedHookTpl) && !applying ? 'none' : '1px solid var(--color-border-subtle)',
-                                    }}
-                                    whileHover={(selectedComp || selectedCaptionTpl || selectedHookTpl) && !applying ? { scale: 1.01, y: -1 } : {}}
-                                    whileTap={(selectedComp || selectedCaptionTpl || selectedHookTpl) && !applying ? { scale: 0.99 } : {}}
-                                >
-                                    {applying ? (
-                                        <>
-                                            <motion.div
-                                                className="w-4 h-4 border-2 border-white border-t-transparent rounded-full"
-                                                animate={{ rotate: 360 }}
-                                                transition={{ duration: 0.7, repeat: Infinity, ease: 'linear' }}
-                                            />
-                                            Re-styling clips...
-                                        </>
-                                    ) : (
-                                        <>
-                                            <span className="material-symbols-outlined text-[18px]">auto_awesome</span>
-                                            Apply Re-Style
-                                        </>
                                     )}
-                                </motion.button>
-
-                                {/* Info note */}
-                                <div className="rounded-xl p-3 flex items-start gap-2" style={{ background: 'var(--color-info-bg)', border: '1px solid var(--color-info-border)' }}>
-                                    <span className="material-symbols-outlined text-[13px] mt-0.5 flex-shrink-0" style={{ color: 'var(--color-info-text)' }}>tips_and_updates</span>
-                                    <p className="text-[10px] leading-relaxed" style={{ color: 'var(--color-info-text)' }}>
-                                        Re-style menggunakan teks hook yang sudah ada — tidak memanggil AI ulang.
-                                        Output baru disimpan terpisah tanpa menimpa file asli.
-                                    </p>
                                 </div>
-                            </>
-                        )}
-                    </motion.div>
+
+                                <div className="absolute bottom-1.5 left-1/2 -translate-x-1/2 w-[100px] h-[4px] rounded-full bg-white/20 z-20" />
+                            </div>
+                        </div>
+                        <div className="absolute right-[-2px] top-[120px] w-[3px] h-[40px] rounded-r-full" style={{ background: '#333' }} />
+                        <div className="absolute left-[-2px] top-[100px] w-[3px] h-[25px] rounded-l-full" style={{ background: '#333' }} />
+                        <div className="absolute left-[-2px] top-[140px] w-[3px] h-[50px] rounded-l-full" style={{ background: '#333' }} />
+                    </div>
+
+                    {/* Selected info */}
+                    {(selectedComp || selectedCaptionTpl || selectedHookTpl) && (
+                        <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+                            className="w-full rounded-xl p-3 space-y-1.5"
+                            style={{ background: 'var(--color-bg-card)', border: '1px solid var(--color-border-subtle)' }}>
+                            <div className="flex items-center justify-between">
+                                <p className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: 'var(--color-text-muted)' }}>New Style</p>
+                                <span className="w-2 h-2 rounded-full animate-pulse" style={{ background: 'var(--color-success-text)' }} />
+                            </div>
+                            <p className="text-xs font-semibold truncate" style={{ color: 'var(--color-text-primary)' }}>
+                                {selectedComp?.name || selectedCaptionTpl?.name || selectedHookTpl?.name}
+                            </p>
+                        </motion.div>
+                    )}
                 </div>
             </div>
         </div>
