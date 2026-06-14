@@ -233,3 +233,11 @@ ltm/runtime/*
 ltm/reports/*
 ltm/snapshots/*
 # --- /ltm-power ---
+
+# ===========================
+# Secrets / OAuth / API Keys
+# ===========================
+oauth_client.json
+**/oauth_client.json
+**/colab/worker.py
+autocliper-v2/test_gemini_hooks.py

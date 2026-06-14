@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+venv/
+.venv/
+*.egg-info/
+
+# Environment
+.env
+
+# Temp files
+tmp/
+*.m4a
+*.mp4
+
+# Credentials
+credentials.json
+*.json.key
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
